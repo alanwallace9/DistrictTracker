@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* OKLCH Color System - Dark Mode Default */
+    --bg-dark: oklch(0.18 0 0);
+    --bg: oklch(0.24 0 0);
+    --bg-light: oklch(0.4 0 0);
+    --text: oklch(0.94 0 0);
+    --text-muted: oklch(0.72 0 0);
+    --highlight: oklch(0.5 0 0);
+    --border: oklch(0.4 0 0);
+    --border-muted: oklch(0.3 0 0);
+    --primary: oklch(0.9 0.17 100);
+    --shadow: 0px 2px 2px oklch(0 0 0 / 0.25), 0px 4px 4px oklch(0 0 0 / 0.15);
+
+    /* Status colors */
+    --status-active: oklch(0.62 0.19 142);
+    --status-error: oklch(0.6 0.2 25);
+    --status-warning: oklch(0.7 0.15 65);
+    --status-success: oklch(0.5 0.15 145);
+    --status-former: oklch(0.58 0.18 260);
+
+    /* Utility */
+    --border-card: solid 1px var(--border-muted);
+    --gradient: linear-gradient(0deg, var(--bg) 97%, var(--bg-light));
+    --gradient-hover: linear-gradient(0deg, var(--bg), var(--bg-light));
+    --radius: 0.5rem;
+
+    /*Birdville ISD colors*/
+    --birdville-gold: oklch(0.6792 0.0889 85.34);
+    --birdville-blue: oklch(0.4426 0.134 261.58);
+    --birdville-light-gold: oklch(0.8744 0.0823 84.61);
+    --birdville-yellow: oklch(0.968 0.211 109.77);    
+    --birdville-green: oklch(0.5769 0.1538 146.35);
+    --birdville-red: oklch(0.628 0.2577 29.23);
+     
+    /* Shadcn component mappings */
+    --background: var(--bg-dark);
+    --foreground: var(--text);
+    --card: var(--bg);
+    --card-foreground: var(--text);
+    --popover: var(--bg);
+    --popover-foreground: var(--text);
+    --input: var(--bg-light);
+    --muted-foreground: var(--text-muted);
+    --primary: var(--primary);
+    --primary-foreground: var(--bg-dark);
+    --secondary: var(--bg-light);
+    --secondary-foreground: var(--text);
+    --muted: var(--bg-light);
+    --accent: var(--primary);
+    --accent-foreground: var(--bg-dark);
+    --destructive: var(--status-error);
+    --destructive-foreground: var(--text);
+    --ring: var(--highlight);
+  }
+
+  /* Light theme */
+  [data-theme="light"] {
+    /* OKLCH */
+    --bg-dark: oklch(0.96 0 0);
+    --bg: oklch(0.94 0 0);
+    --bg-light: oklch(0.98 0 0);
+
+    --text: oklch(0.14 0 0);
+    --text-muted: oklch(0.38 0 0);
+    --highlight: oklch(1 0 264);
+
+    --border: oklch(0.75 0 0);
+    --border-muted: oklch(0.78 0 0);
+
+    --primary: oklch(0.65 0.15 264);
+    --primary-foreground: oklch(1 0 0);
+
+    /* slightly softer shadows for light mode */
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.10), 0 2px 4px oklch(0 0 0 / 0.06);
+
+    /* Utility */
+    --border-card: solid 1px var(--bg);
+    --gradient: linear-gradient(0deg, var(--bg) 97%, var(--bg-light));
+    --gradient-hover: linear-gradient(0deg, var(--bg), var(--bg-light));
+
+    /* Override input for light mode to be lighter */
+   --input: var(--bg-light);
+  }
+
+  /* Accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Base styles */
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  }
+
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}

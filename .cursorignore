@@ -1,0 +1,85 @@
+# Cursor Ignore File
+# Files and directories listed here will be excluded from Cursor's indexing and search
+
+# Old code and marketing site - DO NOT REFERENCE
+Website/
+Zips/
+
+# Build and Dependencies
+.next/
+node_modules/
+.cache/
+dist/
+build/
+out/
+**/node_modules/
+**/.next/
+
+# Environment Files
+.env
+.env.local
+.env.production
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+.temp
+Temp/
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel/
+
+# Git
+.git/
+
+# Supabase local
+.supabase/
+
+# Bolt/MVP temporary files
+*.bolt.backup
+
+# Security audit files
+.agents/
+.specify/
+.docs/
+
+# Planning documents
+adminsettings.md
+docs/sessions/
+docs/features/
+docs/security/
+docs/planning/
+CHANGELOG.md
+CLAUDE.md
+TODO.md

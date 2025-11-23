@@ -1,0 +1,99 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Old code and marketing site - DO NOT INCLUDE IN BUILD
+Website/
+Zips/
+
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+**/node_modules/
+
+# testing
+coverage/
+
+# next.js
+.next/
+out/
+
+# production
+build/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env
+.env*.local
+.env.development
+.env.production
+
+# vercel
+.vercel
+*.vercel.json
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDEs and editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+.cursor
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+.cache
+.temp
+
+# Supabase local
+.supabase
+
+# Testing
+coverage/
+.nyc_output/
+
+# Bolt/MVP temporary files
+Temp/
+*.bolt.backup
+
+# Security audit files (may contain sensitive information)
+.agents/
+.claude/
+.specify/
+.docs/
+
+# Planning documents (internal use only)
+adminsettings.md
+docs/sessions/*.md
+docs/features/*.md
+docs/security/*.md
+docs/planning/*.md
+CHANGELOG.md
+CLAUDE.md
+TODO.md

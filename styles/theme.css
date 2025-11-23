@@ -1,0 +1,259 @@
+/**
+ * TrespassTracker Design System - Theme Tokens
+ *
+ * Version: 2.0 (Birdville MVP)
+ *
+ * ARCHITECTURE:
+ * - Neutral grayscale ramp (shared across all themes)
+ * - Semantic tokens that map to neutrals (theme-aware)
+ * - Light/Dark/System modes via data-theme attribute
+ * - Birdville accent colors (hardcoded for v2.0, will move to DB in v2.1)
+ *
+ * USAGE:
+ * - Apply theme via <html data-theme="light|dark|system">
+ * - Use semantic tokens in components: bg-[var(--surface-1)]
+ * - Never use neutral-* directly, always use semantic tokens
+ */
+
+@layer base {
+  :root {
+    /* ===================================================================
+       NEUTRAL GRAYSCALE RAMP (HSL)
+       Shared foundation for all themes
+       =================================================================== */
+
+    --neutral-50: 0 0% 98%;   /* Near white - lightest backgrounds */
+    --neutral-100: 0 0% 96%;  /* Very light gray */
+    --neutral-200: 0 0% 93%;  /* Light gray - subtle borders */
+    --neutral-300: 0 0% 89%;  /* Medium-light gray */
+    --neutral-400: 0 0% 80%;  /* Medium gray */
+    --neutral-500: 0 0% 68%;  /* Mid gray - disabled states */
+    --neutral-600: 0 0% 56%;  /* Medium-dark gray */
+    --neutral-700: 0 0% 44%;  /* Dark gray */
+    --neutral-800: 0 0% 32%;  /* Very dark gray */
+    --neutral-900: 0 0% 20%;  /* Near black - darkest backgrounds */
+
+    /* ===================================================================
+       BIRDVILLE ACCENT COLORS (Hardcoded for v2.0)
+       Primary brand color: #264F9C (blue)
+       Will be moved to district_themes table in v2.1
+       =================================================================== */
+
+    --accent-300: 219 61% 54%;   /* Lighter blue - hover states, highlights */
+    --accent-400: 219 61% 46%;   /* Light blue - focus rings, links */
+    --accent-500: 219 61% 38%;   /* Base blue #264F9C - primary actions */
+    --accent-600: 219 61% 31%;   /* Dark blue - active/pressed states */
+    --accent-700: 219 61% 24%;   /* Darker blue - subtle accents */
+
+    /* ===================================================================
+       STATUS COLORS
+       Consistent across all themes
+       =================================================================== */
+
+    --status-active: 141 58% 38%;    /* Green - active trespass records */
+    --status-inactive: var(--neutral-500);  /* Gray - inactive/expired */
+    --status-error: 0 84% 60%;       /* Red - errors, delete actions */
+    --status-warning: 38 92% 50%;    /* Orange - warnings */
+    --status-success: 141 58% 38%;   /* Green - success messages (same as active) */
+
+    /* ===================================================================
+       TYPOGRAPHY
+       Line heights for different text styles
+       =================================================================== */
+
+    --line-height-tight: 1.25;   /* Headers, titles */
+    --line-height-normal: 1.5;   /* Body text, paragraphs */
+    --line-height-relaxed: 1.75; /* Long-form content, descriptions */
+
+    /* ===================================================================
+       SPACING & LAYOUT
+       =================================================================== */
+
+    --radius: 0.5rem;  /* 8px - consistent border radius */
+  }
+
+  /* ===================================================================
+     LIGHT MODE (Default)
+     Bright backgrounds, dark text
+     =================================================================== */
+
+  :root,
+  [data-theme="light"] {
+    /* Surfaces (backgrounds) */
+    --surface-1: hsl(var(--neutral-50));   /* Main background - brightest */
+    --surface-2: hsl(var(--neutral-100));  /* Cards, panels - slightly darker */
+    --surface-3: hsl(var(--neutral-200));  /* Popovers, dropdowns - even darker */
+
+    /* Text colors */
+    --text-primary: hsl(var(--neutral-900));    /* Main text - darkest */
+    --text-secondary: hsl(var(--neutral-600));  /* Muted text, labels */
+    --text-tertiary: hsl(var(--neutral-500));   /* Placeholder text */
+    --text-on-accent: hsl(0 0% 100%);           /* White text on accent backgrounds */
+
+    /* Borders & dividers */
+    --border-subtle: hsl(var(--neutral-200));   /* Subtle borders, dividers */
+    --border-strong: hsl(var(--neutral-300));   /* Strong borders, focused inputs */
+
+    /* Interactive elements */
+    --focus-ring: hsl(var(--accent-400));       /* Focus outline color */
+
+    /* Input backgrounds */
+    --input-bg: hsl(var(--neutral-50));         /* Input field background */
+    --input-border: hsl(var(--neutral-200));    /* Input border */
+  }
+
+  /* ===================================================================
+     DARK MODE
+     Dark backgrounds, light text
+     =================================================================== */
+
+  [data-theme="dark"] {
+    /* Surfaces (backgrounds) - inverted */
+    --surface-1: hsl(var(--neutral-900));  /* Main background - darkest */
+    --surface-2: hsl(var(--neutral-800));  /* Cards, panels - slightly lighter */
+    --surface-3: hsl(var(--neutral-700));  /* Popovers, dropdowns - even lighter */
+
+    /* Text colors - inverted */
+    --text-primary: hsl(var(--neutral-50));     /* Main text - lightest */
+    --text-secondary: hsl(var(--neutral-400));  /* Muted text, labels */
+    --text-tertiary: hsl(var(--neutral-500));   /* Placeholder text */
+    --text-on-accent: hsl(0 0% 100%);           /* White text on accent backgrounds */
+
+    /* Borders & dividers */
+    --border-subtle: hsl(var(--neutral-700));   /* Subtle borders, dividers */
+    --border-strong: hsl(var(--neutral-600));   /* Strong borders, focused inputs */
+
+    /* Interactive elements */
+    --focus-ring: hsl(var(--accent-500));       /* Focus outline color (slightly brighter in dark) */
+
+    /* Input backgrounds */
+    --input-bg: hsl(var(--neutral-900));        /* Input field background */
+    --input-border: hsl(var(--neutral-700));    /* Input border */
+  }
+
+  /* ===================================================================
+     SYSTEM MODE
+     Follows operating system preference via prefers-color-scheme
+     =================================================================== */
+
+  @media (prefers-color-scheme: dark) {
+    [data-theme="system"] {
+      /* Copy all dark mode variables */
+      --surface-1: hsl(var(--neutral-900));
+      --surface-2: hsl(var(--neutral-800));
+      --surface-3: hsl(var(--neutral-700));
+
+      --text-primary: hsl(var(--neutral-50));
+      --text-secondary: hsl(var(--neutral-400));
+      --text-tertiary: hsl(var(--neutral-500));
+      --text-on-accent: hsl(0 0% 100%);
+
+      --border-subtle: hsl(var(--neutral-700));
+      --border-strong: hsl(var(--neutral-600));
+
+      --focus-ring: hsl(var(--accent-500));
+
+      --input-bg: hsl(var(--neutral-900));
+      --input-border: hsl(var(--neutral-700));
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    [data-theme="system"] {
+      /* Copy all light mode variables */
+      --surface-1: hsl(var(--neutral-50));
+      --surface-2: hsl(var(--neutral-100));
+      --surface-3: hsl(var(--neutral-200));
+
+      --text-primary: hsl(var(--neutral-900));
+      --text-secondary: hsl(var(--neutral-600));
+      --text-tertiary: hsl(var(--neutral-500));
+      --text-on-accent: hsl(0 0% 100%);
+
+      --border-subtle: hsl(var(--neutral-200));
+      --border-strong: hsl(var(--neutral-300));
+
+      --focus-ring: hsl(var(--accent-400));
+
+      --input-bg: hsl(var(--neutral-50));
+      --input-border: hsl(var(--neutral-200));
+    }
+  }
+
+  /* ===================================================================
+     ACCESSIBILITY
+     Support for reduced motion preference
+     =================================================================== */
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* ===================================================================
+     BASE STYLES
+     Applied to all elements
+     =================================================================== */
+
+  * {
+    border-color: var(--border-subtle);
+  }
+
+  body {
+    background-color: var(--surface-1);
+    color: var(--text-primary);
+    line-height: var(--line-height-normal);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  }
+
+  /* Focus rings for accessibility */
+  *:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ===================================================================
+   LEGACY COMPATIBILITY
+   Mappings for existing Tailwind classes in codebase
+   These map old variable names to new semantic tokens
+   Will be removed after full refactor
+   =================================================================== */
+
+@layer base {
+  :root {
+    /* Map old globals.css variables to new semantic tokens */
+    --background: var(--surface-1);
+    --foreground: var(--text-primary);
+    --card: var(--surface-2);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface-3);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--accent-500);
+    --primary-foreground: var(--text-on-accent);
+    --secondary: var(--surface-2);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--surface-3);
+    --muted-foreground: var(--text-secondary);
+    --accent: var(--accent-500);
+    --accent-foreground: var(--text-on-accent);
+    --destructive: var(--status-error);
+    --destructive-foreground: var(--text-on-accent);
+    --border: var(--border-subtle);
+    --input: var(--input-bg);
+    --ring: var(--focus-ring);
+
+    /* Chart colors (keeping existing) */
+    --chart-1: 142 71% 45%;
+    --chart-2: 217 91% 60%;
+    --chart-3: 48 96% 53%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 280 87% 65%;
+  }
+}
