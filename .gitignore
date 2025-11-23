@@ -4,6 +4,9 @@
 Website/
 Zips/
 
+# Private documentation - DO NOT COMMIT
+docs/
+
 # dependencies
 node_modules/
 .pnp
