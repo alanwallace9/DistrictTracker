@@ -11,8 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FeedbackCard } from '@/components/feedback/FeedbackCard';
-import { FeedbackDialog } from '@/components/feedback/FeedbackDialog';
+import { FeedbackCard } from '@/components/shared/feedback/FeedbackCard';
+import { FeedbackDialog } from '@/components/shared/feedback/FeedbackDialog';
 import { Search, Calendar, History } from 'lucide-react';
 import type { FeedbackCategory } from '@/lib/supabase';
 

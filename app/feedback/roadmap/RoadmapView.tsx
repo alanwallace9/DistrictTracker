@@ -2,10 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FeedbackNavBar } from '@/components/feedback/FeedbackNavBar';
+import { FeedbackNavBar } from '@/components/shared/feedback/FeedbackNavBar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { UpvoteButton } from '@/components/feedback/UpvoteButton';
+import { UpvoteButton } from '@/components/shared/feedback/UpvoteButton';
 import { TrendingUp, CheckCircle2 } from 'lucide-react';
 import {
   Select,

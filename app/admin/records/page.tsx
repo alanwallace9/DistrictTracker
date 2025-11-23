@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Search, Edit2, Trash2, Plus, RefreshCw, Download, Upload, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
-import { AddRecordDialog } from '@/components/AddRecordDialog';
-import { RecordDetailDialog } from '@/components/RecordDetailDialog';
-import { CSVUploadDialog } from '@/components/CSVUploadDialog';
+import { AddRecordDialog } from '@/components/trespass/AddRecordDialog';
+import { RecordDetailDialog } from '@/components/trespass/RecordDetailDialog';
+import { CSVUploadDialog } from '@/components/trespass/CSVUploadDialog';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 

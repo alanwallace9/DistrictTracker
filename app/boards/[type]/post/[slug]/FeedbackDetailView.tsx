@@ -1,11 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { FeedbackNavBar } from '@/components/feedback/FeedbackNavBar';
-import { CommentsSection } from '@/components/feedback/CommentsSection';
+import { FeedbackNavBar } from '@/components/shared/feedback/FeedbackNavBar';
+import { CommentsSection } from '@/components/shared/feedback/CommentsSection';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ShareButtons } from '@/components/feedback/ShareButtons';
+import { ShareButtons } from '@/components/shared/feedback/ShareButtons';
 import { ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 

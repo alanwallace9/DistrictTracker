@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { BulkFeedbackUpload } from '@/components/admin/BulkFeedbackUpload';
+import { BulkFeedbackUpload } from '@/components/trespass/admin/BulkFeedbackUpload';
 import { Search, Filter, Eye, EyeOff, Pencil, Trash2, Download } from 'lucide-react';
 import {
   Select,

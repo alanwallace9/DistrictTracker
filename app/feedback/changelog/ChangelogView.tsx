@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { FeedbackNavBar } from '@/components/feedback/FeedbackNavBar';
+import { FeedbackNavBar } from '@/components/shared/feedback/FeedbackNavBar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, Filter } from 'lucide-react';

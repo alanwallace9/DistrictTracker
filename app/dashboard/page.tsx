@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { DashboardClient } from '@/components/DashboardClient';
+import { DashboardClient } from '@/components/trespass/DashboardClient';
 import { revalidatePath } from 'next/cache';
 
 export default async function DashboardPage() {

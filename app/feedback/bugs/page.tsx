@@ -1,7 +1,7 @@
 import { getActiveCategories, getFeedback, getUserUpvotes } from '@/app/actions/feedback';
-import { FeedbackNavBar } from '@/components/feedback/FeedbackNavBar';
-import { FeedbackFormPanel } from '@/components/feedback/FeedbackFormPanel';
-import { FeedbackListPanel } from '@/components/feedback/FeedbackListPanel';
+import { FeedbackNavBar } from '@/components/shared/feedback/FeedbackNavBar';
+import { FeedbackFormPanel } from '@/components/shared/feedback/FeedbackFormPanel';
+import { FeedbackListPanel } from '@/components/shared/feedback/FeedbackListPanel';
 
 export const metadata = {
   title: 'Bug Reports | DistrictTracker',

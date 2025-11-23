@@ -19,8 +19,8 @@ import { createTrespassRecord } from '@/app/actions/upload-records';
 import { copyPhotosToNewIncident } from '@/app/actions/copy-photos';
 import { format, parseISO } from 'date-fns';
 import { X, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
-import { PhotoGallery } from '@/components/PhotoGallery';
-import { DocumentUpload } from '@/components/DocumentUpload';
+import { PhotoGallery } from '@/components/trespass/PhotoGallery';
+import { DocumentUpload } from '@/components/trespass/DocumentUpload';
 import { getRecordPhotos, getRecordDocuments } from '@/lib/file-upload';
 import { useDemoRole } from '@/contexts/DemoRoleContext';
 

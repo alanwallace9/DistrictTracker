@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { RecordsTable } from '@/components/RecordsTable';
-import { RecordCard } from '@/components/RecordCard';
-import { RecordDetailDialog } from '@/components/RecordDetailDialog';
+import { DashboardLayout } from '@/components/trespass/DashboardLayout';
+import { RecordsTable } from '@/components/trespass/RecordsTable';
+import { RecordCard } from '@/components/trespass/RecordCard';
+import { RecordDetailDialog } from '@/components/trespass/RecordDetailDialog';
 import { TrespassRecord } from '@/lib/supabase';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

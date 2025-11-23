@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Upload, FileText, CircleAlert as AlertCircle, Download, Building2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FieldMappingDialog } from '@/components/FieldMappingDialog';
+import { FieldMappingDialog } from '@/components/trespass/FieldMappingDialog';
 import { uploadTrespassRecords, UploadResult, UploadError } from '@/app/actions/upload-records-enhanced';
 import { getUserProfile } from '@/app/actions/users';
 import { getTenants } from '@/app/actions/admin/tenants';

@@ -13,8 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Search, Edit2, Trash2, UserPlus, RefreshCw } from 'lucide-react';
-import { InviteUserDialog } from '@/components/InviteUserDialog';
-import { BulkUserUploadDialog } from '@/components/admin/BulkUserUploadDialog';
+import { InviteUserDialog } from '@/components/trespass/InviteUserDialog';
+import { BulkUserUploadDialog } from '@/components/trespass/admin/BulkUserUploadDialog';
 import { format } from 'date-fns';
 
 export default function UsersManagementPage() {
