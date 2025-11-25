@@ -127,6 +127,28 @@ export const CreateCampusSchema = z.object({
 export const UpdateCampusSchema = CreateCampusSchema.partial();
 
 // ============================================================================
+// DAEP ROOM SCHEMAS
+// ============================================================================
+
+export const DAEPRoomSchema = z.object({
+  room_number: z.string().min(1, 'Room number is required').max(20, 'Room number too long'),
+  room_name: z.string().max(100, 'Room name too long').optional().nullable(),
+  campus_id: z.string().min(1, 'Campus is required'),
+  capacity: z.number().int('Must be a whole number').min(1, 'Minimum 1').max(50, 'Maximum 50').default(15),
+  building_section: z.string().max(50, 'Building section too long').optional().nullable(),
+  active: z.boolean().default(true),
+});
+
+export const DAEPRoomStaffSchema = z.object({
+  room_id: z.string().uuid('Invalid room ID'),
+  user_id: z.string().min(1, 'Staff member is required'),
+  assignment_type: z.enum(['homeroom', 'rotational']).default('homeroom'),
+});
+
+export type CreateDAEPRoomInput = z.infer<typeof DAEPRoomSchema>;
+export type CreateDAEPRoomStaffInput = z.infer<typeof DAEPRoomStaffSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
