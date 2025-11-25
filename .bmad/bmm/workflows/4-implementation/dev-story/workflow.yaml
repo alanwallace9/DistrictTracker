@@ -24,7 +24,8 @@ sprint_status: "{sprint_artifacts}/sprint-status.yaml || {output_folder}/sprint-
 input_file_patterns:
   architecture:
     description: "System architecture and decisions"
-    whole: "{output_folder}/*architecture*.md"
+    # Use part files to avoid loading massive single file
+    whole: "{output_folder}/architecture-part*.md"
     sharded: "{output_folder}/*architecture*/*.md"
     load_strategy: "FULL_LOAD"
   tech_spec:
@@ -39,7 +40,8 @@ input_file_patterns:
     load_strategy: "FULL_LOAD"
   epics:
     description: "Epic containing this story"
-    whole: "{output_folder}/*epic*.md"
+    # Use part files to avoid loading massive single file
+    whole: "{output_folder}/epics-part*.md"
     sharded_index: "{output_folder}/*epic*/index.md"
     sharded_single: "{output_folder}/*epic*/epic-{{epic_num}}.md"
     load_strategy: "SELECTIVE_LOAD"

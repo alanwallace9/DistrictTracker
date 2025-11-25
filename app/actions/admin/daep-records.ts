@@ -3,6 +3,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
+import { requireModuleAccess } from '@/lib/module-access';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,6 +29,9 @@ export type DAEPRecord = {
  */
 export async function getDAEPRecords(tenantId?: string): Promise<DAEPRecord[]> {
   try {
+    // Check module access (AC 1.2.7)
+    await requireModuleAccess('daep');
+
     const { userId } = await auth();
 
     if (!userId) {

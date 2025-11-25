@@ -138,10 +138,12 @@ export async function getUsersForAdmin(tenantId?: string): Promise<AdminUserList
  */
 export async function updateUserRole(
   targetUserId: string,
-  newRole: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin',
+  newRole: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor',
   campusId?: string | null,
   displayName?: string,
-  notificationDays?: number
+  notificationDays?: number,
+  moduleAccess?: 'trespass_only' | 'daep_only' | 'both',
+  approvedTeacher?: boolean
 ): Promise<{ success: boolean; message: string }> {
   try {
     const { userId } = await auth();
@@ -164,7 +166,7 @@ export async function updateUserRole(
     // Get target user's current data
     const { data: targetUser } = await supabaseAdmin
       .from('user_profiles')
-      .select('email, role, campus_id, tenant_id')
+      .select('email, role, campus_id, tenant_id, module_access, approved_teacher')
       .eq('id', targetUserId)
       .single();
 
@@ -214,6 +216,12 @@ export async function updateUserRole(
     if (notificationDays !== undefined) {
       updateData.notification_days = notificationDays;
     }
+    if (moduleAccess !== undefined) {
+      updateData.module_access = moduleAccess;
+    }
+    if (approvedTeacher !== undefined) {
+      updateData.approved_teacher = approvedTeacher;
+    }
 
     const { error } = await supabaseAdmin
       .from('user_profiles')
@@ -238,6 +246,10 @@ export async function updateUserRole(
         newRole,
         oldCampusId: targetUser.campus_id,
         newCampusId: campusId,
+        oldModuleAccess: targetUser.module_access,
+        newModuleAccess: moduleAccess,
+        oldApprovedTeacher: targetUser.approved_teacher,
+        newApprovedTeacher: approvedTeacher,
         userEmail: targetUser.email,
       },
     });

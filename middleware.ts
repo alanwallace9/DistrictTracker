@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   '/',
   '/login(.*)',
   '/demo-guide',            // Demo environment guide accessible to all
+  '/access-denied',         // Module access denied page (shows options)
   '/feedback',              // Redirects to /feedback/features
   '/feedback/features',     // Can VIEW feature requests
   '/feedback/bugs',         // Can VIEW bug reports
@@ -64,10 +65,10 @@ export default clerkMiddleware(async (auth, request) => {
   // If authenticated and subdomain present, check tenant access
   if (userId && subdomain) {
     console.log('[MIDDLEWARE] Authenticated user on subdomain', { userId, subdomain });
-    // Get user's profile
+    // Get user's profile including module_access
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, active_tenant_id')
+      .select('tenant_id, active_tenant_id, module_access')
       .eq('id', userId)
       .single();
 
@@ -112,6 +113,37 @@ export default clerkMiddleware(async (auth, request) => {
         // Trying to access another tenant's production data - BLOCK
         console.log('[MIDDLEWARE] Access denied - redirecting to demo-guide');
         return NextResponse.redirect(new URL('/demo-guide', request.url));
+      }
+
+      // Module access control (AC 1.2.5, AC 1.2.6)
+      const pathname = request.nextUrl.pathname;
+      const moduleAccess = userProfile.module_access || 'both';
+
+      // Block /daep/* routes for trespass_only users
+      if (moduleAccess === 'trespass_only' && pathname.startsWith('/daep')) {
+        console.log('[MIDDLEWARE] Module access denied - trespass_only user accessing DAEP');
+        const accessDeniedUrl = new URL('/access-denied', request.url);
+        accessDeniedUrl.searchParams.set('module', 'daep');
+        accessDeniedUrl.searchParams.set('path', pathname);
+        return NextResponse.redirect(accessDeniedUrl);
+      }
+
+      // Block /trespass/* routes for daep_only users
+      if (moduleAccess === 'daep_only' && pathname.startsWith('/trespass')) {
+        console.log('[MIDDLEWARE] Module access denied - daep_only user accessing TrespassTracker');
+        const accessDeniedUrl = new URL('/access-denied', request.url);
+        accessDeniedUrl.searchParams.set('module', 'trespass');
+        accessDeniedUrl.searchParams.set('path', pathname);
+        return NextResponse.redirect(accessDeniedUrl);
+      }
+
+      // Also block /dashboard for daep_only users (dashboard is TrespassTracker)
+      if (moduleAccess === 'daep_only' && pathname.startsWith('/dashboard')) {
+        console.log('[MIDDLEWARE] Module access denied - daep_only user accessing dashboard');
+        const accessDeniedUrl = new URL('/access-denied', request.url);
+        accessDeniedUrl.searchParams.set('module', 'trespass');
+        accessDeniedUrl.searchParams.set('path', pathname);
+        return NextResponse.redirect(accessDeniedUrl);
       }
     }
   }

@@ -6,11 +6,13 @@ import { getCampuses } from '@/app/actions/admin/campuses';
 import { useAdminTenant } from '@/contexts/AdminTenantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Campus } from '@/lib/supabase';
+import { ROLE_INFO, type UserRole, getAssignableRoles, canHaveApprovedTeacherFlag } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Search, Edit2, Trash2, UserPlus, RefreshCw } from 'lucide-react';
 import { InviteUserDialog } from '@/components/trespass/InviteUserDialog';
@@ -38,6 +40,8 @@ export default function UsersManagementPage() {
   const [editCampusId, setEditCampusId] = useState<string>('');
   const [editDisplayName, setEditDisplayName] = useState<string>('');
   const [editNotificationDays, setEditNotificationDays] = useState<string>('7');
+  const [editModuleAccess, setEditModuleAccess] = useState<string>('both');
+  const [editApprovedTeacher, setEditApprovedTeacher] = useState<boolean>(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
@@ -110,6 +114,8 @@ export default function UsersManagementPage() {
     setEditCampusId(user.campus_id || '');
     setEditDisplayName(user.display_name || '');
     setEditNotificationDays(user.notification_days?.toString() || '7');
+    setEditModuleAccess(user.module_access || 'both');
+    setEditApprovedTeacher(user.approved_teacher || false);
     setEditDialogOpen(true);
   };
 
@@ -129,7 +135,9 @@ export default function UsersManagementPage() {
         editRole as any,
         editRole === 'campus_admin' ? editCampusId : null,
         editDisplayName || undefined,
-        parseInt(editNotificationDays) || undefined
+        parseInt(editNotificationDays) || undefined,
+        editModuleAccess as 'trespass_only' | 'daep_only' | 'both',
+        canHaveApprovedTeacherFlag(editRole as UserRole) ? editApprovedTeacher : undefined
       );
 
       toast({
@@ -228,12 +236,21 @@ export default function UsersManagementPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="viewer">Viewer</SelectItem>
-            <SelectItem value="campus_admin">Campus Admin</SelectItem>
-            <SelectItem value="district_admin">District Admin</SelectItem>
+            {/* TrespassTracker Roles */}
+            <SelectItem value="viewer">{ROLE_INFO.viewer.label}</SelectItem>
+            <SelectItem value="campus_admin">{ROLE_INFO.campus_admin.label}</SelectItem>
+            <SelectItem value="district_admin">{ROLE_INFO.district_admin.label}</SelectItem>
             {isMasterAdmin && (
-              <SelectItem value="master_admin">Master Admin</SelectItem>
+              <SelectItem value="master_admin">{ROLE_INFO.master_admin.label}</SelectItem>
             )}
+            {/* DAEP Roles */}
+            <SelectItem value="daep_admin_l1">{ROLE_INFO.daep_admin_l1.label}</SelectItem>
+            <SelectItem value="daep_admin_l2">{ROLE_INFO.daep_admin_l2.label}</SelectItem>
+            <SelectItem value="daep_staff">{ROLE_INFO.daep_staff.label}</SelectItem>
+            {/* Special Roles */}
+            <SelectItem value="counselor">{ROLE_INFO.counselor.label}</SelectItem>
+            <SelectItem value="parent">{ROLE_INFO.parent.label}</SelectItem>
+            <SelectItem value="student">{ROLE_INFO.student.label}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -371,14 +388,27 @@ export default function UsersManagementPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem value="campus_admin">Campus Admin</SelectItem>
-                  <SelectItem value="district_admin">District Admin</SelectItem>
+                  {/* TrespassTracker Roles */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">TrespassTracker</div>
+                  <SelectItem value="viewer">{ROLE_INFO.viewer.label}</SelectItem>
+                  <SelectItem value="campus_admin">{ROLE_INFO.campus_admin.label}</SelectItem>
+                  <SelectItem value="district_admin">{ROLE_INFO.district_admin.label}</SelectItem>
                   {isMasterAdmin && (
-                    <SelectItem value="master_admin">Master Admin</SelectItem>
+                    <SelectItem value="master_admin">{ROLE_INFO.master_admin.label}</SelectItem>
                   )}
+                  {/* DAEP Roles */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-1.5">DAEP Module</div>
+                  <SelectItem value="daep_admin_l1">{ROLE_INFO.daep_admin_l1.label}</SelectItem>
+                  <SelectItem value="daep_admin_l2">{ROLE_INFO.daep_admin_l2.label}</SelectItem>
+                  <SelectItem value="daep_staff">{ROLE_INFO.daep_staff.label}</SelectItem>
+                  {/* Special Roles */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-1.5">Special Roles</div>
+                  <SelectItem value="counselor">{ROLE_INFO.counselor.label}</SelectItem>
+                  <SelectItem value="parent">{ROLE_INFO.parent.label}</SelectItem>
+                  <SelectItem value="student">{ROLE_INFO.student.label}</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-slate-500 mt-1">{ROLE_INFO[editRole as UserRole]?.description || ''}</p>
             </div>
             {editRole === 'campus_admin' && (
               <div>
@@ -416,6 +446,35 @@ export default function UsersManagementPage() {
               </Select>
               <p className="text-xs text-slate-500 mt-1">How far in advance to show expiration warnings</p>
             </div>
+            <div>
+              <Label>Module Access</Label>
+              <Select value={editModuleAccess} onValueChange={setEditModuleAccess}>
+                <SelectTrigger className={selectFieldClasses}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Both Modules</SelectItem>
+                  <SelectItem value="trespass_only">TrespassTracker Only</SelectItem>
+                  <SelectItem value="daep_only">DAEP Dashboard Only</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500 mt-1">Which application modules this user can access</p>
+            </div>
+            {canHaveApprovedTeacherFlag(editRole as UserRole) && (
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="approved-teacher" className="text-base">Approved Teacher</Label>
+                  <p className="text-xs text-slate-500">
+                    Point entries from approved teachers are auto-finalized without admin approval
+                  </p>
+                </div>
+                <Switch
+                  id="approved-teacher"
+                  checked={editApprovedTeacher}
+                  onCheckedChange={setEditApprovedTeacher}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter className="flex w-full items-center justify-between">
             <Button

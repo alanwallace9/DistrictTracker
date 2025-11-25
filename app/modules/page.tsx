@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Shield, GraduationCap, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
+import { getUserProfile } from '@/app/actions/users';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Module {
   id: string;
@@ -13,11 +15,15 @@ interface Module {
   href: string;
   bgColor: string;
   iconColor: string;
+  requiredAccess: 'trespass' | 'daep';  // Which module_access allows this
 }
 
 export default function ModulesPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [moduleAccess, setModuleAccess] = useState<'trespass_only' | 'daep_only' | 'both'>('both');
+  const [isLoadingAccess, setIsLoadingAccess] = useState(true);
 
   // Check if user is on base domain and redirect to their tenant subdomain
   useEffect(() => {
@@ -58,7 +64,31 @@ export default function ModulesPage() {
     checkAndRedirect();
   }, []);
 
-  const modules: Module[] = [
+  // Fetch user's module_access from their profile
+  useEffect(() => {
+    const fetchModuleAccess = async () => {
+      if (!user) {
+        setIsLoadingAccess(false);
+        return;
+      }
+
+      try {
+        const profile = await getUserProfile(user.id);
+        if (profile?.module_access) {
+          setModuleAccess(profile.module_access as 'trespass_only' | 'daep_only' | 'both');
+        }
+      } catch (error) {
+        console.error('Failed to fetch module access:', error);
+        // Default to 'both' if fetch fails
+      } finally {
+        setIsLoadingAccess(false);
+      }
+    };
+
+    fetchModuleAccess();
+  }, [user]);
+
+  const allModules: Module[] = [
     {
       id: 'trespass',
       name: 'TrespassTracker',
@@ -67,6 +97,7 @@ export default function ModulesPage() {
       href: '/trespass',
       bgColor: 'bg-blue-50',
       iconColor: 'text-blue-600',
+      requiredAccess: 'trespass',
     },
     {
       id: 'daep',
@@ -76,20 +107,38 @@ export default function ModulesPage() {
       href: '/daep',
       bgColor: 'bg-green-50',
       iconColor: 'text-green-600',
+      requiredAccess: 'daep',
     },
   ];
+
+  // Filter modules based on user's module_access (AC 1.2.4)
+  const modules = allModules.filter((module) => {
+    if (moduleAccess === 'both') return true;
+    if (moduleAccess === 'trespass_only' && module.requiredAccess === 'trespass') return true;
+    if (moduleAccess === 'daep_only' && module.requiredAccess === 'daep') return true;
+    return false;
+  });
+
+  // Auto-redirect if user only has access to one module
+  useEffect(() => {
+    if (!isLoadingAccess && modules.length === 1) {
+      router.push(modules[0].href);
+    }
+  }, [isLoadingAccess, modules, router]);
 
   const handleModuleClick = (module: Module) => {
     router.push(module.href);
   };
 
-  // Show loading state while redirecting to tenant subdomain
-  if (isRedirecting) {
+  // Show loading state while redirecting or loading access
+  if (isRedirecting || isLoadingAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-sm text-slate-600">Redirecting to your workspace...</p>
+          <p className="text-sm text-slate-600">
+            {isRedirecting ? 'Redirecting to your workspace...' : 'Loading modules...'}
+          </p>
         </div>
       </div>
     );
