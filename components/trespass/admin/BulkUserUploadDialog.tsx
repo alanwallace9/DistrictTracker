@@ -131,6 +131,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
           email: row.email?.trim() || '',
           role: row.role?.trim().toLowerCase() as any,
           campus_id: row.campus_id?.trim() || undefined,
+          module_access: row.module_access?.trim().toLowerCase() as any || undefined,
         }));
 
         // Client-side basic validation
@@ -242,7 +243,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
   };
 
   const downloadTemplate = () => {
-    const template = 'email,role,campus_id,tenant_id\nadmin@example.com,campus_admin,010,\nviewer@example.com,viewer,,\ndistrict@example.com,district_admin,,birdville';
+    const template = 'email,role,campus_id,tenant_id,module_access\nadmin@example.com,campus_admin,010,,both\nviewer@example.com,viewer,,,trespass_only\ndistrict@example.com,district_admin,,birdville,both\nteacher@example.com,daep_staff,,,daep_only';
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -374,10 +375,11 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
                 <p className="font-medium text-blue-900 mb-2">CSV Format Requirements:</p>
                 <ul className="text-blue-800 space-y-1 text-xs">
-                  <li>• <strong>email</strong>: User's email address (required)</li>
-                  <li>• <strong>role</strong>: viewer, campus_admin, or district_admin (required)</li>
+                  <li>• <strong>email</strong>: User&apos;s email address (required)</li>
+                  <li>• <strong>role</strong>: viewer, campus_admin, district_admin, daep_admin_l1, daep_admin_l2, daep_staff, counselor, parent, student (required)</li>
                   <li>• <strong>campus_id</strong>: Campus number like 010, 042 (required for campus_admin only)</li>
                   <li>• <strong>tenant_id</strong>: Tenant ID like birdville, demo (optional, master_admin only)</li>
+                  <li>• <strong>module_access</strong>: both, trespass_only, or daep_only (optional, defaults to both)</li>
                 </ul>
               </div>
             </div>
@@ -408,6 +410,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
                         <th className="text-left p-2 font-medium">Role</th>
                         <th className="text-left p-2 font-medium">Campus ID</th>
                         <th className="text-left p-2 font-medium">Tenant ID</th>
+                        <th className="text-left p-2 font-medium">Module Access</th>
                         <th className="text-left p-2 font-medium">Status</th>
                       </tr>
                     </thead>
@@ -422,6 +425,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
                           <td className="p-2">{row.role}</td>
                           <td className="p-2">{row.campus_id || '—'}</td>
                           <td className="p-2">{row.tenant_id || '—'}</td>
+                          <td className="p-2">{row.module_access || 'both'}</td>
                           <td className="p-2">
                             {row.validationError ? (
                               <span className="flex items-center text-red-600 text-xs">

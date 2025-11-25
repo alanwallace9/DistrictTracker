@@ -13,6 +13,7 @@ import { getTenants } from '@/app/actions/admin/tenants';
 import { useAdminTenantOptional } from '@/contexts/AdminTenantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Campus } from '@/lib/supabase';
+import { ROLE_INFO, type UserRole } from '@/lib/roles';
 import { Mail, UserPlus, Building2 } from 'lucide-react';
 
 type InviteUserDialogProps = {
@@ -26,7 +27,8 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'viewer' | 'campus_admin' | 'district_admin'>('viewer');
+  const [role, setRole] = useState<UserRole>('viewer');
+  const [moduleAccess, setModuleAccess] = useState<'trespass_only' | 'daep_only' | 'both'>('both');
   const [campusId, setCampusId] = useState('');
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loadingCampuses, setLoadingCampuses] = useState(false);
@@ -140,6 +142,7 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
         campusId: role === 'campus_admin' ? campusId : null,
         // Always pass selectedTenantId (master admin uses override, others use their tenant)
         tenantId: selectedTenantId,
+        moduleAccess,
       });
 
       toast({
@@ -150,6 +153,7 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
       // Reset form
       setEmail('');
       setRole('viewer');
+      setModuleAccess('both');
       setCampusId('');
       setTenantOverride('');
       onOpenChange(false);
@@ -238,22 +242,59 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
             </Label>
             <Select
               value={role}
-              onValueChange={(value: any) => setRole(value)}
+              onValueChange={(value: UserRole) => setRole(value)}
               disabled={isLoading}
             >
-              <SelectTrigger id="role">
+              <SelectTrigger id="role" className="bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="viewer">Viewer / Staff</SelectItem>
-                <SelectItem value="campus_admin">Campus Admin</SelectItem>
-                <SelectItem value="district_admin">District Admin</SelectItem>
+                {/* TrespassTracker Roles */}
+                <div className="px-2 py-1.5 text-xs font-semibold text-slate-500">TrespassTracker</div>
+                <SelectItem value="viewer">{ROLE_INFO.viewer.label}</SelectItem>
+                <SelectItem value="campus_admin">{ROLE_INFO.campus_admin.label}</SelectItem>
+                <SelectItem value="district_admin">{ROLE_INFO.district_admin.label}</SelectItem>
+                {isMasterAdmin && (
+                  <SelectItem value="master_admin">{ROLE_INFO.master_admin.label}</SelectItem>
+                )}
+                {/* DAEP Roles */}
+                <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-1.5">DAEP Module</div>
+                <SelectItem value="daep_admin_l1">{ROLE_INFO.daep_admin_l1.label}</SelectItem>
+                <SelectItem value="daep_admin_l2">{ROLE_INFO.daep_admin_l2.label}</SelectItem>
+                <SelectItem value="daep_staff">{ROLE_INFO.daep_staff.label}</SelectItem>
+                {/* Special Roles */}
+                <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-1.5">Special Roles</div>
+                <SelectItem value="counselor">{ROLE_INFO.counselor.label}</SelectItem>
+                <SelectItem value="parent">{ROLE_INFO.parent.label}</SelectItem>
+                <SelectItem value="student">{ROLE_INFO.student.label}</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-slate-500">
-              {role === 'viewer' && 'Can view trespass records'}
-              {role === 'campus_admin' && 'Can manage records for their assigned campus'}
-              {role === 'district_admin' && 'Can manage all records in the district'}
+              {ROLE_INFO[role]?.description || ''}
+            </p>
+          </div>
+
+          {/* Module Access Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="moduleAccess" className="text-sm font-medium">
+              Module Access
+            </Label>
+            <Select
+              value={moduleAccess}
+              onValueChange={(value: 'trespass_only' | 'daep_only' | 'both') => setModuleAccess(value)}
+              disabled={isLoading}
+            >
+              <SelectTrigger id="moduleAccess" className="bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">Both Modules</SelectItem>
+                <SelectItem value="trespass_only">TrespassTracker Only</SelectItem>
+                <SelectItem value="daep_only">DAEP Dashboard Only</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              Which application modules this user can access
             </p>
           </div>
 

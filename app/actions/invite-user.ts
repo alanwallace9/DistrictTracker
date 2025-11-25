@@ -67,9 +67,10 @@ async function getTenantIdFromSubdomain(): Promise<string> {
 
 type InviteUserParams = {
   email: string;
-  role: 'viewer' | 'campus_admin' | 'district_admin';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
   campusId?: string | null;
   tenantId?: string | null; // Optional: master_admin can specify tenant, others use subdomain
+  moduleAccess?: 'trespass_only' | 'daep_only' | 'both'; // Module access for the invited user
 };
 
 /**
@@ -80,7 +81,7 @@ type InviteUserParams = {
  * - For district_admin/campus_admin: tenant_id is derived from subdomain (strict isolation)
  * - For master_admin: can optionally specify tenantId to invite to any tenant they manage
  */
-export async function inviteUser({ email, role, campusId, tenantId }: InviteUserParams) {
+export async function inviteUser({ email, role, campusId, tenantId, moduleAccess = 'both' }: InviteUserParams) {
   try {
     const { userId } = await auth();
 
@@ -156,9 +157,11 @@ export async function inviteUser({ email, role, campusId, tenantId }: InviteUser
       role: string;
       tenant_id: string;
       campus_id?: string;
+      module_access: string;
     } = {
       role,
       tenant_id: targetTenantId,
+      module_access: moduleAccess,
     };
 
   if (campusId) {
@@ -233,6 +236,7 @@ export async function inviteUser({ email, role, campusId, tenantId }: InviteUser
         role,
         campusId,
         tenantId: targetTenantId,
+        moduleAccess,
       },
     });
 

@@ -13,9 +13,10 @@ const supabaseAdmin = createClient(
 
 export type BulkUserRow = {
   email: string;
-  role: 'viewer' | 'campus_admin' | 'district_admin';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
   campus_id?: string;
   tenant_id?: string; // Optional: for master_admin to invite to specific tenant
+  module_access?: 'trespass_only' | 'daep_only' | 'both'; // Module access for the user
 };
 
 export type BulkInviteResult = {
@@ -51,9 +52,14 @@ async function validateUserRow(
   }
 
   // Validate role
-  const validRoles = ['viewer', 'campus_admin', 'district_admin'];
+  const validRoles = ['viewer', 'campus_admin', 'district_admin', 'master_admin', 'daep_admin_l1', 'daep_admin_l2', 'daep_staff', 'parent', 'student', 'counselor'];
   if (!validRoles.includes(row.role)) {
     return `Invalid role. Must be one of: ${validRoles.join(', ')}`;
+  }
+
+  // Validate module_access if provided
+  if (row.module_access && !['trespass_only', 'daep_only', 'both'].includes(row.module_access)) {
+    return 'Invalid module_access. Must be: trespass_only, daep_only, or both';
   }
 
   // Validate campus_id for campus_admin
@@ -176,6 +182,7 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
           role: user.role,
           campusId: user.campus_id || null,
           tenantId: user.tenant_id || null, // Master admin can specify tenant
+          moduleAccess: user.module_access || 'both',
         });
 
         results.push({
