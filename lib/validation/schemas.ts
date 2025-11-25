@@ -149,6 +149,53 @@ export type CreateDAEPRoomInput = z.infer<typeof DAEPRoomSchema>;
 export type CreateDAEPRoomStaffInput = z.infer<typeof DAEPRoomStaffSchema>;
 
 // ============================================================================
+// DAEP BELL SCHEDULE SCHEMAS
+// ============================================================================
+
+export const BellSchedulePeriodSchema = z.object({
+  period_name: z.string().min(1, 'Period name is required').max(20, 'Period name too long'),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
+  end_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
+});
+
+export const BellScheduleSchema = z.object({
+  schedule_name: z.string().min(1, 'Schedule name is required').max(100, 'Schedule name too long'),
+  schedule_type: z.enum(['regular', 'early_release', 'half_day', 'custom']).default('regular'),
+  campus_id: z.string().min(1, 'Campus is required'),
+  periods: z.array(BellSchedulePeriodSchema)
+    .min(1, 'At least one period is required')
+    .max(12, 'Maximum 12 periods allowed'),
+  is_default: z.boolean().default(false),
+  active: z.boolean().default(true),
+}).refine(
+  (data) => {
+    // Validate periods: start_time < end_time for each period
+    for (const period of data.periods) {
+      if (period.start_time >= period.end_time) {
+        return false;
+      }
+    }
+    return true;
+  },
+  { message: 'Each period start time must be before end time' }
+).refine(
+  (data) => {
+    // Validate no overlapping periods
+    const sorted = [...data.periods].sort((a, b) => a.start_time.localeCompare(b.start_time));
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].end_time > sorted[i + 1].start_time) {
+        return false;
+      }
+    }
+    return true;
+  },
+  { message: 'Period times cannot overlap' }
+);
+
+export type BellSchedulePeriod = z.infer<typeof BellSchedulePeriodSchema>;
+export type CreateBellScheduleInput = z.infer<typeof BellScheduleSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
