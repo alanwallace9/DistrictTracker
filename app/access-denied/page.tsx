@@ -110,7 +110,7 @@ function AccessDeniedContent() {
             Access Restricted
           </h2>
           <p className="text-slate-600 mb-8">
-            You don't have permission to access the <strong>{deniedModuleName}</strong> module.
+            You don&apos;t have permission to access the <strong>{deniedModuleName}</strong> module.
             Your account is configured for limited module access.
           </p>
 
