@@ -171,7 +171,6 @@ export async function updateDistrictDAEPSettings(
 export interface CampusInfo {
   id: string;
   name: string;
-  abbreviation: string | null;
   is_daep: boolean;
 }
 
@@ -186,7 +185,7 @@ export async function getDAEPCampuses(): Promise<CampusInfo[]> {
 
   const { data, error } = await supabase
     .from('campuses')
-    .select('id, name, abbreviation, is_daep')
+    .select('id, name, is_daep')
     .eq('tenant_id', tenantId)
     .eq('is_daep', true)
     .is('deleted_at', null)
@@ -206,7 +205,7 @@ export async function getCampusDAEPSettings(campusId: string): Promise<CampusSet
 
   const { data, error } = await supabase
     .from('campuses')
-    .select('id, name, abbreviation, is_daep, daep_settings')
+    .select('id, name, is_daep, daep_settings')
     .eq('id', campusId)
     .eq('tenant_id', tenantId)
     .single();
@@ -232,7 +231,6 @@ export async function getCampusDAEPSettings(campusId: string): Promise<CampusSet
     campus: {
       id: data.id,
       name: data.name,
-      abbreviation: data.abbreviation,
       is_daep: data.is_daep,
     },
   };

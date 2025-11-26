@@ -358,7 +358,7 @@ export default function DAEPSettingsGeneralPage() {
                   <SelectContent>
                     {daepCampuses.map((campus) => (
                       <SelectItem key={campus.id} value={campus.id}>
-                        {campus.name} {campus.abbreviation ? `(${campus.abbreviation})` : ''}
+                        {campus.name} ({campus.id})
                       </SelectItem>
                     ))}
                   </SelectContent>
