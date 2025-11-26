@@ -210,6 +210,41 @@ export const DisciplineCodeSchema = z.object({
 export type CreateDisciplineCodeInput = z.infer<typeof DisciplineCodeSchema>;
 
 // ============================================================================
+// DAEP SCHOOL CALENDAR SCHEMAS
+// ============================================================================
+
+export const DAY_TYPES = [
+  'Regular',
+  'Holiday',
+  'Teacher Workday',
+  'Bad Weather',
+  'Early Release',
+] as const;
+
+export type DayType = (typeof DAY_TYPES)[number];
+
+export const SchoolCalendarEntrySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  school_year: z.string().regex(/^\d{4}-\d{4}$/, 'School year must be in format YYYY-YYYY'),
+  is_school_day: z.boolean().default(true),
+  day_type: z.enum(DAY_TYPES).nullable().optional(),
+  bell_schedule_id: z.string().uuid().nullable().optional(),
+  notes: z.string().max(500, 'Notes too long').nullable().optional(),
+});
+
+export const SchoolCalendarCSVRowSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  is_school_day: z.preprocess(
+    (val) => val === 'true' || val === '1' || val === true,
+    z.boolean()
+  ),
+  day_type: z.string().nullable().optional(),
+});
+
+export type CreateSchoolCalendarEntryInput = z.infer<typeof SchoolCalendarEntrySchema>;
+export type SchoolCalendarCSVRow = z.infer<typeof SchoolCalendarCSVRowSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
