@@ -245,6 +245,42 @@ export type CreateSchoolCalendarEntryInput = z.infer<typeof SchoolCalendarEntryS
 export type SchoolCalendarCSVRow = z.infer<typeof SchoolCalendarCSVRowSchema>;
 
 // ============================================================================
+// DAEP SETTINGS SCHEMAS
+// ============================================================================
+
+export const TIMEZONES = [
+  'America/Chicago',
+  'America/New_York',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Phoenix',
+] as const;
+
+export type Timezone = (typeof TIMEZONES)[number];
+
+export const DistrictDAEPSettingsSchema = z.object({
+  timezone: z.enum(TIMEZONES).default('America/Chicago'),
+  default_points_per_period: z.number().int().min(1).max(100).default(10),
+  attendance_threshold: z.number().int().min(0).max(100).default(85),
+  point_threshold_warning: z.number().int().min(1).max(100).default(7),
+  school_year: z.string().regex(/^\d{4}-\d{4}$/).nullable().optional(),
+});
+
+export const CampusDAEPSettingsSchema = z.object({
+  daep_campus_name: z.string().max(200, 'Name too long').nullable().optional(),
+  daep_campus_address: z.string().max(500, 'Address too long').nullable().optional(),
+  daep_campus_phone: z.string()
+    .regex(/^\d{10}$/, 'Phone must be 10 digits')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
+  max_room_capacity: z.number().int().min(1).max(100).default(15),
+});
+
+export type DistrictDAEPSettings = z.infer<typeof DistrictDAEPSettingsSchema>;
+export type CampusDAEPSettings = z.infer<typeof CampusDAEPSettingsSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
