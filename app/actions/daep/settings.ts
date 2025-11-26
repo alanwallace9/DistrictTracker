@@ -208,8 +208,6 @@ export async function getDAEPCampuses(): Promise<CampusInfo[]> {
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
 
-  console.log('[getDAEPCampuses] tenantId from Clerk metadata:', tenantId);
-
   const { data, error } = await supabase
     .from('campuses')
     .select('id, name, is_daep')
@@ -222,8 +220,6 @@ export async function getDAEPCampuses(): Promise<CampusInfo[]> {
     console.error('[getDAEPCampuses] Error fetching DAEP campuses:', error);
     throw new Error('Failed to fetch DAEP campuses');
   }
-
-  console.log('[getDAEPCampuses] Query result:', { count: data?.length || 0, data });
 
   return data || [];
 }
