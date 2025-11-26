@@ -52,7 +52,7 @@ development_status:
   # FRs: FR63-FR72, FR99-FR104
   # ============================================
   epic-1b: contexted
-  1-5-room-management: review
+  1-5-room-management: done
   1-6-bell-schedule-configuration: done
   1-7-discipline-code-management: done
   1-8-school-calendar-configuration: done
