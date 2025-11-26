@@ -33,7 +33,7 @@ export async function getCampuses(tenantId?: string): Promise<Campus[]> {
     // Verify master_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('role, tenant_id')
+      .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -41,8 +41,9 @@ export async function getCampuses(tenantId?: string): Promise<Campus[]> {
       throw new Error('Unauthorized: Master admin access required');
     }
 
-    // Use provided tenantId or fall back to user's tenant_id
-    const targetTenantId = tenantId || adminProfile.tenant_id;
+    // Use provided tenantId, or fall back to active_tenant_id, or fall back to user's tenant_id
+    const effectiveTenantId = adminProfile.active_tenant_id || adminProfile.tenant_id;
+    const targetTenantId = tenantId || effectiveTenantId;
 
     const { data, error } = await supabaseAdmin
       .from('campuses')
@@ -80,7 +81,7 @@ export async function getCampusesWithCounts(tenantId?: string): Promise<CampusWi
     // Verify master_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('role, tenant_id')
+      .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -88,8 +89,9 @@ export async function getCampusesWithCounts(tenantId?: string): Promise<CampusWi
       throw new Error('Unauthorized: Master admin access required');
     }
 
-    // Use provided tenantId or fall back to user's tenant_id
-    const targetTenantId = tenantId || adminProfile.tenant_id;
+    // Use provided tenantId, or fall back to active_tenant_id, or fall back to user's tenant_id
+    const effectiveTenantId = adminProfile.active_tenant_id || adminProfile.tenant_id;
+    const targetTenantId = tenantId || effectiveTenantId;
 
     // Use optimized SQL function for aggregation
     const { data, error } = await supabaseAdmin.rpc('get_campuses_with_counts', {
@@ -123,7 +125,7 @@ export async function getUsersForCampus(campusId: string): Promise<AdminUserList
     // Verify master_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('role, tenant_id')
+      .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -131,11 +133,14 @@ export async function getUsersForCampus(campusId: string): Promise<AdminUserList
       throw new Error('Unauthorized: Master admin access required');
     }
 
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = adminProfile.active_tenant_id || adminProfile.tenant_id;
+
     // Get users for this campus
     const { data: users, error } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
-      .eq('tenant_id', adminProfile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .eq('campus_id', campusId)
       .is('deleted_at', null)
       .order('display_name', { ascending: true });
@@ -177,7 +182,7 @@ export async function getRecordsForCampus(campusId: string) {
     // Verify master_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('role, tenant_id')
+      .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -185,12 +190,15 @@ export async function getRecordsForCampus(campusId: string) {
       throw new Error('Unauthorized: Master admin access required');
     }
 
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = adminProfile.active_tenant_id || adminProfile.tenant_id;
+
     // Get records for this campus
     // Special case: Campus 006 (DAEP) shows all records where is_daep = true
     let query = supabaseAdmin
       .from('trespass_records')
       .select('*')
-      .eq('tenant_id', adminProfile.tenant_id);
+      .eq('tenant_id', effectiveTenantId);
 
     if (campusId === '006') {
       // DAEP campus: show all DAEP students regardless of home campus
@@ -228,7 +236,7 @@ export async function isCampusNameUnique(name: string, excludeCampusId?: string)
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, role')
+      .select('tenant_id, role, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -236,10 +244,13 @@ export async function isCampusNameUnique(name: string, excludeCampusId?: string)
       throw new Error('Unauthorized: Admin access required');
     }
 
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+
     let query = supabaseAdmin
       .from('campuses')
       .select('id')
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .ilike('name', name)
       .is('deleted_at', null);
 
@@ -273,13 +284,16 @@ export async function createCampus(campusData: {
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, role')
+      .select('tenant_id, role, active_tenant_id')
       .eq('id', userId)
       .single();
 
     if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
+
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
 
     // Validate campus ID format
     const idPattern = /^[a-z0-9][a-z0-9-_]{0,49}$/i;
@@ -292,7 +306,7 @@ export async function createCampus(campusData: {
       .from('campuses')
       .select('id')
       .eq('id', campusData.id)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .is('deleted_at', null)
       .single();
 
@@ -311,7 +325,7 @@ export async function createCampus(campusData: {
       .from('campuses')
       .insert({
         id: campusData.id,
-        tenant_id: profile.tenant_id,
+        tenant_id: effectiveTenantId,
         name: campusData.name,
         abbreviation: campusData.abbreviation || null,
         status: campusData.status,
@@ -364,13 +378,16 @@ export async function updateCampus(
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, role')
+      .select('tenant_id, role, active_tenant_id')
       .eq('id', userId)
       .single();
 
     if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
+
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
 
     // If updating name, check uniqueness
     if (updates.name) {
@@ -381,7 +398,7 @@ export async function updateCampus(
     }
 
     // Defense-in-depth: Verify service role operation before RLS bypass
-    await verifyServiceRoleOperation(userId, profile.tenant_id);
+    await verifyServiceRoleOperation(userId, effectiveTenantId);
 
     // Update campus
     const { data: campus, error } = await supabaseAdmin
@@ -391,7 +408,7 @@ export async function updateCampus(
         updated_at: new Date().toISOString(),
       })
       .eq('id', campusId)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .select()
       .single();
 
@@ -429,7 +446,7 @@ export async function getCampusById(campusId: string): Promise<Campus> {
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id')
+      .select('tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -437,11 +454,14 @@ export async function getCampusById(campusId: string): Promise<Campus> {
       throw new Error('User profile not found');
     }
 
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+
     const { data: campus, error } = await supabaseAdmin
       .from('campuses')
       .select('*')
       .eq('id', campusId)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .single();
 
     if (error) {
@@ -483,7 +503,7 @@ export async function canDeactivateCampus(campusId: string): Promise<{
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, role')
+      .select('tenant_id, role, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -491,12 +511,15 @@ export async function canDeactivateCampus(campusId: string): Promise<{
       throw new Error('Unauthorized: Admin access required');
     }
 
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+
     // Get user counts per campus
     const { data: users } = await supabaseAdmin
       .from('user_profiles')
       .select('id')
       .eq('campus_id', campusId)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .is('deleted_at', null);
 
     // Get record counts per campus
@@ -504,7 +527,7 @@ export async function canDeactivateCampus(campusId: string): Promise<{
       .from('trespass_records')
       .select('id')
       .eq('campus_id', campusId)
-      .eq('tenant_id', profile.tenant_id);
+      .eq('tenant_id', effectiveTenantId);
 
     const userCount = users?.length || 0;
     const recordCount = records?.length || 0;
@@ -546,13 +569,16 @@ export async function deactivateCampus(campusId: string): Promise<void> {
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, role, email')
+      .select('tenant_id, role, email, active_tenant_id')
       .eq('id', userId)
       .single();
 
     if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
+
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
 
     // Verify can deactivate
     const check = await canDeactivateCampus(campusId);
@@ -565,7 +591,7 @@ export async function deactivateCampus(campusId: string): Promise<void> {
       .from('campuses')
       .select('*')
       .eq('id', campusId)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .single();
 
     if (!campus) {
@@ -580,7 +606,7 @@ export async function deactivateCampus(campusId: string): Promise<void> {
       .from('campuses')
       .update({ status: 'inactive', updated_at: new Date().toISOString() })
       .eq('id', campusId)
-      .eq('tenant_id', profile.tenant_id);
+      .eq('tenant_id', effectiveTenantId);
 
     if (error) {
       logger.error('[deactivateCampus] Error updating campus', error);
@@ -596,7 +622,7 @@ export async function deactivateCampus(campusId: string): Promise<void> {
       actorRole: profile.role,
       targetId: campusId,
       action: `Deactivated campus: ${campus.name}`,
-      tenantId: profile.tenant_id,
+      tenantId: effectiveTenantId,
       details: {
         campus_id: campusId,
         campus_name: campus.name,
@@ -634,7 +660,7 @@ export async function activateCampus(campusId: string): Promise<void> {
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('tenant_id, role, email')
+      .select('tenant_id, role, email, active_tenant_id')
       .eq('id', userId)
       .single();
 
@@ -642,12 +668,15 @@ export async function activateCampus(campusId: string): Promise<void> {
       throw new Error('Unauthorized: Admin access required');
     }
 
+    // Use active_tenant_id if set, otherwise fall back to tenant_id
+    const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+
     // Get campus details
     const { data: campus } = await supabaseAdmin
       .from('campuses')
       .select('*')
       .eq('id', campusId)
-      .eq('tenant_id', profile.tenant_id)
+      .eq('tenant_id', effectiveTenantId)
       .single();
 
     if (!campus) {
@@ -662,7 +691,7 @@ export async function activateCampus(campusId: string): Promise<void> {
       .from('campuses')
       .update({ status: 'active', updated_at: new Date().toISOString() })
       .eq('id', campusId)
-      .eq('tenant_id', profile.tenant_id);
+      .eq('tenant_id', effectiveTenantId);
 
     if (error) {
       logger.error('[activateCampus] Error updating campus', error);
@@ -678,7 +707,7 @@ export async function activateCampus(campusId: string): Promise<void> {
       actorRole: profile.role,
       targetId: campusId,
       action: `Activated campus: ${campus.name}`,
-      tenantId: profile.tenant_id,
+      tenantId: effectiveTenantId,
       details: {
         campus_id: campusId,
         campus_name: campus.name,
