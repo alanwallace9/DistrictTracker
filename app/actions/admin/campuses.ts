@@ -247,6 +247,14 @@ export async function isCampusNameUnique(name: string, excludeCampusId?: string)
     // Use active_tenant_id if set, otherwise fall back to tenant_id
     const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
 
+    console.log('[isCampusNameUnique] DEBUG:', {
+      userId,
+      tenant_id: profile.tenant_id,
+      active_tenant_id: profile.active_tenant_id,
+      effectiveTenantId,
+      checkingName: name,
+    });
+
     let query = supabaseAdmin
       .from('campuses')
       .select('id')
@@ -259,6 +267,7 @@ export async function isCampusNameUnique(name: string, excludeCampusId?: string)
     }
 
     const { data } = await query;
+    console.log('[isCampusNameUnique] Query result:', { matchingCampuses: data?.length || 0, isUnique: data?.length === 0 });
     return data?.length === 0;
   } catch (error: any) {
     console.error('[isCampusNameUnique] Error:', error);
