@@ -26,33 +26,58 @@ const DEFAULT_CAMPUS_SETTINGS: CampusDAEPSettings = {
   max_room_capacity: 15,
 };
 
-// Helper to get tenant_id from user
+// Helper to get effective tenant_id from database (matches RLS get_my_tenant_id())
+// Uses COALESCE(active_tenant_id, tenant_id) to support master_admin tenant switching
 async function getTenantId(): Promise<string> {
   const user = await currentUser();
   if (!user) throw new Error('Unauthorized');
 
-  const tenantId = user.publicMetadata?.tenant_id as string;
-  if (!tenantId) throw new Error('No tenant assigned');
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
 
-  return tenantId;
+  if (error || !profile) {
+    throw new Error('User profile not found');
+  }
+
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) {
+    throw new Error('No tenant assigned');
+  }
+
+  return effectiveTenantId;
 }
 
-// Helper to check DAEP admin role
+// Helper to check DAEP admin role and get effective tenant
 async function checkDAEPAdminRole(): Promise<{ userId: string; role: string; tenantId: string }> {
   const user = await currentUser();
   if (!user) throw new Error('Unauthorized');
 
-  const role = user.publicMetadata?.role as string;
-  const tenantId = user.publicMetadata?.tenant_id as string;
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('role, tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) {
+    throw new Error('User profile not found');
+  }
 
   const allowedRoles = ['master_admin', 'district_admin', 'daep_admin_l1'];
-  if (!allowedRoles.includes(role)) {
+  if (!allowedRoles.includes(profile.role)) {
     throw new Error('Insufficient permissions. Only DAEP administrators can manage settings.');
   }
 
-  if (!tenantId) throw new Error('No tenant assigned');
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) {
+    throw new Error('No tenant assigned');
+  }
 
-  return { userId: user.id, role, tenantId };
+  return { userId: user.id, role: profile.role, tenantId: effectiveTenantId };
 }
 
 // Helper to log audit events
@@ -183,6 +208,8 @@ export async function getDAEPCampuses(): Promise<CampusInfo[]> {
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
 
+  console.log('[getDAEPCampuses] tenantId from Clerk metadata:', tenantId);
+
   const { data, error } = await supabase
     .from('campuses')
     .select('id, name, is_daep')
@@ -192,9 +219,11 @@ export async function getDAEPCampuses(): Promise<CampusInfo[]> {
     .order('name');
 
   if (error) {
-    console.error('Error fetching DAEP campuses:', error);
+    console.error('[getDAEPCampuses] Error fetching DAEP campuses:', error);
     throw new Error('Failed to fetch DAEP campuses');
   }
+
+  console.log('[getDAEPCampuses] Query result:', { count: data?.length || 0, data });
 
   return data || [];
 }
