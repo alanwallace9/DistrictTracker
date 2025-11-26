@@ -37,7 +37,7 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
   const [loadingTenants, setLoadingTenants] = useState(false);
   const { toast } = useToast();
 
-  const isMasterAdmin = user?.user_metadata?.role === 'master_admin';
+  const isMasterAdmin = user?.user_metadata?.role === 'super_admin';
 
   // Determine selected tenant ID based on user role
   // Master admin: use tenant override (from dropdown), fallback to selected tenant from context
@@ -202,7 +202,7 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
             </div>
           </div>
 
-          {/* Tenant Override (only for master_admin) */}
+          {/* Tenant Override (only for super_admin) */}
           {isMasterAdmin && (
             <div className="space-y-2">
               <Label htmlFor="tenantOverride" className="text-sm font-medium">
@@ -255,7 +255,7 @@ export function InviteUserDialog({ open, onOpenChange, onUserInvited }: InviteUs
                 <SelectItem value="campus_admin">{ROLE_INFO.campus_admin.label}</SelectItem>
                 <SelectItem value="district_admin">{ROLE_INFO.district_admin.label}</SelectItem>
                 {isMasterAdmin && (
-                  <SelectItem value="master_admin">{ROLE_INFO.master_admin.label}</SelectItem>
+                  <SelectItem value="super_admin">{ROLE_INFO.super_admin.label}</SelectItem>
                 )}
                 {/* DAEP Roles */}
                 <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 border-t mt-1 pt-1.5">DAEP Module</div>

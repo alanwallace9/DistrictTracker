@@ -4,7 +4,7 @@ import { useUser } from '@clerk/nextjs';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Settings,
   DoorOpen,
@@ -13,10 +13,15 @@ import {
   Calendar,
   Tag,
   ArrowLeft,
+  Building,
+  Menu,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { AdminTenantProvider, useAdminTenant } from '@/contexts/AdminTenantContext';
 
-const SETTINGS_TABS = [
+const NAV_ITEMS = [
   { href: '/daep/settings', label: 'General', icon: Settings, exact: true },
   { href: '/daep/settings/rooms', label: 'Rooms', icon: DoorOpen },
   { href: '/daep/settings/schedules', label: 'Schedules', icon: Clock },
@@ -25,9 +30,9 @@ const SETTINGS_TABS = [
   { href: '/daep/settings/behaviors', label: 'Behaviors', icon: Tag },
 ];
 
-const ALLOWED_ROLES = ['master_admin', 'district_admin', 'daep_admin_l1'];
+const ALLOWED_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1'];
 
-export default function DAEPSettingsLayout({
+function DAEPSettingsLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -35,12 +40,37 @@ export default function DAEPSettingsLayout({
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string>('viewer');
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const { tenants, selectedTenantId, setSelectedTenantId, tenantsLoading } = useAdminTenant();
+
+  const closeSidebar = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setSidebarOpen(false);
+      setIsClosing(false);
+    }, 200);
+  };
+
+  const toggleSidebar = () => {
+    if (sidebarOpen) {
+      closeSidebar();
+    } else {
+      setSidebarOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (isLoaded && user) {
       const role = (user.publicMetadata?.role as string) || 'viewer';
-      if (ALLOWED_ROLES.includes(role)) {
+      setUserRole(role);
+
+      // Also accept legacy master_admin during transition
+      const effectiveRole = role === 'master_admin' ? 'super_admin' : role;
+
+      if (ALLOWED_ROLES.includes(effectiveRole) || role === 'master_admin') {
         setIsAuthorized(true);
       } else {
         router.push('/daep/access-denied');
@@ -70,68 +100,196 @@ export default function DAEPSettingsLayout({
     );
   }
 
-  const getActiveTab = () => {
-    const tab = SETTINGS_TABS.find((t) =>
-      t.exact ? pathname === t.href : pathname?.startsWith(t.href)
-    );
-    return tab?.href || '/daep/settings';
+  const isActive = (href: string, exact?: boolean) => {
+    if (exact) {
+      return pathname === href;
+    }
+    return pathname?.startsWith(href);
   };
+
+  const isSuperAdmin = userRole === 'super_admin' || userRole === 'master_admin';
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">DAEP Settings</h1>
-            <p className="text-muted-foreground mt-1">
-              Configure rooms, schedules, discipline codes, and more
-            </p>
+      {/* Header */}
+      <header className="bg-white/95 border-b border-slate-200 sticky top-0 z-50 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Left: Hamburger (mobile) + Logo + Title */}
+            <div className="flex items-center space-x-3">
+              {/* Mobile: Hamburger Menu Button */}
+              <button
+                onClick={toggleSidebar}
+                className="nav:hidden h-10 w-10 flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50"
+                aria-label="Menu"
+              >
+                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+
+              <Image
+                src="/assets/logo1.svg"
+                alt="District Tracker Logo"
+                width={40}
+                height={40}
+                className="w-8 h-8 sm:w-10 sm:h-10"
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-xl font-bold text-foreground">DAEP Settings</h1>
+                </div>
+                <p className="text-xs text-muted-foreground hidden sm:block">
+                  Configure rooms, schedules, and more
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Desktop controls (hidden on mobile) */}
+            <div className="hidden nav:flex items-center gap-4">
+              {/* Tenant Selector - Only for super_admin with multiple tenants */}
+              {isSuperAdmin && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
+                <div className="flex items-center gap-2">
+                  <Building className="w-4 h-4 text-muted-foreground" />
+                  <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
+                    <SelectTrigger className="w-[220px] bg-white border border-slate-300 shadow-sm focus:ring-2 focus:ring-slate-200">
+                      <SelectValue placeholder="Select District" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <Link href="/daep">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-100 hover:text-slate-900 hover:border-slate-300"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to DAEP
+                </Button>
+              </Link>
+            </div>
           </div>
-          <Link href="/daep">
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-100"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to DAEP
-            </Button>
-          </Link>
         </div>
+      </header>
 
-        {/* Tab Navigation */}
-        <Tabs value={getActiveTab()} className="mb-6">
-          <TabsList className="bg-white border border-slate-200 p-1 h-auto flex-wrap">
-            {SETTINGS_TABS.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = tab.exact
-                ? pathname === tab.href
-                : pathname?.startsWith(tab.href);
-              return (
-                <Link key={tab.href} href={tab.href}>
-                  <TabsTrigger
-                    value={tab.href}
-                    className={`gap-2 ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </TabsTrigger>
-                </Link>
-              );
-            })}
-          </TabsList>
-        </Tabs>
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="nav:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={closeSidebar}
+        />
+      )}
 
-        {/* Content */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          {children}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex gap-8 items-start relative">
+          {/* Sidebar Navigation */}
+          <aside className={`
+            w-64 flex-shrink-0 bg-white p-4
+            nav:static nav:block nav:bg-transparent nav:p-0
+            fixed top-0 left-0 h-full z-50 overflow-y-auto shadow-xl nav:shadow-none
+            ${sidebarOpen ? 'block' : 'hidden nav:block'}
+            ${sidebarOpen && !isClosing ? 'animate-in slide-in-from-left duration-200' : ''}
+            ${isClosing ? 'animate-out slide-out-to-left duration-200' : ''}
+          `}>
+            {/* Mobile: Close button */}
+            <div className="nav:hidden flex justify-between items-center mb-4 pb-4 border-b border-slate-200">
+              <h2 className="font-semibold text-slate-900">Settings Menu</h2>
+              <button
+                onClick={closeSidebar}
+                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <nav className="space-y-2">
+              {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href, item.exact);
+
+                return (
+                  <Link key={item.href} href={item.href} onClick={() => {
+                    if (window.innerWidth < 1085) {
+                      closeSidebar();
+                    }
+                  }}>
+                    <Button
+                      variant={active ? 'secondary' : 'ghost'}
+                      className={`w-full justify-start rounded-xl ${
+                        active
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-slate-700 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 mr-3" />
+                      {item.label}
+                    </Button>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Mobile: Controls at bottom */}
+            <div className="nav:hidden mt-6 pt-6 border-t border-slate-200 space-y-3">
+              {/* Tenant Selector - Only for super_admin with multiple tenants */}
+              {isSuperAdmin && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-600">District</label>
+                  <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
+                    <SelectTrigger className="w-full bg-white border border-slate-300">
+                      <SelectValue placeholder="Select District" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <Link href="/daep" onClick={closeSidebar}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to DAEP
+                </Button>
+              </Link>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <div className="flex-1 min-w-0">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              {children}
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DAEPSettingsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <AdminTenantProvider>
+      <DAEPSettingsLayoutInner>{children}</DAEPSettingsLayoutInner>
+    </AdminTenantProvider>
   );
 }

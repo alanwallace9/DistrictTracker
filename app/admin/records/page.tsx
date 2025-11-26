@@ -44,7 +44,7 @@ export default function RecordsManagementPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const { toast } = useToast();
 
-  const isMasterAdmin = user?.user_metadata?.role === 'master_admin';
+  const isMasterAdmin = user?.user_metadata?.role === 'super_admin';
   const isDistrictAdmin = user?.user_metadata?.role === 'district_admin';
   const hasAdminAccess = isMasterAdmin || isDistrictAdmin;
 

@@ -301,6 +301,26 @@ export const BehaviorCategorySchema = z.object({
 export type CreateBehaviorCategoryInput = z.infer<typeof BehaviorCategorySchema>;
 
 // ============================================================================
+// DAEP STUDENT SEARCH SCHEMAS
+// ============================================================================
+
+export const PLACEMENT_STATUSES = ['pending', 'active', 'transition', 'complete'] as const;
+
+export type PlacementStatus = (typeof PLACEMENT_STATUSES)[number];
+
+export const StudentSearchSchema = z.object({
+  query: z.string().max(200, 'Search query too long').optional(),
+  status: z.enum(PLACEMENT_STATUSES).optional(),
+  room_id: z.string().uuid('Invalid room ID').optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format').optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format').optional(),
+  page: z.number().int().min(1).default(1),
+  per_page: z.number().int().min(1).max(100).default(25),
+});
+
+export type StudentSearchInput = z.infer<typeof StudentSearchSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

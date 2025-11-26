@@ -584,7 +584,7 @@ async function isMasterAdmin(): Promise<boolean> {
       .eq('id', userId)
       .single();
 
-    return data?.role === 'master_admin';
+    return data?.role === 'super_admin';
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;

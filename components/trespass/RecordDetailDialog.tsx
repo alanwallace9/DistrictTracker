@@ -271,7 +271,7 @@ export function RecordDetailDialog({ record, open, onOpenChange, onRecordUpdated
     if (data?.role) {
       setUserRole(data.role);
     } else {
-      setUserRole('master_admin');
+      setUserRole('super_admin');
     }
   };
 
@@ -842,7 +842,7 @@ export function RecordDetailDialog({ record, open, onOpenChange, onRecordUpdated
             </div>
 
             {/* Documents Section - Edit Mode (Admin Only) */}
-            {(userRole === 'district_admin' || userRole === 'master_admin') && (
+            {(userRole === 'district_admin' || userRole === 'super_admin') && (
               <div className="space-y-2">
                 <Label className="text-base font-semibold">Documents (Admin Only)</Label>
                 {user && (

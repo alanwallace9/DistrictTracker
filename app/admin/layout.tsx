@@ -54,8 +54,8 @@ function AdminLayoutInner({
         publicMetadata: user.publicMetadata,
       });
 
-      // Allow master_admin and district_admin to access admin pages
-      if (role === 'master_admin' || role === 'district_admin') {
+      // Allow super_admin and district_admin to access admin pages
+      if (role === 'super_admin' || role === 'district_admin') {
         setIsAuthorized(true);
       } else {
         console.log('[Admin Layout] Redirecting non-admin to dashboard');
@@ -188,8 +188,8 @@ function AdminLayoutInner({
 
             {/* Right: Desktop controls (hidden on mobile) */}
             <div className="hidden nav:flex items-center gap-4">
-              {/* Tenant Selector - Only for master_admin with multiple tenants */}
-              {userRole === 'master_admin' && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
+              {/* Tenant Selector - Only for super_admin with multiple tenants */}
+              {userRole === 'super_admin' && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
                 <div className="flex items-center gap-2">
                   <Building className="w-4 h-4 text-muted-foreground" />
                   <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
@@ -254,7 +254,7 @@ function AdminLayoutInner({
 
             <nav className="space-y-2">
               {navItems
-                .filter((item) => !item.masterAdminOnly || userRole === 'master_admin')
+                .filter((item) => !item.masterAdminOnly || userRole === 'super_admin')
                 .map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.href, item.exact);
@@ -284,8 +284,8 @@ function AdminLayoutInner({
 
             {/* Mobile: Controls at bottom */}
             <div className="nav:hidden mt-6 pt-6 border-t border-slate-200 space-y-3">
-              {/* Tenant Selector - Only for master_admin with multiple tenants */}
-              {userRole === 'master_admin' && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
+              {/* Tenant Selector - Only for super_admin with multiple tenants */}
+              {userRole === 'super_admin' && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-slate-600">District</label>
                   <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>

@@ -132,7 +132,7 @@ export default function AdminOverview() {
   };
 
   // Show demo snapshot button only for master admin on demo tenant
-  const showDemoSnapshotButton = userRole === 'master_admin' && selectedTenantId === 'demo';
+  const showDemoSnapshotButton = userRole === 'super_admin' && selectedTenantId === 'demo';
 
   const statCards = [
     {

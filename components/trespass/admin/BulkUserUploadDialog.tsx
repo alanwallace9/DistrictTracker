@@ -34,12 +34,12 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Tenant selection state for master_admin
+  // Tenant selection state for super_admin
   const [tenants, setTenants] = useState<Array<{id: string; display_name: string; subdomain: string; status: string}>>([]);
   const [selectedTenant, setSelectedTenant] = useState<string>('');
   const [loadingTenants, setLoadingTenants] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
-  const isMasterAdmin = userRole === 'master_admin';
+  const isMasterAdmin = userRole === 'super_admin';
 
   useEffect(() => {
     if (user) {
@@ -47,7 +47,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
     }
   }, [user]);
 
-  // Fetch tenants when dialog opens and user is master_admin
+  // Fetch tenants when dialog opens and user is super_admin
   useEffect(() => {
     if (open && isMasterAdmin) {
       fetchTenants();
@@ -206,7 +206,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
       return;
     }
 
-    // Validate tenant selection for master_admin
+    // Validate tenant selection for super_admin
     if (isMasterAdmin && !selectedTenant) {
       toast({
         title: 'Tenant Required',
@@ -378,7 +378,7 @@ export function BulkUserUploadDialog({ open, onOpenChange, onUsersInvited }: Bul
                   <li>• <strong>email</strong>: User&apos;s email address (required)</li>
                   <li>• <strong>role</strong>: viewer, campus_admin, district_admin, daep_admin_l1, daep_admin_l2, daep_staff, counselor, parent, student (required)</li>
                   <li>• <strong>campus_id</strong>: Campus number like 010, 042 (required for campus_admin only)</li>
-                  <li>• <strong>tenant_id</strong>: Tenant ID like birdville, demo (optional, master_admin only)</li>
+                  <li>• <strong>tenant_id</strong>: Tenant ID like birdville, demo (optional, super_admin only)</li>
                   <li>• <strong>module_access</strong>: both, trespass_only, or daep_only (optional, defaults to both)</li>
                 </ul>
               </div>

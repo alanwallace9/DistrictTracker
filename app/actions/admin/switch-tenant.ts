@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Switch the active tenant for the current user (master_admin only)
+ * Switch the active tenant for the current user (super_admin only)
  * This updates the active_tenant_id in user_profiles, which is used by RLS
  *
  * @param tenantId - The tenant ID to switch to
@@ -29,7 +29,7 @@ export async function switchActiveTenant(tenantId: string): Promise<{
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Get user profile to verify master_admin role
+    // Get user profile to verify super_admin role
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id, email')
@@ -41,8 +41,8 @@ export async function switchActiveTenant(tenantId: string): Promise<{
       return { success: false, error: 'Failed to fetch user profile' };
     }
 
-    // Only master_admin can switch tenants
-    if (userProfile.role !== 'master_admin') {
+    // Only super_admin can switch tenants
+    if (userProfile.role !== 'super_admin') {
       logger.warn('[switchActiveTenant] Unauthorized tenant switch attempt', {
         userId,
         role: userProfile.role,
@@ -80,7 +80,7 @@ export async function switchActiveTenant(tenantId: string): Promise<{
     await logAuditEvent({
       eventType: 'tenant.switched',
       actorId: userId,
-      actorRole: 'master_admin',
+      actorRole: 'super_admin',
       targetId: tenantId,
       action: 'Switched active tenant',
       details: {

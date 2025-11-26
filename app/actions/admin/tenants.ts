@@ -21,7 +21,7 @@ export type Tenant = {
 };
 
 /**
- * Get all tenants - only accessible by master_admin
+ * Get all tenants - only accessible by super_admin
  */
 export async function getTenants(): Promise<Tenant[]> {
   try {
@@ -31,14 +31,14 @@ export async function getTenants(): Promise<Tenant[]> {
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 
@@ -71,14 +71,14 @@ export async function getTenantById(tenantId: string): Promise<Tenant | null> {
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 
@@ -124,7 +124,7 @@ export async function getTenantBySubdomain(subdomain: string): Promise<Tenant | 
 }
 
 /**
- * Create new tenant - only accessible by master_admin
+ * Create new tenant - only accessible by super_admin
  */
 export async function createTenant(data: {
   id: string;
@@ -143,14 +143,14 @@ export async function createTenant(data: {
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       return { success: false, error: 'Unauthorized: Master admin access required' };
     }
 
@@ -199,7 +199,7 @@ export async function createTenant(data: {
     await logAuditEvent({
       eventType: 'user.created',
       actorId: userId,
-      actorRole: 'master_admin',
+      actorRole: 'super_admin',
       targetId: tenant.id,
       action: 'Created new tenant',
       details: {
@@ -219,7 +219,7 @@ export async function createTenant(data: {
 }
 
 /**
- * Update tenant - only accessible by master_admin
+ * Update tenant - only accessible by super_admin
  */
 export async function updateTenant(
   tenantId: string,
@@ -241,14 +241,14 @@ export async function updateTenant(
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       return { success: false, error: 'Unauthorized: Master admin access required' };
     }
 
@@ -294,7 +294,7 @@ export async function updateTenant(
     await logAuditEvent({
       eventType: 'user.updated',
       actorId: userId,
-      actorRole: 'master_admin',
+      actorRole: 'super_admin',
       targetId: tenant.id,
       action: 'Updated tenant',
       details: {
@@ -313,7 +313,7 @@ export async function updateTenant(
 }
 
 /**
- * Deactivate tenant - only accessible by master_admin
+ * Deactivate tenant - only accessible by super_admin
  */
 export async function deactivateTenant(tenantId: string): Promise<{
   success: boolean;
@@ -326,14 +326,14 @@ export async function deactivateTenant(tenantId: string): Promise<{
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       return { success: false, error: 'Unauthorized: Master admin access required' };
     }
 
@@ -361,7 +361,7 @@ export async function deactivateTenant(tenantId: string): Promise<{
     await logAuditEvent({
       eventType: 'user.deleted',
       actorId: userId,
-      actorRole: 'master_admin',
+      actorRole: 'super_admin',
       targetId: tenantId,
       action: 'Deactivated tenant',
       details: {
@@ -380,7 +380,7 @@ export async function deactivateTenant(tenantId: string): Promise<{
 }
 
 /**
- * Reactivate tenant - only accessible by master_admin
+ * Reactivate tenant - only accessible by super_admin
  */
 export async function reactivateTenant(tenantId: string): Promise<{
   success: boolean;
@@ -393,14 +393,14 @@ export async function reactivateTenant(tenantId: string): Promise<{
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       return { success: false, error: 'Unauthorized: Master admin access required' };
     }
 
@@ -428,7 +428,7 @@ export async function reactivateTenant(tenantId: string): Promise<{
     await logAuditEvent({
       eventType: 'user.updated',
       actorId: userId,
-      actorRole: 'master_admin',
+      actorRole: 'super_admin',
       targetId: tenantId,
       action: 'Reactivated tenant',
       details: {

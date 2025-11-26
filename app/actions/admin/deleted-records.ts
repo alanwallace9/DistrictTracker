@@ -20,7 +20,7 @@ export type DeletedRecord = TrespassRecord & {
 
 /**
  * Get all soft-deleted records for FERPA compliance management
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function getDeletedRecords(
   tenantId?: string
@@ -32,7 +32,7 @@ export async function getDeletedRecords(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id')
@@ -44,7 +44,7 @@ export async function getDeletedRecords(
       throw new Error('Failed to fetch user profile');
     }
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -128,7 +128,7 @@ export async function getRecordsRequiringAction(
 
 /**
  * Restore a soft-deleted record
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function restoreDeletedRecord(
   recordId: string
@@ -140,14 +140,14 @@ export async function restoreDeletedRecord(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -166,8 +166,8 @@ export async function restoreDeletedRecord(
       throw new Error('Record is not deleted');
     }
 
-    // Verify record belongs to admin's tenant (or admin is master_admin)
-    if (adminProfile.role !== 'master_admin' && record.tenant_id !== adminProfile.tenant_id) {
+    // Verify record belongs to admin's tenant (or admin is super_admin)
+    if (adminProfile.role !== 'super_admin' && record.tenant_id !== adminProfile.tenant_id) {
       throw new Error('Unauthorized: Cannot restore records from other tenants');
     }
 
@@ -217,7 +217,7 @@ export async function restoreDeletedRecord(
 /**
  * Permanently delete a record (hard delete)
  * Only allowed for records > 5 years old
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function permanentlyDeleteRecord(
   recordId: string
@@ -229,14 +229,14 @@ export async function permanentlyDeleteRecord(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -255,8 +255,8 @@ export async function permanentlyDeleteRecord(
       throw new Error('Cannot permanently delete active records. Please soft delete first.');
     }
 
-    // Verify record belongs to admin's tenant (or admin is master_admin)
-    if (adminProfile.role !== 'master_admin' && record.tenant_id !== adminProfile.tenant_id) {
+    // Verify record belongs to admin's tenant (or admin is super_admin)
+    if (adminProfile.role !== 'super_admin' && record.tenant_id !== adminProfile.tenant_id) {
       throw new Error('Unauthorized: Cannot delete records from other tenants');
     }
 
@@ -319,7 +319,7 @@ export async function permanentlyDeleteRecord(
 
 /**
  * Export deleted records to CSV for backup before permanent deletion
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function exportDeletedRecordsToCSV(
   recordIds: string[]
@@ -338,7 +338,7 @@ export async function exportDeletedRecordsToCSV(
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 

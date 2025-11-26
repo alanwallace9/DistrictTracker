@@ -6,7 +6,7 @@
  * including both TrespassTracker and DAEP module roles.
  *
  * Role Categories:
- * - TrespassTracker: viewer, campus_admin, district_admin, master_admin
+ * - TrespassTracker: viewer, campus_admin, district_admin, super_admin
  * - DAEP: daep_admin_l1, daep_admin_l2, daep_staff
  * - Special: parent, student, counselor
  */
@@ -19,7 +19,7 @@ export type UserRole =
   | 'viewer'           // Basic read access to tenant data
   | 'campus_admin'     // Manage records for assigned campus
   | 'district_admin'   // Full access to tenant data, user management
-  | 'master_admin'     // System-wide access, cross-tenant capabilities
+  | 'super_admin'     // System-wide access, cross-tenant capabilities
   // DAEP roles (Story 1.3)
   | 'daep_admin_l1'    // Full DAEP operations, point approval, staff management
   | 'daep_admin_l2'    // Daily operations, point entry, limited reports
@@ -35,7 +35,7 @@ export type UserRole =
  * Used for permission checks: user can perform action if their level >= required level.
  *
  * Hierarchy:
- *   master_admin (100) - System owner, cross-tenant access
+ *   super_admin (100) - System owner, cross-tenant access
  *   district_admin (90) - Tenant admin, full tenant access
  *   daep_admin_l1 (80) - DAEP lead admin, full DAEP operations
  *   campus_admin (70) - Campus-level TrespassTracker admin
@@ -47,7 +47,7 @@ export type UserRole =
  *   student (10) - Read-only self access
  */
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
-  master_admin: 100,
+  super_admin: 100,
   district_admin: 90,
   daep_admin_l1: 80,
   campus_admin: 70,
@@ -67,7 +67,7 @@ export const TRESPASS_ROLES: UserRole[] = [
   'viewer',
   'campus_admin',
   'district_admin',
-  'master_admin',
+  'super_admin',
 ];
 
 /**
@@ -129,7 +129,7 @@ export const ROLE_INFO: Record<UserRole, { label: string; description: string; c
     description: 'Full district access, user management',
     category: 'trespass',
   },
-  master_admin: {
+  super_admin: {
     label: 'Master Admin',
     description: 'System-wide access across all tenants',
     category: 'trespass',
@@ -239,7 +239,7 @@ export function isReadOnlyRole(role: UserRole): boolean {
 
 /**
  * Check if a role is an admin role (can manage users).
- * Admin roles: master_admin, district_admin, daep_admin_l1
+ * Admin roles: super_admin, district_admin, daep_admin_l1
  *
  * @param role - The role to check
  * @returns true if the role can manage users
@@ -271,7 +271,7 @@ export function getRolesByCategory(category: 'trespass' | 'daep' | 'special'): U
 /**
  * Get all roles a given role can assign to other users.
  * Users can only assign roles at or below their permission level.
- * master_admin can assign all roles except master_admin to others.
+ * super_admin can assign all roles except super_admin to others.
  *
  * @param assignerRole - The role of the user doing the assignment
  * @returns Array of roles that can be assigned
@@ -279,15 +279,15 @@ export function getRolesByCategory(category: 'trespass' | 'daep' | 'special'): U
 export function getAssignableRoles(assignerRole: UserRole): UserRole[] {
   const assignerLevel = ROLE_HIERARCHY[assignerRole];
 
-  // Special case: only master_admin can assign master_admin
-  if (assignerRole === 'master_admin') {
+  // Special case: only super_admin can assign super_admin
+  if (assignerRole === 'super_admin') {
     return ALL_ROLES;
   }
 
-  // Otherwise, can only assign roles at or below your level (excluding master_admin)
+  // Otherwise, can only assign roles at or below your level (excluding super_admin)
   return ALL_ROLES.filter(role => {
     const roleLevel = ROLE_HIERARCHY[role];
-    return role !== 'master_admin' && roleLevel <= assignerLevel;
+    return role !== 'super_admin' && roleLevel <= assignerLevel;
   });
 }
 

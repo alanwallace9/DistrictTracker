@@ -13,7 +13,7 @@ const supabaseAdmin = createClient(
 );
 
 // Allowed roles whitelist for security validation
-const ALLOWED_ROLES = ['viewer', 'campus_admin', 'district_admin', 'master_admin'] as const;
+const ALLOWED_ROLES = ['viewer', 'campus_admin', 'district_admin', 'super_admin'] as const;
 
 export async function POST(req: Request) {
   // Rate limiting check
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         // Validate role against whitelist
         if (!ALLOWED_ROLES.includes(role as any)) {
           logger.error('Invalid role in user metadata', { userId: id, role });
-          return new Response('Invalid role. Must be one of: viewer, campus_admin, district_admin, master_admin', { status: 400 });
+          return new Response('Invalid role. Must be one of: viewer, campus_admin, district_admin, super_admin', { status: 400 });
         }
 
         // Validate required metadata
@@ -200,7 +200,7 @@ export async function POST(req: Request) {
         // Validate role against whitelist
         if (!ALLOWED_ROLES.includes(role as any)) {
           logger.error('Invalid role in user metadata', { userId: id, role });
-          return new Response('Invalid role. Must be one of: viewer, campus_admin, district_admin, master_admin', { status: 400 });
+          return new Response('Invalid role. Must be one of: viewer, campus_admin, district_admin, super_admin', { status: 400 });
         }
 
         // Validate required metadata

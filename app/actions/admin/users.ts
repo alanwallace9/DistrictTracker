@@ -20,7 +20,7 @@ export type AdminUserListItem = UserProfile & {
 
 /**
  * Get all users for admin view
- * Only accessible by master_admin
+ * Only accessible by super_admin
  */
 export async function getUsersForAdmin(tenantId?: string): Promise<AdminUserListItem[]> {
   try {
@@ -30,14 +30,14 @@ export async function getUsersForAdmin(tenantId?: string): Promise<AdminUserList
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -45,16 +45,16 @@ export async function getUsersForAdmin(tenantId?: string): Promise<AdminUserList
     const targetTenantId = tenantId || adminProfile.tenant_id;
 
     // Get all users for the tenant (including soft-deleted)
-    // For master_admin users, also include all master_admin accounts regardless of tenant
+    // For super_admin users, also include all super_admin accounts regardless of tenant
     let query = supabaseAdmin
       .from('user_profiles')
       .select('*');
 
-    if (adminProfile.role === 'master_admin') {
-      // Master admin sees: users in target tenant OR any master_admin user
-      query = query.or(`tenant_id.eq.${targetTenantId},role.eq.master_admin`);
+    if (adminProfile.role === 'super_admin') {
+      // Master admin sees: users in target tenant OR any super_admin user
+      query = query.or(`tenant_id.eq.${targetTenantId},role.eq.super_admin`);
     } else {
-      // District admin sees: only users in target tenant (master_admins will be filtered out later)
+      // District admin sees: only users in target tenant (super_admins will be filtered out later)
       query = query.eq('tenant_id', targetTenantId);
     }
 
@@ -112,10 +112,10 @@ export async function getUsersForAdmin(tenantId?: string): Promise<AdminUserList
         : null,
     }));
 
-    // Filter out master_admin users unless the requesting user is also master_admin
-    // This prevents lower-level admins from seeing or managing master_admin accounts
-    if (adminProfile.role !== 'master_admin') {
-      transformedUsers = transformedUsers.filter(user => user.role !== 'master_admin');
+    // Filter out super_admin users unless the requesting user is also super_admin
+    // This prevents lower-level admins from seeing or managing super_admin accounts
+    if (adminProfile.role !== 'super_admin') {
+      transformedUsers = transformedUsers.filter(user => user.role !== 'super_admin');
     }
 
     return transformedUsers;
@@ -134,11 +134,11 @@ export async function getUsersForAdmin(tenantId?: string): Promise<AdminUserList
 
 /**
  * Update user role via Clerk API
- * Only accessible by master_admin
+ * Only accessible by super_admin
  */
 export async function updateUserRole(
   targetUserId: string,
-  newRole: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor',
+  newRole: 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor',
   campusId?: string | null,
   displayName?: string,
   notificationDays?: number,
@@ -152,14 +152,14 @@ export async function updateUserRole(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -174,13 +174,13 @@ export async function updateUserRole(
       throw new Error('User not found');
     }
 
-    // Prevent district_admin from modifying master_admin accounts
-    if (adminProfile.role === 'district_admin' && targetUser.role === 'master_admin') {
+    // Prevent district_admin from modifying super_admin accounts
+    if (adminProfile.role === 'district_admin' && targetUser.role === 'super_admin') {
       throw new Error('Unauthorized: Cannot modify master admin accounts');
     }
 
-    // Prevent district_admin from promoting users to master_admin
-    if (adminProfile.role === 'district_admin' && newRole === 'master_admin') {
+    // Prevent district_admin from promoting users to super_admin
+    if (adminProfile.role === 'district_admin' && newRole === 'super_admin') {
       throw new Error('Unauthorized: Cannot assign master admin role');
     }
 
@@ -281,7 +281,7 @@ export async function updateUserRole(
 
 /**
  * Soft delete a user
- * Only accessible by master_admin
+ * Only accessible by super_admin
  */
 export async function deleteUser(
   targetUserId: string
@@ -293,14 +293,14 @@ export async function deleteUser(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -320,8 +320,8 @@ export async function deleteUser(
       throw new Error('Cannot delete your own account');
     }
 
-    // Prevent district_admin from deleting master_admin accounts
-    if (adminProfile.role === 'district_admin' && targetUser.role === 'master_admin') {
+    // Prevent district_admin from deleting super_admin accounts
+    if (adminProfile.role === 'district_admin' && targetUser.role === 'super_admin') {
       throw new Error('Unauthorized: Cannot delete master admin accounts');
     }
 

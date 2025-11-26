@@ -45,7 +45,7 @@ export async function getDAEPRecords(tenantId?: string): Promise<DAEPRecord[]> {
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 

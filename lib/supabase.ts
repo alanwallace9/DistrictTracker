@@ -50,7 +50,7 @@ export type UserProfile = {
   id: string;                                          // Clerk user ID (e.g., "user_2abc...")
   email: string | null;                                // User email from Clerk
   display_name: string | null;
-  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
   tenant_id: string | null;                            // Tenant ID (nullable for feedback-only users)
   campus_id: string | null;                            // Campus ID for campus_admin users
   user_type: 'tenant_user' | 'feedback_user';         // User type: tenant or feedback-only

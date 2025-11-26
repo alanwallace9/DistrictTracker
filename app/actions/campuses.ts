@@ -66,7 +66,7 @@ export async function createCampus(campus: {
     throw new Error('User profile not found');
   }
 
-  if (!['district_admin', 'master_admin'].includes(profile.role)) {
+  if (!['district_admin', 'super_admin'].includes(profile.role)) {
     throw new Error('Only district and master admins can create campuses');
   }
 

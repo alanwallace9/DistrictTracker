@@ -132,8 +132,8 @@ export function SettingsDialog({ open, onOpenChange, onSettingsSaved }: Settings
             <p className="text-xs text-slate-500">How far in advance to show expiration warnings</p>
           </div>
 
-          {/* Admin Panel - Only visible to district_admin and master_admin */}
-          {(effectiveRole === 'district_admin' || effectiveRole === 'master_admin') && (
+          {/* Admin Panel - Only visible to district_admin and super_admin */}
+          {(effectiveRole === 'district_admin' || effectiveRole === 'super_admin') && (
             <div className="pt-4 border-t border-slate-200">
               <Button
                 variant="outline"

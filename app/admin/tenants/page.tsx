@@ -26,8 +26,8 @@ export default async function TenantsManagementPage() {
     .eq('id', userId)
     .single();
 
-  // Only master_admin can access tenants management
-  if (!userProfile || userProfile.role !== 'master_admin') {
+  // Only super_admin can access tenants management
+  if (!userProfile || userProfile.role !== 'super_admin') {
     redirect('/admin');
   }
 

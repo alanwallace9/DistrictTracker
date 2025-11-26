@@ -18,7 +18,7 @@ export type AdminStats = {
 
 /**
  * Get overview statistics for admin dashboard
- * Only accessible by master_admin
+ * Only accessible by super_admin
  * @param tenantId - Optional tenant ID to fetch stats for (defaults to user's tenant)
  */
 export async function getAdminStats(tenantId?: string): Promise<AdminStats> {
@@ -29,14 +29,14 @@ export async function getAdminStats(tenantId?: string): Promise<AdminStats> {
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission and get tenant_id
+    // Verify super_admin permission and get tenant_id
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 

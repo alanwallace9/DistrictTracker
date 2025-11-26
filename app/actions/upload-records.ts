@@ -64,7 +64,7 @@ export async function uploadTrespassRecords(records: CSVRecordInput[]) {
   }
 
   // Verify user has permission to create records
-  if (!['campus_admin', 'district_admin', 'master_admin'].includes(userProfile.role)) {
+  if (!['campus_admin', 'district_admin', 'super_admin'].includes(userProfile.role)) {
     throw new Error('You do not have permission to upload records.');
   }
 
@@ -208,7 +208,7 @@ export async function createTrespassRecord(record: CSVRecordInput) {
     }
 
     // Verify user has permission to create records
-    if (!['campus_admin', 'district_admin', 'master_admin'].includes(userProfile.role)) {
+    if (!['campus_admin', 'district_admin', 'super_admin'].includes(userProfile.role)) {
       throw new Error('You do not have permission to create records.');
     }
 

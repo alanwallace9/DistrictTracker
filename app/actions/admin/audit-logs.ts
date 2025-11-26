@@ -50,7 +50,7 @@ export type AuditLogsResponse = {
 
 /**
  * Get audit logs for admin view with filters and pagination
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  * @param tenantId - Optional tenant ID to fetch logs for (defaults to user's tenant)
  */
 export async function getAuditLogs(
@@ -72,7 +72,7 @@ export async function getAuditLogs(
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 

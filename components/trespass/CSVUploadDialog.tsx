@@ -68,11 +68,11 @@ export function CSVUploadDialog({ open, onOpenChange, onRecordsUploaded }: CSVUp
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Tenant selection state for master_admin
+  // Tenant selection state for super_admin
   const [tenants, setTenants] = useState<Array<{id: string; display_name: string; subdomain: string; status: string}>>([]);
   const [selectedTenant, setSelectedTenant] = useState<string>('');
   const [loadingTenants, setLoadingTenants] = useState(false);
-  const isMasterAdmin = userRole === 'master_admin';
+  const isMasterAdmin = userRole === 'super_admin';
 
   useEffect(() => {
     if (user) {
@@ -80,7 +80,7 @@ export function CSVUploadDialog({ open, onOpenChange, onRecordsUploaded }: CSVUp
     }
   }, [user]);
 
-  // Fetch tenants when dialog opens and user is master_admin
+  // Fetch tenants when dialog opens and user is super_admin
   useEffect(() => {
     if (open && isMasterAdmin) {
       fetchTenants();
@@ -386,7 +386,7 @@ export function CSVUploadDialog({ open, onOpenChange, onRecordsUploaded }: CSVUp
   const handleUpload = async () => {
     if (!user || (previewData.length === 0 && userPreviewData.length === 0)) return;
 
-    // Validate tenant selection for master_admin
+    // Validate tenant selection for super_admin
     if (isMasterAdmin && !selectedTenant) {
       toast({
         title: 'Tenant Required',
@@ -522,7 +522,7 @@ export function CSVUploadDialog({ open, onOpenChange, onRecordsUploaded }: CSVUp
             </div>
           )}
 
-          {(userRole === 'district_admin' || userRole === 'master_admin') && (
+          {(userRole === 'district_admin' || userRole === 'super_admin') && (
             <div className="flex gap-3 p-1 bg-slate-100 rounded-lg">
               <Button
                 type="button"

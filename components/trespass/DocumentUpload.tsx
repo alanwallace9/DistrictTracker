@@ -45,7 +45,7 @@ export function DocumentUpload({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isAdmin = userRole === 'district_admin' || userRole === 'master_admin';
+  const isAdmin = userRole === 'district_admin' || userRole === 'super_admin';
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;

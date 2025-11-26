@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export type UserRole = 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin';
+export type UserRole = 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin';
 
 export interface AdminProfile {
   id: string;
@@ -54,7 +54,7 @@ export async function verifyAdminAccess(
   // If accessing a specific tenant, verify access
   if (requestedTenantId) {
     // Master admin can access any tenant
-    if (profile.role === 'master_admin') {
+    if (profile.role === 'super_admin') {
       return profile as AdminProfile;
     }
 
@@ -73,7 +73,7 @@ export async function verifyAdminAccess(
  *
  * @param userId - Clerk user ID
  * @param targetTenantId - Tenant ID of the resource being accessed
- * @throws Error if tenant mismatch (unless master_admin)
+ * @throws Error if tenant mismatch (unless super_admin)
  */
 export async function verifyServiceRoleOperation(
   userId: string,
@@ -90,7 +90,7 @@ export async function verifyServiceRoleOperation(
   }
 
   // Master admin can bypass tenant isolation
-  if (profile.role === 'master_admin') {
+  if (profile.role === 'super_admin') {
     return profile as AdminProfile;
   }
 

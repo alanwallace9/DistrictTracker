@@ -7,21 +7,21 @@ import { logAuditEvent } from '@/lib/audit-logger';
 
 export type InviteUserData = {
   email: string;
-  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin';
   campus_id?: string | null; // Required for campus_admin role
   tenant_id?: string | null; // Tenant ID for multi-tenant support
 };
 
 /**
  * Invite a new user via email
- * district_admin and master_admin can invite users
+ * district_admin and super_admin can invite users
  */
 export async function inviteUser(data: InviteUserData) {
   // Check if user has permission to invite users
   const user = await requirePermission('invite_users');
 
   // If user has tenant_id, verify they can invite to this tenant
-  if (user.role !== 'master_admin' && data.tenant_id) {
+  if (user.role !== 'super_admin' && data.tenant_id) {
     await requireTenantPermission('invite_users', data.tenant_id);
   }
 

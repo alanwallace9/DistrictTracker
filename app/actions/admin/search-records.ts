@@ -37,7 +37,7 @@ export async function searchRecords(query: string, tenantId?: string): Promise<R
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 

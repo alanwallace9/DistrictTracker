@@ -59,7 +59,7 @@ export function FeedbackDetailView({ feedback, initialIsUpvoted, comments }: Fee
     const role = feedback.user.role;
     const hasDisplayName = feedback.user.display_name && feedback.user.display_name.trim() !== '';
 
-    if (role === 'master_admin') {
+    if (role === 'super_admin') {
       // Master admin always shows as "Alan • DistrictTracker"
       userName = 'Alan';
       roleDisplay = 'DistrictTracker';

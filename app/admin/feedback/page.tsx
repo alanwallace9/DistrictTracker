@@ -27,7 +27,7 @@ export default async function AdminFeedbackPage() {
     .eq('id', userId)
     .single();
 
-  if (!userProfile || userProfile.role !== 'master_admin') {
+  if (!userProfile || userProfile.role !== 'super_admin') {
     redirect('/dashboard');
   }
 

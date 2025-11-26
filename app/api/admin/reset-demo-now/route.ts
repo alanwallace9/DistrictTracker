@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
  * This endpoint allows master admins to immediately reset demo tenant
  * to the saved snapshot (useful if inappropriate content is posted)
  *
- * Security: Only master_admin role can trigger reset
+ * Security: Only super_admin role can trigger reset
  *
  * POST /api/admin/reset-demo-now
  */
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify user is master_admin
+    // Verify user is super_admin
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (userProfile.role !== 'master_admin') {
+    if (userProfile.role !== 'super_admin') {
       logger.warn('Non-master-admin attempted to reset demo', { userId });
       return NextResponse.json(
         { error: 'Only master admins can reset demo tenant' },

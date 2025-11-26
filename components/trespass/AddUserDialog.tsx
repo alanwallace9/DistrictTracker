@@ -20,7 +20,7 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     email: '',
-    role: 'viewer' as 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin',
+    role: 'viewer' as 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin',
     campus_id: '',
   });
 
@@ -109,7 +109,7 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
                 <SelectItem value="viewer">Viewer (Read Only)</SelectItem>
                 <SelectItem value="campus_admin">Campus Admin (Create & Update)</SelectItem>
                 <SelectItem value="district_admin">District Admin (Full Access)</SelectItem>
-                <SelectItem value="master_admin">Master Admin (System Admin)</SelectItem>
+                <SelectItem value="super_admin">Master Admin (System Admin)</SelectItem>
               </SelectContent>
             </Select>
           </div>

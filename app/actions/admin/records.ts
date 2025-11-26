@@ -27,7 +27,7 @@ export type RecordFilters = {
 
 /**
  * Get all records for admin view with filters and pagination
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function getRecordsForAdmin(
   filters: RecordFilters = {}
@@ -39,7 +39,7 @@ export async function getRecordsForAdmin(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id')
@@ -51,7 +51,7 @@ export async function getRecordsForAdmin(
       throw new Error('Failed to fetch user profile');
     }
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       logger.error('[getRecordsForAdmin] Unauthorized access attempt', { userId, role: adminProfile?.role });
       throw new Error('Unauthorized: Admin access required');
     }
@@ -150,7 +150,7 @@ export async function getRecordsForAdmin(
 
 /**
  * Soft delete a record
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function deleteRecordAdmin(
   recordId: string
@@ -162,14 +162,14 @@ export async function deleteRecordAdmin(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -184,8 +184,8 @@ export async function deleteRecordAdmin(
       throw new Error('Record not found');
     }
 
-    // Verify record belongs to admin's tenant (or admin is master_admin)
-    if (adminProfile.role !== 'master_admin' && record.tenant_id !== adminProfile.tenant_id) {
+    // Verify record belongs to admin's tenant (or admin is super_admin)
+    if (adminProfile.role !== 'super_admin' && record.tenant_id !== adminProfile.tenant_id) {
       throw new Error('Unauthorized: Cannot delete records from other tenants');
     }
 
@@ -233,7 +233,7 @@ export async function deleteRecordAdmin(
 
 /**
  * Export records to CSV
- * Only accessible by master_admin and district_admin
+ * Only accessible by super_admin and district_admin
  */
 export async function exportRecordsToCSV(
   filters: RecordFilters = {}
@@ -245,14 +245,14 @@ export async function exportRecordsToCSV(
       throw new Error('Not authenticated');
     }
 
-    // Verify admin permission (master_admin or district_admin)
+    // Verify admin permission (super_admin or district_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || !['master_admin', 'district_admin'].includes(adminProfile.role)) {
+    if (!adminProfile || !['super_admin', 'district_admin'].includes(adminProfile.role)) {
       throw new Error('Unauthorized: Admin access required');
     }
 

@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
  * This endpoint captures the current state of demo campuses and records
  * and saves them as the new "default state" for automated resets.
  *
- * Security: Only master_admin role can update snapshots
+ * Security: Only super_admin role can update snapshots
  *
  * POST /api/admin/update-demo-snapshot
  */
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify user is master_admin
+    // Verify user is super_admin
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (userProfile.role !== 'master_admin') {
+    if (userProfile.role !== 'super_admin') {
       logger.warn('Non-master-admin attempted to update demo snapshot', { userId });
       return NextResponse.json(
         { error: 'Only master admins can update demo snapshots' },

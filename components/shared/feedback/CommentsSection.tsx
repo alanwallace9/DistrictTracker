@@ -147,7 +147,7 @@ export function CommentsSection({ feedbackId, comments: initialComments }: Comme
               const role = comment.user.role;
               const hasDisplayName = comment.user.display_name && comment.user.display_name.trim() !== '';
 
-              if (role === 'master_admin') {
+              if (role === 'super_admin') {
                 // Master admin always shows as "Alan • DistrictTracker"
                 userName = 'Alan';
                 roleDisplay = 'DistrictTracker';

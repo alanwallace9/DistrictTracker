@@ -1,7 +1,7 @@
 import { auth, clerkClient } from '@clerk/nextjs/server';
 
 export const ROLE_PERMISSIONS = {
-  master_admin: [
+  super_admin: [
     'invite_users',
     'revoke_invitations',
     'delete_records',
@@ -74,7 +74,7 @@ export async function requireTenantPermission(
   const user = await requirePermission(permission);
 
   // Master admin can access any tenant
-  if (user.role === 'master_admin') {
+  if (user.role === 'super_admin') {
     return user;
   }
 

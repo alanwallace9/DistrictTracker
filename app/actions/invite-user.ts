@@ -67,9 +67,9 @@ async function getTenantIdFromSubdomain(): Promise<string> {
 
 type InviteUserParams = {
   email: string;
-  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
   campusId?: string | null;
-  tenantId?: string | null; // Optional: master_admin can specify tenant, others use subdomain
+  tenantId?: string | null; // Optional: super_admin can specify tenant, others use subdomain
   moduleAccess?: 'trespass_only' | 'daep_only' | 'both'; // Module access for the invited user
 };
 
@@ -79,7 +79,7 @@ type InviteUserParams = {
  *
  * Security:
  * - For district_admin/campus_admin: tenant_id is derived from subdomain (strict isolation)
- * - For master_admin: can optionally specify tenantId to invite to any tenant they manage
+ * - For super_admin: can optionally specify tenantId to invite to any tenant they manage
  */
 export async function inviteUser({ email, role, campusId, tenantId, moduleAccess = 'both' }: InviteUserParams) {
   try {
@@ -103,14 +103,14 @@ export async function inviteUser({ email, role, campusId, tenantId, moduleAccess
     }
 
     // Validate permissions
-    if (!['district_admin', 'master_admin'].includes(adminProfile.role)) {
+    if (!['district_admin', 'super_admin'].includes(adminProfile.role)) {
       throw new Error('Only district and master admins can invite users');
     }
 
     // Determine target tenant based on role
     let targetTenantId: string;
 
-    if (adminProfile.role === 'master_admin' && tenantId) {
+    if (adminProfile.role === 'super_admin' && tenantId) {
       // Master admin can invite to specified tenant
       // Validate that the tenant exists
       const { data: tenant, error: tenantError } = await supabaseAdmin
@@ -137,7 +137,7 @@ export async function inviteUser({ email, role, campusId, tenantId, moduleAccess
       }
 
       // SECURITY: For non-master-admin, verify their tenant matches subdomain
-      if (adminProfile.role !== 'master_admin' && adminProfile.tenant_id !== targetTenantId) {
+      if (adminProfile.role !== 'super_admin' && adminProfile.tenant_id !== targetTenantId) {
         logger.error('Tenant mismatch during user invitation', {
           adminTenant: adminProfile.tenant_id,
           subdomainTenant: targetTenantId,

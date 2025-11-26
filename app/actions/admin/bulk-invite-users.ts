@@ -13,9 +13,9 @@ const supabaseAdmin = createClient(
 
 export type BulkUserRow = {
   email: string;
-  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'parent' | 'student' | 'counselor';
   campus_id?: string;
-  tenant_id?: string; // Optional: for master_admin to invite to specific tenant
+  tenant_id?: string; // Optional: for super_admin to invite to specific tenant
   module_access?: 'trespass_only' | 'daep_only' | 'both'; // Module access for the user
 };
 
@@ -52,7 +52,7 @@ async function validateUserRow(
   }
 
   // Validate role
-  const validRoles = ['viewer', 'campus_admin', 'district_admin', 'master_admin', 'daep_admin_l1', 'daep_admin_l2', 'daep_staff', 'parent', 'student', 'counselor'];
+  const validRoles = ['viewer', 'campus_admin', 'district_admin', 'super_admin', 'daep_admin_l1', 'daep_admin_l2', 'daep_staff', 'parent', 'student', 'counselor'];
   if (!validRoles.includes(row.role)) {
     return `Invalid role. Must be one of: ${validRoles.join(', ')}`;
   }
@@ -72,10 +72,10 @@ async function validateUserRow(
     }
   }
 
-  // Validate tenant_id if provided (only master_admin should use this)
+  // Validate tenant_id if provided (only super_admin should use this)
   if (row.tenant_id) {
     if (!isMasterAdmin) {
-      return 'Only master_admin can specify tenant_id';
+      return 'Only super_admin can specify tenant_id';
     }
     if (!validTenantIds.has(row.tenant_id)) {
       return `Invalid tenant_id: ${row.tenant_id}`;
@@ -119,11 +119,11 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
     }
 
     // Validate permissions
-    if (!['district_admin', 'master_admin'].includes(adminProfile.role)) {
+    if (!['district_admin', 'super_admin'].includes(adminProfile.role)) {
       throw new Error('Only district and master admins can bulk invite users');
     }
 
-    const isMasterAdmin = adminProfile.role === 'master_admin';
+    const isMasterAdmin = adminProfile.role === 'super_admin';
 
     // Fetch valid campus IDs for validation
     const { data: campuses } = await supabaseAdmin
@@ -137,7 +137,7 @@ export async function bulkInviteUsers(users: BulkUserRow[]): Promise<BulkInviteR
 
     logger.info('[bulkInviteUsers] Valid campuses loaded', { count: validCampusIds.size });
 
-    // Fetch valid tenant IDs if master_admin
+    // Fetch valid tenant IDs if super_admin
     let validTenantIds = new Set<string>();
     if (isMasterAdmin) {
       const { data: tenants } = await supabaseAdmin

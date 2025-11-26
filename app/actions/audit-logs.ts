@@ -25,10 +25,10 @@ export interface AuditLog {
  * Returns recent audit logs for admins to view
  */
 export async function getAuditLogs(limit: number = 100): Promise<AuditLog[]> {
-  // Only district_admin and master_admin can view audit logs
+  // Only district_admin and super_admin can view audit logs
   const user = await requirePermission('invite_users');
 
-  if (!['district_admin', 'master_admin'].includes(user.role)) {
+  if (!['district_admin', 'super_admin'].includes(user.role)) {
     throw new Error('Access denied: Only admins can view audit logs');
   }
 

@@ -19,7 +19,7 @@ export type CampusWithCounts = Campus & {
 
 /**
  * Get all campuses for admin view (basic info only)
- * Only accessible by master_admin
+ * Only accessible by super_admin
  * @param tenantId - Optional tenant ID to fetch campuses for (defaults to user's tenant)
  */
 export async function getCampuses(tenantId?: string): Promise<Campus[]> {
@@ -30,14 +30,14 @@ export async function getCampuses(tenantId?: string): Promise<Campus[]> {
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 
@@ -66,7 +66,7 @@ export async function getCampuses(tenantId?: string): Promise<Campus[]> {
 
 /**
  * Get all campuses with user and record counts for admin view
- * Only accessible by master_admin
+ * Only accessible by super_admin
  * Uses optimized SQL function for better performance
  * @param tenantId - Optional tenant ID to fetch campuses for (defaults to user's tenant)
  */
@@ -78,14 +78,14 @@ export async function getCampusesWithCounts(tenantId?: string): Promise<CampusWi
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 
@@ -112,7 +112,7 @@ export async function getCampusesWithCounts(tenantId?: string): Promise<CampusWi
 
 /**
  * Get users for a specific campus
- * Only accessible by master_admin
+ * Only accessible by super_admin
  */
 export async function getUsersForCampus(campusId: string): Promise<AdminUserListItem[]> {
   try {
@@ -122,14 +122,14 @@ export async function getUsersForCampus(campusId: string): Promise<AdminUserList
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 
@@ -169,7 +169,7 @@ export async function getUsersForCampus(campusId: string): Promise<AdminUserList
 
 /**
  * Get records for a specific campus
- * Only accessible by master_admin
+ * Only accessible by super_admin
  */
 export async function getRecordsForCampus(campusId: string) {
   try {
@@ -179,14 +179,14 @@ export async function getRecordsForCampus(campusId: string) {
       throw new Error('Not authenticated');
     }
 
-    // Verify master_admin permission
+    // Verify super_admin permission
     const { data: adminProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, tenant_id, active_tenant_id')
       .eq('id', userId)
       .single();
 
-    if (!adminProfile || adminProfile.role !== 'master_admin') {
+    if (!adminProfile || adminProfile.role !== 'super_admin') {
       throw new Error('Unauthorized: Master admin access required');
     }
 
@@ -240,7 +240,7 @@ export async function isCampusNameUnique(name: string, excludeCampusId?: string)
       .eq('id', userId)
       .single();
 
-    if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
+    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -288,7 +288,7 @@ export async function createCampus(campusData: {
       .eq('id', userId)
       .single();
 
-    if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
+    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -382,7 +382,7 @@ export async function updateCampus(
       .eq('id', userId)
       .single();
 
-    if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
+    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -507,7 +507,7 @@ export async function canDeactivateCampus(campusId: string): Promise<{
       .eq('id', userId)
       .single();
 
-    if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
+    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -573,7 +573,7 @@ export async function deactivateCampus(campusId: string): Promise<void> {
       .eq('id', userId)
       .single();
 
-    if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
+    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
 
@@ -664,7 +664,7 @@ export async function activateCampus(campusId: string): Promise<void> {
       .eq('id', userId)
       .single();
 
-    if (!profile || (profile.role !== 'master_admin' && profile.role !== 'district_admin')) {
+    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'district_admin')) {
       throw new Error('Unauthorized: Admin access required');
     }
 

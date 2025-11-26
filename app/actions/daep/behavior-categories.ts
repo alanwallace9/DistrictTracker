@@ -41,7 +41,7 @@ const DEFAULT_CATEGORIES: Omit<CreateBehaviorCategoryInput, 'display_order'>[] =
 ];
 
 // Helper to get effective tenant_id from database (matches RLS get_my_tenant_id())
-// Uses COALESCE(active_tenant_id, tenant_id) to support master_admin tenant switching
+// Uses COALESCE(active_tenant_id, tenant_id) to support super_admin tenant switching
 async function getTenantId(): Promise<string> {
   const user = await currentUser();
   if (!user) throw new Error('Unauthorized');
@@ -84,7 +84,7 @@ async function checkDAEPAdminRole(): Promise<{ userId: string; role: string; ten
     throw new Error('User profile not found');
   }
 
-  const allowedRoles = ['master_admin', 'district_admin', 'daep_admin_l1'];
+  const allowedRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
   if (!allowedRoles.includes(profile.role)) {
     throw new Error('Insufficient permissions. Only DAEP administrators can manage behavior categories.');
   }

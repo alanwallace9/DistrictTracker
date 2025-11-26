@@ -95,14 +95,14 @@ export async function getWaitlistEntries() {
       throw new Error('User not authenticated');
     }
 
-    // Verify user is master_admin
+    // Verify user is super_admin
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
       .eq('id', userId)
       .single();
 
-    if (profile?.role !== 'master_admin') {
+    if (profile?.role !== 'super_admin') {
       throw new Error('Unauthorized: Only master admins can view waitlist');
     }
 
