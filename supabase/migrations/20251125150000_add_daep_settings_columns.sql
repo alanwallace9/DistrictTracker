@@ -1,6 +1,10 @@
 -- Add DAEP settings JSONB columns to tenants and campuses tables
 -- Story 1.9: District/Campus DAEP Settings
 
+-- Add is_daep flag to campuses table
+ALTER TABLE campuses
+ADD COLUMN IF NOT EXISTS is_daep BOOLEAN DEFAULT false;
+
 -- Add daep_settings to tenants table (district-level settings)
 ALTER TABLE tenants
 ADD COLUMN IF NOT EXISTS daep_settings JSONB DEFAULT '{
