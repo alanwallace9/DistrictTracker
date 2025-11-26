@@ -304,10 +304,10 @@ export async function createCampus(campusData: {
     // Use active_tenant_id if set, otherwise fall back to tenant_id
     const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
 
-    // Validate campus ID format
-    const idPattern = /^[a-z0-9][a-z0-9-_]{0,49}$/i;
+    // Validate campus ID format (numbers only, 1-10 digits)
+    const idPattern = /^[0-9]{1,10}$/;
     if (!idPattern.test(campusData.id)) {
-      throw new Error('Invalid campus ID format');
+      throw new Error('Campus ID must be numbers only (e.g., "001", "101")');
     }
 
     // Check if ID already exists

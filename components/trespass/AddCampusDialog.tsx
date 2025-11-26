@@ -27,9 +27,9 @@ export function AddCampusDialog({ open, onOpenChange, onSuccess }: AddCampusDial
   const { toast } = useToast();
 
   const validateCampusId = (id: string) => {
-    const pattern = /^[a-z0-9][a-z0-9-_]{0,49}$/i;
+    const pattern = /^[0-9]{1,10}$/;
     if (!pattern.test(id)) {
-      return 'Campus ID must start with a letter or number and contain only letters, numbers, hyphens, or underscores';
+      return 'Campus ID must be numbers only (e.g., "001", "101")';
     }
     return null;
   };
@@ -99,10 +99,10 @@ export function AddCampusDialog({ open, onOpenChange, onSuccess }: AddCampusDial
               value={formData.id}
               onChange={(e) => setFormData({ ...formData, id: e.target.value })}
               required
-              placeholder="e.g., 101, north-elem"
+              placeholder="e.g., 001, 101"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Letters, numbers, hyphens (e.g., &quot;101&quot;, &quot;north-elem&quot;)
+              Numbers only (e.g., &quot;001&quot;, &quot;101&quot;)
             </p>
             {errors.id && <p className="text-xs text-red-600 mt-1">{errors.id}</p>}
           </div>
