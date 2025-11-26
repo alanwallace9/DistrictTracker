@@ -196,6 +196,20 @@ export type BellSchedulePeriod = z.infer<typeof BellSchedulePeriodSchema>;
 export type CreateBellScheduleInput = z.infer<typeof BellScheduleSchema>;
 
 // ============================================================================
+// DAEP DISCIPLINE CODE SCHEMAS
+// ============================================================================
+
+export const DisciplineCodeSchema = z.object({
+  code: z.string().min(1, 'PEIMS code is required').max(20, 'Code too long'),
+  label: z.string().min(1, 'Label is required').max(200, 'Label too long'),
+  mandatory_placement: z.boolean().default(false),
+  behavior_location: z.enum(['on_campus', 'off_campus', 'school_sponsored']).nullable().optional(),
+  active: z.boolean().default(true),
+});
+
+export type CreateDisciplineCodeInput = z.infer<typeof DisciplineCodeSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
