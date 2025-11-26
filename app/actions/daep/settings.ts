@@ -119,7 +119,7 @@ export async function getDistrictDAEPSettings(): Promise<DistrictSettingsResult>
 
   const { data, error } = await supabase
     .from('tenants')
-    .select('id, name, daep_settings')
+    .select('id, display_name, daep_settings')
     .eq('id', tenantId)
     .single();
 
@@ -138,7 +138,7 @@ export async function getDistrictDAEPSettings(): Promise<DistrictSettingsResult>
   return {
     settings,
     tenant_id: data.id,
-    tenant_name: data.name,
+    tenant_name: data.display_name,
   };
 }
 
