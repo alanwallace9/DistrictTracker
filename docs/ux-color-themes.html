@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DAEPManagement - Color Theme Explorer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f1f5f9;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 28px; margin-bottom: 8px; color: #1e293b; }
+    .subtitle { color: #64748b; margin-bottom: 32px; font-size: 16px; }
+
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1200px) {
+      .themes-grid { grid-template-columns: 1fr; }
+    }
+
+    .theme-card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      overflow: hidden;
+    }
+
+    .theme-header {
+      padding: 20px 24px;
+      color: white;
+    }
+    .theme-header h2 { font-size: 20px; margin-bottom: 4px; }
+    .theme-header p { opacity: 0.9; font-size: 14px; }
+
+    .theme-body { padding: 24px; }
+
+    .color-section { margin-bottom: 24px; }
+    .color-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 12px; }
+
+    .color-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .swatch {
+      width: 56px;
+      height: 56px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    .swatch-label {
+      font-size: 10px;
+      color: #64748b;
+      text-align: center;
+    }
+    .swatch-hex {
+      font-size: 10px;
+      font-family: monospace;
+      color: #94a3b8;
+    }
+
+    .component-preview {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .component-preview h4 { font-size: 12px; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .button-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+
+    .badge-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .badge {
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .input-preview {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .input-preview input {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      font-size: 14px;
+      width: 160px;
+    }
+    .input-preview input:focus {
+      outline: none;
+      border-width: 2px;
+    }
+
+    .card-preview {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid #e2e8f0;
+      margin-top: 16px;
+    }
+    .card-preview .stat { font-size: 32px; font-weight: 700; }
+    .card-preview .label { font-size: 14px; color: #64748b; }
+    .card-preview .trend { font-size: 12px; display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 13px;
+    }
+    .mini-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-weight: 500;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .mini-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .mini-table tr:hover { background: #f8fafc; }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .personality {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border-left: 4px solid;
+    }
+    .personality h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .personality p { font-size: 13px; color: #64748b; }
+
+    .recommendation {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 2px solid #f59e0b;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      display: inline-block;
+      margin-left: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>DAEPManagement Color Theme Explorer</h1>
+  <p class="subtitle">Compare 4 professional EdTech theme options. Click through to see how each would look in your interface.</p>
+
+  <div class="themes-grid">
+
+    <!-- Theme 1: Current Mockup (Trustworthy Blue) -->
+    <div class="theme-card">
+      <div class="theme-header" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+        <h2>Theme 1: Trustworthy Blue <span class="recommendation">Current Mockup</span></h2>
+        <p>Professional, institutional, reliable - matches your bolt.new prototype</p>
+      </div>
+      <div class="theme-body">
+        <div class="color-section">
+          <h3>Primary Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #3B82F6;"></div>
+              <span class="swatch-label">Primary</span>
+              <span class="swatch-hex">#3B82F6</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #1e293b;"></div>
+              <span class="swatch-label">Sidebar</span>
+              <span class="swatch-hex">#1E293B</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #f9fafb;"></div>
+              <span class="swatch-label">Background</span>
+              <span class="swatch-hex">#F9FAFB</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #64748b;"></div>
+              <span class="swatch-label">Muted</span>
+              <span class="swatch-hex">#64748B</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <h3>Status Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #10B981;"></div>
+              <span class="swatch-label">Success</span>
+              <span class="swatch-hex">#10B981</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #F59E0B;"></div>
+              <span class="swatch-label">Warning</span>
+              <span class="swatch-hex">#F59E0B</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #EF4444;"></div>
+              <span class="swatch-label">Danger</span>
+              <span class="swatch-hex">#EF4444</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #6366F1;"></div>
+              <span class="swatch-label">Info</span>
+              <span class="swatch-hex">#6366F1</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-preview">
+          <h4>Live Component Preview</h4>
+          <div class="button-row">
+            <button class="btn" style="background: #3B82F6; color: white;">Save Points</button>
+            <button class="btn" style="background: white; color: #374151; border: 1px solid #e2e8f0;">Cancel</button>
+            <button class="btn" style="background: #fee2e2; color: #dc2626;">Mark No-Show</button>
+          </div>
+          <div class="badge-row">
+            <span class="badge" style="background: #dcfce7; color: #166534;">Active</span>
+            <span class="badge" style="background: #fef3c7; color: #92400e;">At Risk</span>
+            <span class="badge" style="background: #fee2e2; color: #dc2626;">Urgent</span>
+            <span class="badge" style="background: #e0e7ff; color: #4338ca;">2nd Time</span>
+          </div>
+          <div class="input-preview">
+            <input type="text" placeholder="Search students..." style="border-color: #e2e8f0;" onfocus="this.style.borderColor='#3B82F6'" onblur="this.style.borderColor='#e2e8f0'">
+          </div>
+          <div class="card-preview">
+            <div class="stat" style="color: #1e293b;">247</div>
+            <div class="label">Students Enrolled</div>
+            <div class="trend" style="color: #10B981;">+12% from last month</div>
+          </div>
+          <table class="mini-table">
+            <thead><tr><th>Student</th><th>Avg</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #3B82F6;">JM</div> Jordan Martinez</td>
+                <td style="font-weight: 600; color: #10B981;">8.5</td>
+                <td><span class="badge" style="background: #dcfce7; color: #166534;">On Track</span></td>
+              </tr>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #F59E0B;">AS</div> Alex Smith</td>
+                <td style="font-weight: 600; color: #F59E0B;">6.2</td>
+                <td><span class="badge" style="background: #fef3c7; color: #92400e;">At Risk</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="personality" style="border-color: #3B82F6;">
+          <h4>Theme Personality</h4>
+          <p><strong>Emotional Impact:</strong> Trustworthy, professional, reliable<br>
+          <strong>Best For:</strong> Government, education, enterprise<br>
+          <strong>Visual Style:</strong> Clean, institutional, business-like</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme 2: Modern Slate -->
+    <div class="theme-card">
+      <div class="theme-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+        <h2>Theme 2: Modern Slate</h2>
+        <p>Sophisticated, contemporary, premium feel</p>
+      </div>
+      <div class="theme-body">
+        <div class="color-section">
+          <h3>Primary Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #0ea5e9;"></div>
+              <span class="swatch-label">Primary</span>
+              <span class="swatch-hex">#0EA5E9</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #0f172a;"></div>
+              <span class="swatch-label">Sidebar</span>
+              <span class="swatch-hex">#0F172A</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #f8fafc;"></div>
+              <span class="swatch-label">Background</span>
+              <span class="swatch-hex">#F8FAFC</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #475569;"></div>
+              <span class="swatch-label">Muted</span>
+              <span class="swatch-hex">#475569</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <h3>Status Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #22c55e;"></div>
+              <span class="swatch-label">Success</span>
+              <span class="swatch-hex">#22C55E</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #f97316;"></div>
+              <span class="swatch-label">Warning</span>
+              <span class="swatch-hex">#F97316</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #ef4444;"></div>
+              <span class="swatch-label">Danger</span>
+              <span class="swatch-hex">#EF4444</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #8b5cf6;"></div>
+              <span class="swatch-label">Info</span>
+              <span class="swatch-hex">#8B5CF6</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-preview">
+          <h4>Live Component Preview</h4>
+          <div class="button-row">
+            <button class="btn" style="background: #0ea5e9; color: white;">Save Points</button>
+            <button class="btn" style="background: white; color: #374151; border: 1px solid #e2e8f0;">Cancel</button>
+            <button class="btn" style="background: #fee2e2; color: #dc2626;">Mark No-Show</button>
+          </div>
+          <div class="badge-row">
+            <span class="badge" style="background: #dcfce7; color: #166534;">Active</span>
+            <span class="badge" style="background: #ffedd5; color: #c2410c;">At Risk</span>
+            <span class="badge" style="background: #fee2e2; color: #dc2626;">Urgent</span>
+            <span class="badge" style="background: #ede9fe; color: #6d28d9;">2nd Time</span>
+          </div>
+          <div class="input-preview">
+            <input type="text" placeholder="Search students..." style="border-color: #e2e8f0;" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e2e8f0'">
+          </div>
+          <div class="card-preview">
+            <div class="stat" style="color: #0f172a;">247</div>
+            <div class="label">Students Enrolled</div>
+            <div class="trend" style="color: #22c55e;">+12% from last month</div>
+          </div>
+          <table class="mini-table">
+            <thead><tr><th>Student</th><th>Avg</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #0ea5e9;">JM</div> Jordan Martinez</td>
+                <td style="font-weight: 600; color: #22c55e;">8.5</td>
+                <td><span class="badge" style="background: #dcfce7; color: #166534;">On Track</span></td>
+              </tr>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #f97316;">AS</div> Alex Smith</td>
+                <td style="font-weight: 600; color: #f97316;">6.2</td>
+                <td><span class="badge" style="background: #ffedd5; color: #c2410c;">At Risk</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="personality" style="border-color: #0ea5e9;">
+          <h4>Theme Personality</h4>
+          <p><strong>Emotional Impact:</strong> Modern, sophisticated, tech-forward<br>
+          <strong>Best For:</strong> Progressive districts, tech-savvy users<br>
+          <strong>Visual Style:</strong> Premium, refined, contemporary</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme 3: Forest Green (Education-focused) -->
+    <div class="theme-card">
+      <div class="theme-header" style="background: linear-gradient(135deg, #14532d 0%, #166534 100%);">
+        <h2>Theme 3: Academic Green</h2>
+        <p>Educational, growth-focused, calming</p>
+      </div>
+      <div class="theme-body">
+        <div class="color-section">
+          <h3>Primary Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #16a34a;"></div>
+              <span class="swatch-label">Primary</span>
+              <span class="swatch-hex">#16A34A</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #14532d;"></div>
+              <span class="swatch-label">Sidebar</span>
+              <span class="swatch-hex">#14532D</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #f0fdf4;"></div>
+              <span class="swatch-label">Background</span>
+              <span class="swatch-hex">#F0FDF4</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #4b5563;"></div>
+              <span class="swatch-label">Muted</span>
+              <span class="swatch-hex">#4B5563</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <h3>Status Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #22c55e;"></div>
+              <span class="swatch-label">Success</span>
+              <span class="swatch-hex">#22C55E</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #eab308;"></div>
+              <span class="swatch-label">Warning</span>
+              <span class="swatch-hex">#EAB308</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #dc2626;"></div>
+              <span class="swatch-label">Danger</span>
+              <span class="swatch-hex">#DC2626</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #0284c7;"></div>
+              <span class="swatch-label">Info</span>
+              <span class="swatch-hex">#0284C7</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-preview" style="background: #f0fdf4;">
+          <h4>Live Component Preview</h4>
+          <div class="button-row">
+            <button class="btn" style="background: #16a34a; color: white;">Save Points</button>
+            <button class="btn" style="background: white; color: #374151; border: 1px solid #d1d5db;">Cancel</button>
+            <button class="btn" style="background: #fef2f2; color: #dc2626;">Mark No-Show</button>
+          </div>
+          <div class="badge-row">
+            <span class="badge" style="background: #dcfce7; color: #166534;">Active</span>
+            <span class="badge" style="background: #fef9c3; color: #854d0e;">At Risk</span>
+            <span class="badge" style="background: #fee2e2; color: #dc2626;">Urgent</span>
+            <span class="badge" style="background: #dbeafe; color: #1e40af;">2nd Time</span>
+          </div>
+          <div class="input-preview">
+            <input type="text" placeholder="Search students..." style="border-color: #d1d5db; background: white;" onfocus="this.style.borderColor='#16a34a'" onblur="this.style.borderColor='#d1d5db'">
+          </div>
+          <div class="card-preview" style="background: white;">
+            <div class="stat" style="color: #14532d;">247</div>
+            <div class="label">Students Enrolled</div>
+            <div class="trend" style="color: #16a34a;">+12% from last month</div>
+          </div>
+          <table class="mini-table" style="background: white;">
+            <thead><tr><th>Student</th><th>Avg</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #16a34a;">JM</div> Jordan Martinez</td>
+                <td style="font-weight: 600; color: #16a34a;">8.5</td>
+                <td><span class="badge" style="background: #dcfce7; color: #166534;">On Track</span></td>
+              </tr>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #eab308;">AS</div> Alex Smith</td>
+                <td style="font-weight: 600; color: #eab308;">6.2</td>
+                <td><span class="badge" style="background: #fef9c3; color: #854d0e;">At Risk</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="personality" style="border-color: #16a34a;">
+          <h4>Theme Personality</h4>
+          <p><strong>Emotional Impact:</strong> Calming, growth-oriented, nurturing<br>
+          <strong>Best For:</strong> Education-first messaging, student focus<br>
+          <strong>Visual Style:</strong> Natural, organic, encouraging</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme 4: Texas Heritage (Warm & Approachable) -->
+    <div class="theme-card">
+      <div class="theme-header" style="background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%);">
+        <h2>Theme 4: Texas Heritage</h2>
+        <p>Warm, approachable, regional identity</p>
+      </div>
+      <div class="theme-body">
+        <div class="color-section">
+          <h3>Primary Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #ea580c;"></div>
+              <span class="swatch-label">Primary</span>
+              <span class="swatch-hex">#EA580C</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #292524;"></div>
+              <span class="swatch-label">Sidebar</span>
+              <span class="swatch-hex">#292524</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #fefce8;"></div>
+              <span class="swatch-label">Background</span>
+              <span class="swatch-hex">#FEFCE8</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #57534e;"></div>
+              <span class="swatch-label">Muted</span>
+              <span class="swatch-hex">#57534E</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <h3>Status Colors</h3>
+          <div class="color-row">
+            <div class="color-swatch">
+              <div class="swatch" style="background: #22c55e;"></div>
+              <span class="swatch-label">Success</span>
+              <span class="swatch-hex">#22C55E</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #f59e0b;"></div>
+              <span class="swatch-label">Warning</span>
+              <span class="swatch-hex">#F59E0B</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #dc2626;"></div>
+              <span class="swatch-label">Danger</span>
+              <span class="swatch-hex">#DC2626</span>
+            </div>
+            <div class="color-swatch">
+              <div class="swatch" style="background: #0891b2;"></div>
+              <span class="swatch-label">Info</span>
+              <span class="swatch-hex">#0891B2</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-preview" style="background: #fffbeb;">
+          <h4>Live Component Preview</h4>
+          <div class="button-row">
+            <button class="btn" style="background: #ea580c; color: white;">Save Points</button>
+            <button class="btn" style="background: white; color: #374151; border: 1px solid #d6d3d1;">Cancel</button>
+            <button class="btn" style="background: #fef2f2; color: #dc2626;">Mark No-Show</button>
+          </div>
+          <div class="badge-row">
+            <span class="badge" style="background: #dcfce7; color: #166534;">Active</span>
+            <span class="badge" style="background: #fef3c7; color: #92400e;">At Risk</span>
+            <span class="badge" style="background: #fee2e2; color: #dc2626;">Urgent</span>
+            <span class="badge" style="background: #cffafe; color: #0e7490;">2nd Time</span>
+          </div>
+          <div class="input-preview">
+            <input type="text" placeholder="Search students..." style="border-color: #d6d3d1; background: white;" onfocus="this.style.borderColor='#ea580c'" onblur="this.style.borderColor='#d6d3d1'">
+          </div>
+          <div class="card-preview" style="background: white;">
+            <div class="stat" style="color: #292524;">247</div>
+            <div class="label">Students Enrolled</div>
+            <div class="trend" style="color: #22c55e;">+12% from last month</div>
+          </div>
+          <table class="mini-table" style="background: white;">
+            <thead><tr><th>Student</th><th>Avg</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #ea580c;">JM</div> Jordan Martinez</td>
+                <td style="font-weight: 600; color: #22c55e;">8.5</td>
+                <td><span class="badge" style="background: #dcfce7; color: #166534;">On Track</span></td>
+              </tr>
+              <tr>
+                <td style="display: flex; align-items: center; gap: 8px;"><div class="avatar" style="background: #f59e0b;">AS</div> Alex Smith</td>
+                <td style="font-weight: 600; color: #f59e0b;">6.2</td>
+                <td><span class="badge" style="background: #fef3c7; color: #92400e;">At Risk</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="personality" style="border-color: #ea580c;">
+          <h4>Theme Personality</h4>
+          <p><strong>Emotional Impact:</strong> Warm, friendly, approachable<br>
+          <strong>Best For:</strong> Regional identity, community-focused<br>
+          <strong>Visual Style:</strong> Inviting, energetic, distinctive</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="max-width: 1400px; margin: 40px auto 0; padding: 24px; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+    <h3 style="margin-bottom: 16px; color: #1e293b;">My Recommendation</h3>
+    <p style="color: #64748b; margin-bottom: 16px;">
+      <strong>Theme 1 (Trustworthy Blue)</strong> is my recommendation because:
+    </p>
+    <ul style="color: #64748b; margin-left: 24px; line-height: 1.8;">
+      <li>Aligns with your existing bolt.new mockup - continuity matters</li>
+      <li>Blue conveys trust and reliability - exactly what "confident data" needs</li>
+      <li>Professional/institutional feel matches school district buyers</li>
+      <li>Most familiar to EdTech users (Skyward, PowerSchool, Focus all use blue)</li>
+      <li>Excellent accessibility with clear status color differentiation</li>
+    </ul>
+    <p style="color: #64748b; margin-top: 16px;">
+      However, <strong>Theme 2 (Modern Slate)</strong> is a close second if you want a more premium, contemporary feel.
+    </p>
+  </div>
+
+</body>
+</html>

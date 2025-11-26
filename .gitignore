@@ -4,8 +4,10 @@
 Website/
 Zips/
 
-# Private documentation - DO NOT COMMIT
-docs/
+# Documentation - NOW TRACKED (previously ignored, caused data loss)
+# Only ignore sensitive subdirectories
+docs/sessions/
+docs/security/
 
 # dependencies
 node_modules/
@@ -93,10 +95,7 @@ Temp/
 
 # Planning documents (internal use only)
 adminsettings.md
-docs/sessions/*.md
-docs/features/*.md
-docs/security/*.md
-docs/planning/*.md
 CHANGELOG.md
-CLAUDE.md
 TODO.md
+
+# Note: CLAUDE.md is now tracked - it contains project instructions

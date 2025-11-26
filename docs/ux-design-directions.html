@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DAEPManagement - Design Direction Mockups</title>
+  <style>
+    :root {
+      --primary: #3B82F6;
+      --primary-dark: #2563eb;
+      --sidebar: #1e293b;
+      --bg: #f9fafb;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #e2e8f0; }
+
+    .screen-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--sidebar);
+      color: white;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+    }
+    .screen-nav h1 { font-size: 16px; font-weight: 600; }
+    .screen-tabs { display: flex; gap: 8px; }
+    .screen-tab {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .screen-tab.active { background: var(--primary); }
+    .screen-tab:hover { background: rgba(255,255,255,0.2); }
+
+    .mockup-container {
+      margin-top: 60px;
+      padding: 24px;
+      display: none;
+    }
+    .mockup-container.active { display: block; }
+
+    .mockup-frame {
+      background: var(--bg);
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+      overflow: hidden;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: 700px;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--sidebar);
+      padding: 20px 0;
+      color: white;
+    }
+    .sidebar-logo {
+      padding: 0 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 16px;
+    }
+    .sidebar-logo h2 { font-size: 18px; font-weight: 700; }
+    .sidebar-logo span { font-size: 12px; opacity: 0.7; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+    .nav-item.active { background: var(--primary); color: white; }
+    .nav-item svg { width: 20px; height: 20px; opacity: 0.8; }
+
+    .sidebar-section {
+      padding: 16px 20px 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.5;
+    }
+
+    /* Main Content */
+    .main-content {
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-header h1 { font-size: 24px; color: var(--text); }
+    .page-header-actions { display: flex; gap: 12px; }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: white; color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: #fee2e2; color: #dc2626; }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border);
+    }
+    .kpi-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .kpi-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .kpi-value { font-size: 32px; font-weight: 700; color: var(--text); }
+    .kpi-label { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+    .kpi-trend { font-size: 12px; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+    .trend-up { color: var(--success); }
+    .trend-down { color: var(--danger); }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-header h3 { font-size: 16px; font-weight: 600; color: var(--text); }
+    .card-body { padding: 20px; }
+
+    /* Tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 16px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 14px;
+    }
+    .data-table tr:hover { background: #f8fafc; }
+
+    /* Avatar */
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .student-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .student-name { font-weight: 500; color: var(--text); }
+    .student-id { font-size: 12px; color: var(--text-muted); }
+
+    /* Badges */
+    .badge {
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #dc2626; }
+    .badge-info { background: #e0e7ff; color: #4338ca; }
+
+    /* Point Entry Grid */
+    .points-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .points-value {
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .points-good { color: var(--success); }
+    .points-warning { color: var(--warning); }
+    .points-danger { color: var(--danger); }
+
+    .quick-entry-btn {
+      padding: 6px 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* Action Items */
+    .action-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .action-item:last-child { margin-bottom: 0; }
+    .action-urgent { background: #fef2f2; }
+    .action-warning { background: #fffbeb; }
+    .action-info { background: #eff6ff; }
+    .action-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .action-content { flex: 1; }
+    .action-title { font-size: 14px; font-weight: 500; color: var(--text); }
+    .action-meta { font-size: 12px; color: var(--text-muted); }
+
+    /* Modal Preview */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      display: none;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      width: 400px;
+      max-width: 90%;
+    }
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-header h3 { font-size: 18px; font-weight: 600; }
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .points-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .point-btn {
+      width: 44px;
+      height: 44px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .point-btn:hover { border-color: var(--primary); }
+    .point-btn.selected { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .action-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .action-btn {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: white;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .action-btn:hover { background: #f8fafc; }
+    .action-btn.selected { background: #eff6ff; border-color: var(--primary); color: var(--primary); }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* Intake Pipeline */
+    .pipeline {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .pipeline-stage {
+      flex: 1;
+      min-width: 200px;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .pipeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .pipeline-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .pipeline-count {
+      background: var(--primary);
+      color: white;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+    .pipeline-card {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .pipeline-card-name { font-weight: 500; font-size: 14px; }
+    .pipeline-card-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Reconciliation View */
+    .recon-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .recon-panel h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .recon-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 14px;
+    }
+    .recon-label { color: var(--text-muted); }
+    .recon-value { font-weight: 500; }
+    .recon-match { color: var(--success); }
+    .recon-mismatch { color: var(--danger); background: #fef2f2; padding: 2px 8px; border-radius: 4px; }
+
+    .recon-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Screen descriptions */
+    .screen-desc {
+      max-width: 1400px;
+      margin: 0 auto 16px;
+      padding: 16px 20px;
+      background: white;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .screen-desc strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<nav class="screen-nav">
+  <h1>DAEPManagement - Design Direction Mockups</h1>
+  <div class="screen-tabs">
+    <button class="screen-tab active" onclick="showScreen('dashboard')">Dashboard</button>
+    <button class="screen-tab" onclick="showScreen('roster')">Room Roster</button>
+    <button class="screen-tab" onclick="showScreen('intake')">Intake Pipeline</button>
+    <button class="screen-tab" onclick="showScreen('reconciliation')">Reconciliation</button>
+    <button class="screen-tab" onclick="showScreen('modal')">Point Entry Modal</button>
+  </div>
+</nav>
+
+<!-- Dashboard Screen -->
+<div id="dashboard" class="mockup-container active">
+  <div class="screen-desc">
+    <strong>Dashboard:</strong> Admin's first view each morning. Shows KPIs, today's action items, and scheduled intakes. "Continue where you left off" pattern.
+  </div>
+  <div class="mockup-frame">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-logo">
+          <h2>DAEP</h2>
+          <span>DistrictTracker</span>
+        </div>
+        <div class="nav-item active">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+          Rooms
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          Students
+        </div>
+        <div class="sidebar-section">Operations</div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Intakes
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Reconciliation
+        </div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Reports
+        </div>
+        <div class="sidebar-section">System</div>
+        <div class="nav-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Settings
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <h1>Dashboard</h1>
+          <div class="page-header-actions">
+            <button class="btn btn-secondary">Export</button>
+            <button class="btn btn-primary">+ New Intake</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card" style="cursor: pointer;">
+            <div class="kpi-card-header">
+              <div>
+                <div class="kpi-value">247</div>
+                <div class="kpi-label">Students Enrolled</div>
+              </div>
+              <div class="kpi-icon" style="background: #dbeafe;">
+                <svg width="20" height="20" fill="none" stroke="#3b82f6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              </div>
+            </div>
+            <div class="kpi-trend trend-up">↑ +12 this week</div>
+          </div>
+
+          <div class="kpi-card" style="cursor: pointer;">
+            <div class="kpi-card-header">
+              <div>
+                <div class="kpi-value">92.4%</div>
+                <div class="kpi-label">Attendance Rate</div>
+              </div>
+              <div class="kpi-icon" style="background: #dcfce7;">
+                <svg width="20" height="20" fill="none" stroke="#16a34a" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <div class="kpi-trend trend-up">↑ +2.1% from last week</div>
+          </div>
+
+          <div class="kpi-card" style="cursor: pointer;">
+            <div class="kpi-card-header">
+              <div>
+                <div class="kpi-value">8</div>
+                <div class="kpi-label">Pending Approvals</div>
+              </div>
+              <div class="kpi-icon" style="background: #fef3c7;">
+                <svg width="20" height="20" fill="none" stroke="#d97706" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <div class="kpi-trend" style="color: var(--warning);">Needs attention</div>
+          </div>
+
+          <div class="kpi-card" style="cursor: pointer;">
+            <div class="kpi-card-header">
+              <div>
+                <div class="kpi-value">15.3%</div>
+                <div class="kpi-label">Recidivism Rate</div>
+              </div>
+              <div class="kpi-icon" style="background: #fee2e2;">
+                <svg width="20" height="20" fill="none" stroke="#dc2626" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+              </div>
+            </div>
+            <div class="kpi-trend trend-down">↓ -3.2% from last month</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <div class="card">
+            <div class="card-header">
+              <h3>Action Items</h3>
+              <span class="badge badge-danger">3 urgent</span>
+            </div>
+            <div class="card-body">
+              <div class="action-item action-urgent">
+                <div class="action-icon" style="background: #fee2e2; color: #dc2626;">!</div>
+                <div class="action-content">
+                  <div class="action-title">2 No-Shows need reschedule</div>
+                  <div class="action-meta">From yesterday's intakes</div>
+                </div>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">View</button>
+              </div>
+              <div class="action-item action-warning">
+                <div class="action-icon" style="background: #fef3c7; color: #d97706;">⏰</div>
+                <div class="action-content">
+                  <div class="action-title">90-day review approaching</div>
+                  <div class="action-meta">Jordan Martinez - Due in 3 days</div>
+                </div>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">View</button>
+              </div>
+              <div class="action-item action-info">
+                <div class="action-icon" style="background: #dbeafe; color: #2563eb;">📋</div>
+                <div class="action-content">
+                  <div class="action-title">CSV reconciliation ready</div>
+                  <div class="action-meta">5 discrepancies to review</div>
+                </div>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Review</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Today's Intakes</h3>
+              <span style="font-size: 13px; color: var(--text-muted);">Nov 24, 2025</span>
+            </div>
+            <div class="card-body">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Time</th><th>Student</th><th>Campus</th><th></th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>9:00 AM</td>
+                    <td><div class="student-cell"><div class="avatar" style="background: #3b82f6;">MS</div><div><div class="student-name">Maria Santos</div></div></div></td>
+                    <td>Lincoln HS</td>
+                    <td><span class="badge badge-success">Arrived</span></td>
+                  </tr>
+                  <tr>
+                    <td>10:30 AM</td>
+                    <td><div class="student-cell"><div class="avatar" style="background: #8b5cf6;">TW</div><div><div class="student-name">Tyler Washington</div></div></div></td>
+                    <td>Jefferson MS</td>
+                    <td><span class="badge badge-warning">Pending</span></td>
+                  </tr>
+                  <tr>
+                    <td>1:00 PM</td>
+                    <td><div class="student-cell"><div class="avatar" style="background: #ec4899;">AJ</div><div><div class="student-name">Ashley Johnson</div></div></div></td>
+                    <td>Roosevelt HS</td>
+                    <td><span class="badge badge-info">Scheduled</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Room Roster Screen -->
+<div id="roster" class="mockup-container">
+  <div class="screen-desc">
+    <strong>Room Roster:</strong> Teacher's primary view. Shows students in their room with point averages. Quick entry button triggers 3-tap modal. At-risk students highlighted.
+  </div>
+  <div class="mockup-frame">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-logo"><h2>DAEP</h2><span>DistrictTracker</span></div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> Dashboard</div>
+        <div class="nav-item active"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Rooms</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg> Students</div>
+      </aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <div>
+            <h1>Room 501</h1>
+            <p style="color: var(--text-muted); margin-top: 4px;">Period 3 • Mr. Johnson • 12 students</p>
+          </div>
+          <div class="page-header-actions">
+            <select style="padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+              <option>Room 501</option>
+              <option>Room 502</option>
+              <option>Room 503</option>
+            </select>
+            <select style="padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;">
+              <option>Period 3</option>
+              <option>Period 4</option>
+              <option>Period 5</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Student Roster</h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="font-size: 13px; color: var(--text-muted);">Room Avg: <strong style="color: var(--success);">8.2</strong></span>
+              <button class="btn btn-primary" style="padding: 8px 16px;">Bulk Attendance</button>
+            </div>
+          </div>
+          <div class="card-body" style="padding: 0;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Days</th>
+                  <th>Avg</th>
+                  <th>Attend</th>
+                  <th>Today</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="student-cell">
+                      <div class="avatar" style="background: #3b82f6;">JM</div>
+                      <div>
+                        <div class="student-name">Jordan Martinez</div>
+                        <div class="student-id">STU-2024-001</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>15/45</td>
+                  <td><span class="points-value points-good">8.5</span></td>
+                  <td><select style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);"><option>P</option><option>A</option><option>T</option></select></td>
+                  <td><span class="badge badge-success">10 pts</span></td>
+                  <td><button class="quick-entry-btn">+ Entry</button></td>
+                </tr>
+                <tr style="background: #fef2f2;">
+                  <td>
+                    <div class="student-cell">
+                      <div class="avatar" style="background: #f59e0b;">AS</div>
+                      <div>
+                        <div class="student-name">Alex Smith <span class="badge badge-warning" style="margin-left: 8px;">At Risk</span></div>
+                        <div class="student-id">STU-2024-002</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>22/30</td>
+                  <td><span class="points-value points-warning">6.2</span></td>
+                  <td><select style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);"><option>P</option><option>A</option><option>T</option></select></td>
+                  <td><span class="badge" style="background: #f1f5f9; color: #64748b;">--</span></td>
+                  <td><button class="quick-entry-btn">+ Entry</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="student-cell">
+                      <div class="avatar" style="background: #10b981;">MJ</div>
+                      <div>
+                        <div class="student-name">Morgan Johnson</div>
+                        <div class="student-id">STU-2024-003</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>8/20</td>
+                  <td><span class="points-value points-good">9.1</span></td>
+                  <td><select style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);"><option>P</option><option>A</option><option>T</option></select></td>
+                  <td><span class="badge badge-success">9 pts</span></td>
+                  <td><button class="quick-entry-btn">+ Entry</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="student-cell">
+                      <div class="avatar" style="background: #8b5cf6;">CP</div>
+                      <div>
+                        <div class="student-name">Casey Parker <span class="badge badge-info" style="margin-left: 8px;">2nd Time</span></div>
+                        <div class="student-id">STU-2024-004</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>5/45</td>
+                  <td><span class="points-value points-good">8.8</span></td>
+                  <td><select style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);"><option>P</option><option>A</option><option>T</option></select></td>
+                  <td><span class="badge badge-success">10 pts</span></td>
+                  <td><button class="quick-entry-btn">+ Entry</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Intake Pipeline Screen -->
+<div id="intake" class="mockup-container">
+  <div class="screen-desc">
+    <strong>Intake Pipeline:</strong> Kanban-style view of student intake workflow. Drag students through stages. Clear visibility of where each student is in the process.
+  </div>
+  <div class="mockup-frame">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-logo"><h2>DAEP</h2><span>DistrictTracker</span></div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> Dashboard</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Rooms</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg> Students</div>
+        <div class="sidebar-section">Operations</div>
+        <div class="nav-item active"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg> Intakes</div>
+      </aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <h1>Intake Pipeline</h1>
+          <div class="page-header-actions">
+            <button class="btn btn-secondary">Import CSV</button>
+            <button class="btn btn-primary">+ Manual Intake</button>
+          </div>
+        </div>
+
+        <div class="pipeline">
+          <div class="pipeline-stage">
+            <div class="pipeline-header">
+              <span class="pipeline-title">Approved</span>
+              <span class="pipeline-count">3</span>
+            </div>
+            <div class="pipeline-card">
+              <div class="pipeline-card-name">David Wilson</div>
+              <div class="pipeline-card-meta">Jefferson MS • Code 02</div>
+              <div style="margin-top: 8px;"><span class="badge badge-info">Needs Scheduling</span></div>
+            </div>
+            <div class="pipeline-card">
+              <div class="pipeline-card-name">Emma Brown</div>
+              <div class="pipeline-card-meta">Lincoln HS • Code 04</div>
+              <div style="margin-top: 8px;"><span class="badge badge-info">Needs Scheduling</span></div>
+            </div>
+            <div class="pipeline-card">
+              <div class="pipeline-card-name">James Lee</div>
+              <div class="pipeline-card-meta">Roosevelt HS • Code 02</div>
+              <div style="margin-top: 8px;"><span class="badge badge-info">Needs Scheduling</span></div>
+            </div>
+          </div>
+
+          <div class="pipeline-stage">
+            <div class="pipeline-header">
+              <span class="pipeline-title">Scheduled</span>
+              <span class="pipeline-count">2</span>
+            </div>
+            <div class="pipeline-card">
+              <div class="pipeline-card-name">Tyler Washington</div>
+              <div class="pipeline-card-meta">Jefferson MS • Nov 24 @ 10:30 AM</div>
+              <div style="margin-top: 8px;"><span class="badge badge-warning">Today</span></div>
+            </div>
+            <div class="pipeline-card">
+              <div class="pipeline-card-name">Ashley Johnson</div>
+              <div class="pipeline-card-meta">Roosevelt HS • Nov 24 @ 1:00 PM</div>
+              <div style="margin-top: 8px;"><span class="badge badge-warning">Today</span></div>
+            </div>
+          </div>
+
+          <div class="pipeline-stage">
+            <div class="pipeline-header">
+              <span class="pipeline-title">Arrived Today</span>
+              <span class="pipeline-count">1</span>
+            </div>
+            <div class="pipeline-card" style="border-left: 3px solid var(--success);">
+              <div class="pipeline-card-name">Maria Santos</div>
+              <div class="pipeline-card-meta">Lincoln HS • Arrived 9:05 AM</div>
+              <div style="margin-top: 8px;"><span class="badge badge-success">Processing</span></div>
+            </div>
+          </div>
+
+          <div class="pipeline-stage">
+            <div class="pipeline-header">
+              <span class="pipeline-title">No-Show</span>
+              <span class="pipeline-count" style="background: var(--danger);">2</span>
+            </div>
+            <div class="pipeline-card" style="border-left: 3px solid var(--danger);">
+              <div class="pipeline-card-name">Chris Taylor</div>
+              <div class="pipeline-card-meta">Nov 23 - No contact</div>
+              <div style="margin-top: 8px;">
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">Reschedule</button>
+              </div>
+            </div>
+            <div class="pipeline-card" style="border-left: 3px solid var(--danger);">
+              <div class="pipeline-card-name">Sam Rivera</div>
+              <div class="pipeline-card-meta">Nov 22 - Parent called</div>
+              <div style="margin-top: 8px;">
+                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">Reschedule</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Reconciliation Screen -->
+<div id="reconciliation" class="mockup-container">
+  <div class="screen-desc">
+    <strong>CSV Reconciliation:</strong> Banking-style comparison view. Side-by-side SIS vs DAEP data. Discrepancies highlighted. Accept/Keep/Merge for each conflict.
+  </div>
+  <div class="mockup-frame">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-logo"><h2>DAEP</h2><span>DistrictTracker</span></div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> Dashboard</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Rooms</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg> Students</div>
+        <div class="sidebar-section">Operations</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg> Intakes</div>
+        <div class="nav-item active"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Reconciliation</div>
+      </aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <div>
+            <h1>CSV Reconciliation</h1>
+            <p style="color: var(--text-muted); margin-top: 4px;">Last import: Nov 24, 2025 7:15 AM • 5 discrepancies found</p>
+          </div>
+          <div class="page-header-actions">
+            <button class="btn btn-secondary">Upload New CSV</button>
+            <button class="btn btn-primary">Accept All Matches</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-weight: 600;">Discrepancy 1 of 5</span>
+              <span class="badge badge-warning">Start Date Mismatch</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">← Previous</button>
+              <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Next →</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <div class="student-cell" style="justify-content: center;">
+                <div class="avatar" style="background: #3b82f6; width: 48px; height: 48px; font-size: 16px;">JM</div>
+                <div style="text-align: left;">
+                  <div class="student-name" style="font-size: 18px;">Jordan Martinez</div>
+                  <div class="student-id">STU-2024-001 • Lincoln HS</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="recon-split">
+              <div class="recon-panel">
+                <h4><span style="background: #dbeafe; color: #2563eb; padding: 4px 8px; border-radius: 4px;">SIS Data</span> (Skyward Export)</h4>
+                <div class="recon-row"><span class="recon-label">Student ID</span><span class="recon-value recon-match">STU-2024-001</span></div>
+                <div class="recon-row"><span class="recon-label">Name</span><span class="recon-value recon-match">Jordan Martinez</span></div>
+                <div class="recon-row"><span class="recon-label">Start Date</span><span class="recon-value recon-mismatch">Nov 10, 2025</span></div>
+                <div class="recon-row"><span class="recon-label">Days Assigned</span><span class="recon-value recon-match">45</span></div>
+                <div class="recon-row"><span class="recon-label">Offense Code</span><span class="recon-value recon-match">02</span></div>
+              </div>
+
+              <div class="recon-panel">
+                <h4><span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px;">DAEP Data</span> (Current Record)</h4>
+                <div class="recon-row"><span class="recon-label">Student ID</span><span class="recon-value recon-match">STU-2024-001</span></div>
+                <div class="recon-row"><span class="recon-label">Name</span><span class="recon-value recon-match">Jordan Martinez</span></div>
+                <div class="recon-row"><span class="recon-label">Start Date</span><span class="recon-value recon-mismatch">Nov 9, 2025</span></div>
+                <div class="recon-row"><span class="recon-label">Days Assigned</span><span class="recon-value recon-match">45</span></div>
+                <div class="recon-row"><span class="recon-label">Offense Code</span><span class="recon-value recon-match">02</span></div>
+              </div>
+            </div>
+
+            <div class="recon-actions">
+              <button class="btn btn-primary">Accept SIS (Nov 10)</button>
+              <button class="btn btn-secondary">Keep DAEP (Nov 9)</button>
+              <input type="text" placeholder="Add note (optional)..." style="flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Reconciliation Summary</h3>
+          </div>
+          <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+              <div style="text-align: center; padding: 16px; background: #f0fdf4; border-radius: 8px;">
+                <div style="font-size: 28px; font-weight: 700; color: #166534;">142</div>
+                <div style="font-size: 13px; color: #166534;">Matched</div>
+              </div>
+              <div style="text-align: center; padding: 16px; background: #fef3c7; border-radius: 8px;">
+                <div style="font-size: 28px; font-weight: 700; color: #92400e;">5</div>
+                <div style="font-size: 13px; color: #92400e;">Discrepancies</div>
+              </div>
+              <div style="text-align: center; padding: 16px; background: #dbeafe; border-radius: 8px;">
+                <div style="font-size: 28px; font-weight: 700; color: #1e40af;">3</div>
+                <div style="font-size: 13px; color: #1e40af;">New in SIS</div>
+              </div>
+              <div style="text-align: center; padding: 16px; background: #fee2e2; border-radius: 8px;">
+                <div style="font-size: 28px; font-weight: 700; color: #dc2626;">1</div>
+                <div style="font-size: 13px; color: #dc2626;">Missing from SIS</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Point Entry Modal -->
+<div id="modal" class="mockup-container">
+  <div class="screen-desc">
+    <strong>Point Entry Modal:</strong> 3-tap workflow. Points → Student Action → Teacher Action → Done. Can expand for more details if needed.
+  </div>
+  <div class="mockup-frame">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-logo"><h2>DAEP</h2><span>DistrictTracker</span></div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> Dashboard</div>
+        <div class="nav-item active"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Rooms</div>
+        <div class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg> Students</div>
+      </aside>
+
+      <main class="main-content" style="position: relative;">
+        <div style="filter: blur(2px); pointer-events: none;">
+          <div class="page-header">
+            <h1>Room 501</h1>
+          </div>
+          <div class="card">
+            <div class="card-body" style="padding: 0;">
+              <table class="data-table">
+                <thead><tr><th>Student</th><th>Avg</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>Jordan Martinez</td><td>8.5</td><td></td></tr>
+                  <tr><td>Alex Smith</td><td>6.2</td><td></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal -->
+        <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;">
+          <div class="modal" style="width: 440px;">
+            <div class="modal-header">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="avatar" style="background: #3b82f6;">JM</div>
+                <div>
+                  <h3 style="margin: 0;">Jordan Martinez</h3>
+                  <div style="font-size: 13px; color: var(--text-muted);">Period 3 • Room 501</div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-body">
+              <div style="margin-bottom: 20px;">
+                <label class="form-label">Points</label>
+                <div class="points-selector">
+                  <button class="point-btn">5</button>
+                  <button class="point-btn">6</button>
+                  <button class="point-btn">7</button>
+                  <button class="point-btn">8</button>
+                  <button class="point-btn">9</button>
+                  <button class="point-btn selected">10</button>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 20px;">
+                <label class="form-label">Student Action</label>
+                <div class="action-selector">
+                  <button class="action-btn selected">On Task</button>
+                  <button class="action-btn">Off Task</button>
+                  <button class="action-btn">Helped Others</button>
+                  <button class="action-btn">Talk Back</button>
+                  <button class="action-btn">Great Job</button>
+                  <button class="action-btn">Other</button>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 8px;">
+                <label class="form-label">Teacher Action</label>
+                <div class="action-selector">
+                  <button class="action-btn selected">None Needed</button>
+                  <button class="action-btn">Redirected</button>
+                  <button class="action-btn">Called Home</button>
+                  <button class="action-btn">Conference</button>
+                  <button class="action-btn">Note Added</button>
+                </div>
+              </div>
+
+              <div style="text-align: center; padding-top: 8px;">
+                <a href="#" style="font-size: 13px; color: var(--primary);">+ Add detailed notes</a>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary">Cancel</button>
+              <button class="btn btn-primary">Save & Next Student</button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script>
+function showScreen(screenId) {
+  document.querySelectorAll('.mockup-container').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.screen-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

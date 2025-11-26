@@ -51,21 +51,21 @@ development_status:
   # Epic 1b: Configuration UI (6 stories, 18 pts)
   # FRs: FR63-FR72, FR99-FR104
   # ============================================
-  epic-1b: contexted
+  epic-1b: done
   1-5-room-management: done
   1-6-bell-schedule-configuration: done
   1-7-discipline-code-management: done
   1-8-school-calendar-configuration: done
   1-9-district-campus-settings: done
   1-10-behavior-categories-configuration: done
-  epic-1b-retrospective: optional
+  epic-1b-retrospective: done
 
   # ============================================
   # Epic 2: Placement Management (13 stories, 34 pts)
   # FRs: FR9-FR26, FR73-FR77
   # ============================================
-  epic-2: backlog
-  2-1-student-search-list-view: backlog
+  epic-2: contexted
+  2-1-student-search-list-view: done
   2-2-student-profile-page: backlog
   2-3-trespasstracker-status-display: backlog
   2-4-create-new-placement: backlog
