@@ -32,6 +32,21 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Save, Building2, MapPin } from 'lucide-react';
 
+// Timezone display mapping
+const TIMEZONE_LABELS: Record<string, string> = {
+  'America/New_York': 'Eastern (EST/EDT)',
+  'America/Chicago': 'Central (CST/CDT)',
+  'America/Denver': 'Mountain (MST/MDT)',
+  'America/Phoenix': 'Arizona (MST)',
+  'America/Los_Angeles': 'Pacific (PST/PDT)',
+  'America/Anchorage': 'Alaska (AKST/AKDT)',
+  'Pacific/Honolulu': 'Hawaii (HST)',
+};
+
+function formatTimezoneDisplay(tz: string): string {
+  return TIMEZONE_LABELS[tz] || tz;
+}
+
 export default function DAEPSettingsGeneralPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -208,7 +223,7 @@ export default function DAEPSettingsGeneralPage() {
                   <SelectContent>
                     {TIMEZONES.map((tz) => (
                       <SelectItem key={tz} value={tz}>
-                        {tz.replace('America/', '').replace('_', ' ')}
+                        {formatTimezoneDisplay(tz)}
                       </SelectItem>
                     ))}
                   </SelectContent>

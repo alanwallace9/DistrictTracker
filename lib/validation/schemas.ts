@@ -249,11 +249,13 @@ export type SchoolCalendarCSVRow = z.infer<typeof SchoolCalendarCSVRowSchema>;
 // ============================================================================
 
 export const TIMEZONES = [
-  'America/Chicago',
-  'America/New_York',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Phoenix',
+  'America/New_York',      // EST/EDT - Eastern
+  'America/Chicago',       // CST/CDT - Central
+  'America/Denver',        // MST/MDT - Mountain
+  'America/Phoenix',       // MST (no DST) - Arizona
+  'America/Los_Angeles',   // PST/PDT - Pacific
+  'America/Anchorage',     // AKST/AKDT - Alaska
+  'Pacific/Honolulu',      // HST - Hawaii
 ] as const;
 
 export type Timezone = (typeof TIMEZONES)[number];
