@@ -231,7 +231,7 @@ export function EditCampusDialog({ open, onOpenChange, campus, onSuccess }: Edit
             </Label>
           </div>
           <p className="text-xs text-muted-foreground -mt-2">
-            Mark this campus as a DAEP facility to enable DAEP-specific settings
+            Mark this campus as a DAEP facility to enable DAEP-specific settings.
           </p>
 
           <div className="flex justify-end gap-2">
