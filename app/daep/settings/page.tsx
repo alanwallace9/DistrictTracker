@@ -465,7 +465,7 @@ export default function DAEPSettingsGeneralPage() {
           <CardContent className="py-8 text-center">
             <MapPin className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <p className="text-muted-foreground">
-              No DAEP campuses configured. Mark a campus as DAEP in the campus management settings.
+              No DAEP campuses configured. Go to <strong>Admin → Campuses</strong> and edit a campus to mark it as a DAEP facility.
             </p>
           </CardContent>
         </Card>

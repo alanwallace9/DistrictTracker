@@ -84,6 +84,7 @@ export type Campus = {
   name: string;                                        // Human-readable name (e.g., 'Birdville HS')
   abbreviation: string | null;                         // Short name or number (e.g., '010')
   status: 'active' | 'inactive';
+  is_daep: boolean;                                    // Whether this is a DAEP facility
   deleted_at: string | null;                          // Soft delete timestamp
   created_at: string;
   updated_at: string;

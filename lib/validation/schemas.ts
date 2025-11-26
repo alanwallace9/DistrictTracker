@@ -283,6 +283,24 @@ export type DistrictDAEPSettings = z.infer<typeof DistrictDAEPSettingsSchema>;
 export type CampusDAEPSettings = z.infer<typeof CampusDAEPSettingsSchema>;
 
 // ============================================================================
+// DAEP BEHAVIOR CATEGORY SCHEMAS
+// ============================================================================
+
+export const BEHAVIOR_CATEGORY_TYPES = ['positive', 'negative', 'neutral'] as const;
+
+export type BehaviorCategoryType = (typeof BEHAVIOR_CATEGORY_TYPES)[number];
+
+export const BehaviorCategorySchema = z.object({
+  name: z.string().min(1, 'Category name is required').max(50, 'Name too long'),
+  description: z.string().max(200, 'Description too long').nullable().optional(),
+  category_type: z.enum(BEHAVIOR_CATEGORY_TYPES).default('neutral'),
+  display_order: z.number().int().min(0).default(0),
+  is_active: z.boolean().default(true),
+});
+
+export type CreateBehaviorCategoryInput = z.infer<typeof BehaviorCategorySchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

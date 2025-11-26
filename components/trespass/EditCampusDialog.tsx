@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { updateCampus, isCampusNameUnique, canDeactivateCampus } from '@/app/actions/admin/campuses';
 import { Campus } from '@/lib/supabase';
@@ -24,6 +25,7 @@ export function EditCampusDialog({ open, onOpenChange, campus, onSuccess }: Edit
     name: '',
     status: 'active',
     abbreviation: '',
+    is_daep: false,
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -43,6 +45,7 @@ export function EditCampusDialog({ open, onOpenChange, campus, onSuccess }: Edit
         name: campus.name,
         status: campus.status,
         abbreviation: campus.abbreviation || '',
+        is_daep: campus.is_daep || false,
       });
       setShowDeactivateWarning(false);
       setDeactivateBlockers(null);
@@ -122,6 +125,7 @@ export function EditCampusDialog({ open, onOpenChange, campus, onSuccess }: Edit
         name: formData.name,
         status: formData.status,
         abbreviation: formData.abbreviation || undefined,
+        is_daep: formData.is_daep,
       });
       toast({
         title: 'Success',
@@ -215,6 +219,20 @@ export function EditCampusDialog({ open, onOpenChange, campus, onSuccess }: Edit
               placeholder="e.g., NES"
             />
           </div>
+
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="is_daep"
+              checked={formData.is_daep}
+              onCheckedChange={(checked) => setFormData({ ...formData, is_daep: checked as boolean })}
+            />
+            <Label htmlFor="is_daep" className="cursor-pointer font-normal">
+              DAEP Campus
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Mark this campus as a DAEP facility to enable DAEP-specific settings
+          </p>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

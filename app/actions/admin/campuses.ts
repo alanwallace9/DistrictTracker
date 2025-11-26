@@ -352,6 +352,7 @@ export async function updateCampus(
     name?: string;
     status?: string;
     abbreviation?: string;
+    is_daep?: boolean;
   }
 ): Promise<Campus> {
   try {
