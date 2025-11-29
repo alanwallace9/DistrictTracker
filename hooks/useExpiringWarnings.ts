@@ -51,7 +51,7 @@ export function useExpiringWarnings(
         );
       }
     }
-    // district_admin and master_admin see all expiring records (no additional filtering)
+    // district_admin and super_admin see all expiring records (no additional filtering)
 
     return {
       count: filteredRecords.length,

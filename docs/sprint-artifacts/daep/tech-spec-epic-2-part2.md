@@ -7,7 +7,9 @@
 **Date:** 2025-11-26
 
 > **Document Split:** This is Part 2 covering Stories 2.7-2.13 and Integration Patterns.
-> See [tech-spec-epic-2-part1.md](./tech-spec-epic-2-part1.md) for Overview, Data Models, and Stories 2.1-2.6.
+> See [tech-spec-epic-2-part1.md](./tech-spec-epic-2-part1.md) for Overview, Data Models, Stories 2.1-2.6, and **Theme & Styling Guidelines**.
+>
+> ⚠️ **IMPORTANT:** All UI components must follow the Theme & Styling Guidelines in Part 1. Never hardcode colors.
 
 ---
 

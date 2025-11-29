@@ -32,7 +32,18 @@ export type AuditEventType =
   | 'campus.deactivated'
   | 'campus.users_exported'
   | 'campus.records_exported'
-  | 'tenant.switched';
+  | 'tenant.switched'
+  // DAEP Module Events
+  | 'placement.created'
+  | 'placement.updated'
+  | 'placement.intake_processed'
+  | 'placement.transitioned'
+  | 'placement.cancelled'
+  | 'student.profile_viewed'
+  | 'student.quick_created'
+  | 'room.assignment_changed'
+  | 'student.separation_added'
+  | 'student.separation_removed';
 
 interface AuditLogEntry {
   eventType: AuditEventType;
@@ -45,6 +56,7 @@ interface AuditLogEntry {
   recordSubjectName?: string;  // Student/record name for FERPA searches
   recordSchoolId?: string;      // The actual student ID from school system
   tenantId?: string;            // Tenant ID for filtering
+  module?: 'trespass_tracker' | 'daep_management'; // Module source
 }
 
 /**

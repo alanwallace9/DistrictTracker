@@ -13,9 +13,10 @@ type AddUserDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUserAdded?: () => void;
+  currentUserRole?: string;
 };
 
-export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialogProps) {
+export function AddUserDialog({ open, onOpenChange, onUserAdded, currentUserRole }: AddUserDialogProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -109,7 +110,9 @@ export function AddUserDialog({ open, onOpenChange, onUserAdded }: AddUserDialog
                 <SelectItem value="viewer">Viewer (Read Only)</SelectItem>
                 <SelectItem value="campus_admin">Campus Admin (Create & Update)</SelectItem>
                 <SelectItem value="district_admin">District Admin (Full Access)</SelectItem>
-                <SelectItem value="super_admin">Master Admin (System Admin)</SelectItem>
+                {currentUserRole === 'super_admin' && (
+                  <SelectItem value="super_admin">Super Admin (System Admin)</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

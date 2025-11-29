@@ -321,6 +321,86 @@ export const StudentSearchSchema = z.object({
 export type StudentSearchInput = z.infer<typeof StudentSearchSchema>;
 
 // ============================================================================
+// DAEP PLACEMENT SCHEMAS
+// ============================================================================
+
+export const CreatePlacementSchema = z.object({
+  school_id: z.string().min(1, 'Student ID is required'),
+  incident_number: z.string().min(1, 'Incident number is required').max(50, 'Incident number too long'),
+  placement_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  days_assigned: z.number().int('Must be a whole number').min(1, 'Must assign at least 1 day').max(365, 'Cannot exceed 365 days'),
+  offense_code: z.string().min(1, 'Offense code is required'),
+  placement_reason: z.string().min(10, 'Reason must be at least 10 characters').max(2000, 'Reason too long'),
+  mandatory_placement: z.boolean().default(false),
+  home_campus_id: z.string().min(1, 'Home campus is required'),
+  assigning_campus_id: z.string().optional(),
+  intake_notes: z.string().max(2000, 'Notes too long').optional(),
+});
+
+export type CreatePlacementInput = z.infer<typeof CreatePlacementSchema>;
+
+// ============================================================================
+// QUICK STUDENT CREATION (for placement form)
+// ============================================================================
+
+export const QuickStudentSchema = z.object({
+  school_id: z.string().min(1, 'Student ID is required').max(50, 'Student ID too long'),
+  first_name: z.string().min(1, 'First name is required').max(100, 'First name too long'),
+  last_name: z.string().min(1, 'Last name is required').max(100, 'Last name too long'),
+  grade_level: z.number().int().min(1).max(12).nullable().optional(),
+  current_school: z.string().max(200).nullable().optional(),
+  campus_id: z.string().max(50).nullable().optional(),
+});
+
+export type QuickStudentInput = z.infer<typeof QuickStudentSchema>;
+
+// ============================================================================
+// DAEP PLACEMENT VALIDATION SCHEMAS (Story 2-10)
+// ============================================================================
+
+export const CheckActivePlacementSchema = z.object({
+  schoolId: z.string().min(1, 'Student ID is required'),
+  excludePlacementId: z.string().uuid('Invalid placement ID').optional(),
+});
+
+export const ValidatePlacementSchema = z.object({
+  schoolId: z.string().min(1, 'Student ID is required'),
+  incidentNumber: z.string().min(1, 'Incident number is required'),
+  excludePlacementId: z.string().uuid('Invalid placement ID').optional(),
+});
+
+export type CheckActivePlacementInput = z.infer<typeof CheckActivePlacementSchema>;
+export type ValidatePlacementInput = z.infer<typeof ValidatePlacementSchema>;
+
+// ============================================================================
+// DAEP ROOM ASSIGNMENT SCHEMAS (Story 2-5)
+// ============================================================================
+
+export const AssignRoomSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  room_id: z.string().uuid('Invalid room ID'),
+});
+
+export type AssignRoomInput = z.infer<typeof AssignRoomSchema>;
+
+// ============================================================================
+// DAEP STUDENT SEPARATION SCHEMAS (Story 2-5)
+// ============================================================================
+
+export const CreateSeparationSchema = z.object({
+  student_a_id: z.string().min(1, 'Student A is required'),
+  student_b_id: z.string().min(1, 'Student B is required'),
+  reason: z.string().min(5, 'Reason must be at least 5 characters').max(500, 'Reason too long'),
+  expires_at: z.string().datetime().nullable().optional(),
+}).refine(data => data.student_a_id !== data.student_b_id, {
+  message: 'Cannot create separation between same student',
+  path: ['student_b_id'],
+});
+
+export type CreateSeparationInput = z.infer<typeof CreateSeparationSchema>;
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

@@ -37,7 +37,7 @@ export async function getAdminStats(tenantId?: string): Promise<AdminStats> {
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      throw new Error('Unauthorized: Master admin access required');
+      throw new Error('Unauthorized: Super admin access required');
     }
 
     // Use provided tenantId or fall back to user's tenant_id

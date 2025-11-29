@@ -130,7 +130,7 @@ export const ROLE_INFO: Record<UserRole, { label: string; description: string; c
     category: 'trespass',
   },
   super_admin: {
-    label: 'Master Admin',
+    label: 'Super Admin',
     description: 'System-wide access across all tenants',
     category: 'trespass',
   },

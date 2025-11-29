@@ -66,7 +66,7 @@ export function StudentFilters({
           placeholder="Search by name, student ID, or home campus..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-10 bg-white border border-slate-300"
+          className="pl-10"
         />
       </div>
 
@@ -78,7 +78,7 @@ export function StudentFilters({
             value={statusFilter}
             onValueChange={(value) => onStatusChange(value as PlacementStatus | 'all')}
           >
-            <SelectTrigger className="bg-white border border-slate-300">
+            <SelectTrigger>
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -95,7 +95,7 @@ export function StudentFilters({
         {/* Room Filter */}
         <div className="flex-shrink-0 w-44">
           <Select value={roomFilter} onValueChange={onRoomChange}>
-            <SelectTrigger className="bg-white border border-slate-300">
+            <SelectTrigger>
               <SelectValue placeholder="All Rooms" />
             </SelectTrigger>
             <SelectContent>
@@ -117,7 +117,7 @@ export function StudentFilters({
             type="date"
             value={dateFrom}
             onChange={(e) => onDateFromChange(e.target.value)}
-            className="w-36 bg-white border border-slate-300"
+            className="w-36"
           />
         </div>
 
@@ -128,7 +128,7 @@ export function StudentFilters({
             type="date"
             value={dateTo}
             onChange={(e) => onDateToChange(e.target.value)}
-            className="w-36 bg-white border border-slate-300"
+            className="w-36"
           />
         </div>
 
@@ -138,7 +138,7 @@ export function StudentFilters({
             variant="ghost"
             size="sm"
             onClick={onClearFilters}
-            className="text-slate-600 hover:text-slate-900"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="w-4 h-4 mr-1" />
             Clear Filters

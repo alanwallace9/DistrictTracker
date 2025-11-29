@@ -21,10 +21,10 @@ interface StudentListTableProps {
 type SortKey = 'name' | 'school_id' | 'status' | 'home_campus' | 'days_remaining' | 'room';
 
 const STATUS_BADGE_CLASSES: Record<PlacementStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  active: 'bg-green-100 text-green-800',
-  transition: 'bg-blue-100 text-blue-800',
-  complete: 'bg-gray-100 text-gray-800',
+  pending: 'bg-[rgb(var(--daep-warning))]/15 text-[rgb(var(--daep-warning))]',
+  active: 'bg-[rgb(var(--daep-success))]/15 text-[rgb(var(--daep-success))]',
+  transition: 'bg-[rgb(var(--daep-info))]/15 text-[rgb(var(--daep-info))]',
+  complete: 'bg-muted text-muted-foreground',
 };
 
 const STATUS_LABELS: Record<PlacementStatus, string> = {
@@ -35,10 +35,10 @@ const STATUS_LABELS: Record<PlacementStatus, string> = {
 };
 
 function getDaysRemainingColor(daysRemaining: number | null): string {
-  if (daysRemaining === null) return 'text-slate-500';
-  if (daysRemaining > 10) return 'text-green-600';
-  if (daysRemaining >= 5) return 'text-yellow-600';
-  return 'text-red-600';
+  if (daysRemaining === null) return 'text-muted-foreground';
+  if (daysRemaining > 10) return 'text-[rgb(var(--daep-success))]';
+  if (daysRemaining >= 5) return 'text-[rgb(var(--daep-warning))]';
+  return 'text-[rgb(var(--daep-danger))]';
 }
 
 export function StudentListTable({
@@ -64,13 +64,13 @@ export function StudentListTable({
       <button
         type="button"
         onClick={() => onSort(key)}
-        className="flex items-center gap-1 text-left text-sm font-semibold text-slate-600 hover:text-slate-900"
+        className="flex items-center gap-1 text-left text-sm font-semibold text-muted-foreground hover:text-foreground"
       >
         <span>{label}</span>
         {isActive ? (
           <span className="text-xs">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
         ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+          <ArrowUpDown className="w-3 h-3 opacity-50" />
         )}
       </button>
     );
@@ -87,9 +87,9 @@ export function StudentListTable({
 
   if (students.length === 0) {
     return (
-      <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+      <div className="text-center py-12 border border-dashed border rounded-lg bg-muted/50">
         <p className="text-muted-foreground">No students found matching your criteria</p>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground/70 mt-1">
           Try adjusting your search or filters
         </p>
       </div>
@@ -99,10 +99,10 @@ export function StudentListTable({
   return (
     <div className="space-y-4">
       {/* Table */}
-      <div className="rounded-lg border border-slate-200 overflow-hidden">
+      <div className="rounded-lg border overflow-hidden bg-card">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-100">
+            <thead className="bg-muted/50">
               <tr>
                 <th className="text-left p-4">{renderSortableHeader('Name', 'name')}</th>
                 <th className="text-left p-4">{renderSortableHeader('Student ID', 'school_id')}</th>
@@ -116,15 +116,15 @@ export function StudentListTable({
                 <th className="text-left p-4">{renderSortableHeader('Room', 'room')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y">
               {students.map((student, index) => {
-                const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                const rowBg = index % 2 === 0 ? 'bg-card' : 'bg-muted/30';
                 const placement = student.placement;
 
                 return (
                   <tr
                     key={`${student.school_id}-${placement?.id || 'no-placement'}`}
-                    className={`${rowBg} hover:bg-slate-100 transition-colors cursor-pointer`}
+                    className={`${rowBg} hover:bg-accent transition-colors cursor-pointer`}
                     onClick={() => handleRowClick(student.school_id)}
                   >
                     <td className="p-4">
@@ -132,12 +132,12 @@ export function StudentListTable({
                         {student.last_name}, {student.first_name}
                       </div>
                       {student.grade_level && (
-                        <div className="text-sm text-slate-500">
+                        <div className="text-sm text-muted-foreground">
                           Grade {student.grade_level}
                         </div>
                       )}
                     </td>
-                    <td className="p-4 text-slate-600">{student.school_id}</td>
+                    <td className="p-4 text-muted-foreground">{student.school_id}</td>
                     <td className="p-4">
                       {placement ? (
                         <span
@@ -148,10 +148,10 @@ export function StudentListTable({
                           {STATUS_LABELS[placement.status]}
                         </span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                       )}
                     </td>
-                    <td className="p-4 text-slate-600">
+                    <td className="p-4 text-muted-foreground">
                       {placement?.home_campus?.name || student.current_school || '—'}
                     </td>
                     <td className="p-4">
@@ -164,21 +164,21 @@ export function StudentListTable({
                           {placement.days_remaining ?? '—'}
                         </span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                       )}
                     </td>
-                    <td className="p-4 text-slate-600">
+                    <td className="p-4 text-muted-foreground">
                       {placement?.room ? (
                         <span>
                           {placement.room.room_number}
                           {placement.room.room_name && (
-                            <span className="text-slate-400 ml-1">
+                            <span className="opacity-70 ml-1">
                               ({placement.room.room_name})
                             </span>
                           )}
                         </span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                       )}
                     </td>
                   </tr>

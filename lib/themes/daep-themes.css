@@ -1,0 +1,114 @@
+/* DAEP Theme Variables
+ * RGB values allow opacity modifiers: bg-[rgb(var(--daep-primary))]/10
+ * Story: 0.X - DAEP Theme & Layout Foundation
+ */
+
+:root {
+  /* Default: Trustworthy Blue (AC 0.X.3) */
+  --daep-primary: 59 130 246;           /* #3B82F6 */
+  --daep-primary-foreground: 255 255 255;
+  --daep-sidebar: 30 41 59;             /* #1E293B */
+  --daep-sidebar-foreground: 248 250 252;
+  --daep-background: 249 250 251;       /* #F9FAFB */
+
+  /* Shared Status Colors - Consistent across all themes (AC 0.X.8) */
+  --daep-success: 16 185 129;           /* #10B981 */
+  --daep-warning: 245 158 11;           /* #F59E0B */
+  --daep-danger: 239 68 68;             /* #EF4444 */
+  --daep-info: 99 102 241;              /* #6366F1 */
+}
+
+/* Theme 2: Modern Slate */
+[data-daep-theme="modern-slate"] {
+  --daep-primary: 14 165 233;           /* #0EA5E9 */
+  --daep-sidebar: 15 23 42;             /* #0F172A */
+  --daep-background: 248 250 252;       /* #F8FAFC */
+}
+
+/* Theme 3: Academic Green */
+[data-daep-theme="academic-green"] {
+  --daep-primary: 22 163 74;            /* #16A34A */
+  --daep-sidebar: 20 83 45;             /* #14532D */
+  --daep-background: 240 253 244;       /* #F0FDF4 */
+}
+
+/* Theme 4: Texas Heritage */
+[data-daep-theme="texas-heritage"] {
+  --daep-primary: 234 88 12;            /* #EA580C */
+  --daep-sidebar: 41 37 36;             /* #292524 */
+  --daep-background: 254 252 232;       /* #FEFCE8 */
+}
+
+/* ============================================
+ * DAEP Shadcn Overrides
+ * Override default shadcn/ui variables within DAEP pages
+ * This makes all shadcn components inherit DAEP theme
+ * ============================================ */
+
+.daep-theme {
+  /* Background colors */
+  --background: rgb(var(--daep-background));
+  --card: #FFFFFF;                      /* White cards on colored background */
+  --card-foreground: #0F172A;           /* Slate-900 text */
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+
+  /* Input styling - white with subtle border */
+  --input: #FFFFFF;                     /* White background */
+
+  /* Text colors */
+  --foreground: #0F172A;                /* Slate-900 */
+  --muted: #F1F5F9;                     /* Slate-100 */
+  --muted-foreground: #64748B;          /* Slate-500 */
+
+  /* Primary - uses DAEP theme primary */
+  --primary: rgb(var(--daep-primary));
+  --primary-foreground: #FFFFFF;
+
+  /* Accent */
+  --accent: #F1F5F9;                    /* Slate-100 */
+  --accent-foreground: #0F172A;
+
+  /* Secondary */
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
+
+  /* Border - hint darker than input background */
+  --border: #E2E8F0;                    /* Slate-200 */
+  --ring: rgb(var(--daep-primary));
+
+  /* Status colors mapped to DAEP */
+  --destructive: rgb(var(--daep-danger));
+  --destructive-foreground: #FFFFFF;
+}
+
+/* Ensure text is readable on DAEP background */
+.daep-theme {
+  color: #0F172A;
+}
+
+/* Force consistent input styling across all input types */
+.daep-theme input,
+.daep-theme textarea,
+.daep-theme select,
+.daep-theme [role="combobox"],
+.daep-theme [data-slot="input"] {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Ensure input placeholders are visible */
+.daep-theme input::placeholder,
+.daep-theme textarea::placeholder {
+  color: #94A3B8;                       /* Slate-400 */
+}
+
+/* Primary button hover - darken on hover */
+.daep-theme .bg-primary:hover {
+  background-color: rgb(var(--daep-primary) / 0.85) !important;
+}
+
+/* Outline/secondary button hover */
+.daep-theme .hover\:bg-accent:hover {
+  background-color: #F1F5F9 !important;  /* Slate-100 */
+}

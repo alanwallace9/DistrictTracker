@@ -35,15 +35,40 @@ export async function syncCurrentUser() {
   // Log to server (no PII in console)
   logger.info('Syncing user', { userId, role });
 
-  // Upsert user profile
-  const { error } = await supabaseAdmin.from('user_profiles').upsert({
-    id: userId,
-    email: primaryEmail,
-    role: role,
-    campus_id: campusId || null,
-    tenant_id: tenantId || null,
-    updated_at: new Date().toISOString(),
-  });
+  // Check if user already exists in Supabase
+  const { data: existingUser } = await supabaseAdmin
+    .from('user_profiles')
+    .select('id, role')
+    .eq('id', userId)
+    .single();
+
+  let error;
+  if (existingUser) {
+    // User exists - update but preserve Supabase role (source of truth)
+    const { error: updateError } = await supabaseAdmin
+      .from('user_profiles')
+      .update({
+        email: primaryEmail,
+        // DO NOT update role - Supabase is source of truth
+        campus_id: campusId || null,
+        tenant_id: tenantId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    error = updateError;
+    logger.info('User exists, preserved role', { existingRole: existingUser.role });
+  } else {
+    // New user - insert with role from Clerk metadata
+    const { error: insertError } = await supabaseAdmin.from('user_profiles').insert({
+      id: userId,
+      email: primaryEmail,
+      role: role,
+      campus_id: campusId || null,
+      tenant_id: tenantId || null,
+      updated_at: new Date().toISOString(),
+    });
+    error = insertError;
+  }
 
   if (error) {
     logger.error('Error syncing user', error);

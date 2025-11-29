@@ -28,7 +28,7 @@ export default async function AdminFeedbackPage() {
     .single();
 
   if (!userProfile || userProfile.role !== 'super_admin') {
-    redirect('/dashboard');
+    redirect('/trespass');
   }
 
   // Fetch all feedback and categories

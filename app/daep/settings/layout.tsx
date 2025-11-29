@@ -16,13 +16,18 @@ import {
   Building,
   Menu,
   X,
+  Palette,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { AdminTenantProvider, useAdminTenant } from '@/contexts/AdminTenantContext';
+import { useDemoRole } from '@/contexts/DemoRoleContext';
+import { getUserProfile } from '@/app/actions/users';
+import { DevRoleSwitcher } from '@/components/dev/DevRoleSwitcher';
 
 const NAV_ITEMS = [
   { href: '/daep/settings', label: 'General', icon: Settings, exact: true },
+  { href: '/daep/settings/appearance', label: 'Appearance', icon: Palette },
   { href: '/daep/settings/rooms', label: 'Rooms', icon: DoorOpen },
   { href: '/daep/settings/schedules', label: 'Schedules', icon: Clock },
   { href: '/daep/settings/codes', label: 'Discipline Codes', icon: FileText },
@@ -40,11 +45,15 @@ function DAEPSettingsLayoutInner({
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [userRole, setUserRole] = useState<string>('viewer');
+  const [actualRole, setActualRole] = useState<string>('viewer');
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const { tenants, selectedTenantId, setSelectedTenantId, tenantsLoading } = useAdminTenant();
+  const { isDemoMode, demoRole } = useDemoRole();
+
+  // Determine effective role (use demo role if in demo mode, otherwise use actual user role)
+  const effectiveRole = isDemoMode ? demoRole : actualRole;
 
   const closeSidebar = () => {
     setIsClosing(true);
@@ -62,21 +71,37 @@ function DAEPSettingsLayoutInner({
     }
   };
 
+  // Load actual role from database on mount
   useEffect(() => {
-    if (isLoaded && user) {
-      const role = (user.publicMetadata?.role as string) || 'viewer';
-      setUserRole(role);
+    async function loadRole() {
+      if (!isLoaded || !user) return;
 
-      // Also accept legacy master_admin during transition
-      const effectiveRole = role === 'master_admin' ? 'super_admin' : role;
-
-      if (ALLOWED_ROLES.includes(effectiveRole) || role === 'master_admin') {
-        setIsAuthorized(true);
-      } else {
+      try {
+        const profile = await getUserProfile(user.id);
+        const role = profile?.role || 'viewer';
+        setActualRole(role);
+      } catch (error) {
+        console.error('[DAEP Settings] Error fetching user profile:', error);
         router.push('/daep/access-denied');
       }
     }
+
+    loadRole();
   }, [user, isLoaded, router]);
+
+  // Check authorization based on effective role (respects demo role switching)
+  useEffect(() => {
+    if (!isLoaded || !user || actualRole === 'viewer') return;
+
+    // Allow access if effective role is in allowed list
+    if (ALLOWED_ROLES.includes(effectiveRole)) {
+      setIsAuthorized(true);
+    } else {
+      console.log('[DAEP Settings] Redirecting - effective role not authorized:', effectiveRole);
+      setIsAuthorized(false);
+      router.push('/daep/access-denied');
+    }
+  }, [effectiveRole, actualRole, isLoaded, user, router]);
 
   if (!isLoaded || !user) {
     return (
@@ -107,7 +132,11 @@ function DAEPSettingsLayoutInner({
     return pathname?.startsWith(href);
   };
 
-  const isSuperAdmin = userRole === 'super_admin' || userRole === 'master_admin';
+  // Tenant selector uses effectiveRole - when impersonating, see UI as that role would
+  // Exception: On production (not demo), super_admin keeps tenant switching ability
+  const showTenantSelector = selectedTenantId !== 'demo'
+    ? actualRole === 'super_admin'  // Production: use actual role
+    : effectiveRole === 'super_admin';  // Demo: use impersonated role
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
@@ -136,6 +165,11 @@ function DAEPSettingsLayoutInner({
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-xl font-bold text-foreground">DAEP Settings</h1>
+                  {selectedTenantId === 'demo' && effectiveRole && (
+                    <span className="px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-700 whitespace-nowrap">
+                      {effectiveRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground hidden sm:block">
                   Configure rooms, schedules, and more
@@ -146,7 +180,7 @@ function DAEPSettingsLayoutInner({
             {/* Right: Desktop controls (hidden on mobile) */}
             <div className="hidden nav:flex items-center gap-4">
               {/* Tenant Selector - Only for super_admin with multiple tenants */}
-              {isSuperAdmin && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
+              {showTenantSelector && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
                 <div className="flex items-center gap-2">
                   <Building className="w-4 h-4 text-muted-foreground" />
                   <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
@@ -163,6 +197,9 @@ function DAEPSettingsLayoutInner({
                   </Select>
                 </div>
               )}
+
+              {/* Dev Role Switcher - only visible for whitelisted users */}
+              <DevRoleSwitcher />
 
               <Link href="/daep">
                 <Button
@@ -238,8 +275,11 @@ function DAEPSettingsLayoutInner({
 
             {/* Mobile: Controls at bottom */}
             <div className="nav:hidden mt-6 pt-6 border-t border-slate-200 space-y-3">
+              {/* Dev Role Switcher - only visible for whitelisted users */}
+              <DevRoleSwitcher />
+
               {/* Tenant Selector - Only for super_admin with multiple tenants */}
-              {isSuperAdmin && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
+              {showTenantSelector && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-slate-600">District</label>
                   <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>

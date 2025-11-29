@@ -1,0 +1,140 @@
+<story-context id="0-x-theme-foundation" v="1.0">
+  <metadata>
+    <epicId>0</epicId>
+    <storyId>X</storyId>
+    <title>DAEP Theme &amp; Layout Foundation</title>
+    <status>approved</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>Manual (Dev Agent)</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/0-x-theme-foundation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP user</asA>
+    <iWant>a consistent visual design with selectable themes</iWant>
+    <soThat>the application feels professional and I can personalize my experience</soThat>
+    <tasks>
+      <task id="1">Create CSS theme variables (lib/themes/daep-themes.css)</task>
+      <task id="2">Create Theme Provider (contexts/DAEPThemeContext.tsx)</task>
+      <task id="3">Create DAEP Layout Shell (app/daep/layout.tsx, DAEPSidebar, DAEPHeader)</task>
+      <task id="4">Create Theme Picker (components/daep/settings/ThemePicker.tsx, settings/appearance page)</task>
+      <task id="5">Testing &amp; Validation</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="0.X.1">Theme provider wraps DAEP app - CSS variables update on theme change</ac>
+    <ac id="0.X.2">4 themes available: Trustworthy Blue, Modern Slate, Academic Green, Texas Heritage</ac>
+    <ac id="0.X.3">Default theme is Trustworthy Blue</ac>
+    <ac id="0.X.4">Theme preference persists per user (localStorage)</ac>
+    <ac id="0.X.5">DAEP layout has left sidebar + top header + main content</ac>
+    <ac id="0.X.6">Sidebar collapses on tablet (768-1279px)</ac>
+    <ac id="0.X.7">Theme picker in Settings > Appearance</ac>
+    <ac id="0.X.8">Status colors consistent across themes (success/warning/danger unchanged)</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sessions/ux-design-specification.md" title="UX Design Specification" section="3.1 Color System" relevance="Theme hex values, 4 themes defined"/>
+      <doc path="docs/sessions/ux-design-specification.md" title="UX Design Specification" section="8.1 Breakpoints" relevance="Responsive: Desktop 1280+, Tablet 768-1279, Mobile &lt;768"/>
+      <doc path="docs/sessions/ux-design-specification.md" title="UX Design Specification" section="4.1 Design Direction" relevance="Sidebar nav layout, balanced density"/>
+    </docs>
+    <code>
+      <file path="app/daep/settings/layout.tsx" kind="layout" relevance="Existing settings layout with sidebar pattern, mobile hamburger, AdminTenantProvider wrapping"/>
+      <file path="app/daep/page.tsx" kind="page" relevance="Current placeholder page - will be wrapped by new layout"/>
+      <file path="contexts/AuthContext.tsx" kind="context" relevance="Pattern for React context providers in this project"/>
+      <file path="lib/utils.ts" kind="utility" relevance="cn() function for className merging"/>
+      <file path="components/ui/button.tsx" kind="component" relevance="Shadcn Button component"/>
+      <file path="components/ui/card.tsx" kind="component" relevance="Shadcn Card component for ThemePicker"/>
+    </code>
+    <dependencies>
+      <npm>
+        <package name="next-themes" version="^0.3.0" note="Already installed - could use for theme management"/>
+        <package name="lucide-react" version="^0.446.0" note="Icon library"/>
+        <package name="@clerk/nextjs" version="^6.33.1" note="Auth - useUser hook"/>
+        <package name="tailwind-merge" version="^2.5.2" note="For cn() utility"/>
+        <package name="clsx" version="^2.1.1" note="For cn() utility"/>
+      </npm>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="DAEPThemeContext" kind="React Context">
+      <signature>
+        type Theme = 'trustworthy-blue' | 'modern-slate' | 'academic-green' | 'texas-heritage';
+        interface ThemeContextValue {
+          theme: Theme;
+          setTheme: (theme: Theme) => void;
+          themes: { value: Theme; label: string; primary: string }[];
+        }
+      </signature>
+    </interface>
+    <interface name="useDAEPTheme" kind="React Hook">
+      <signature>function useDAEPTheme(): ThemeContextValue</signature>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint source="UX Spec">Use CSS custom properties with RGB values for opacity support: rgb(var(--daep-primary))</constraint>
+    <constraint source="UX Spec">Touch targets minimum 44x44px for iPad use</constraint>
+    <constraint source="UX Spec">WCAG 2.1 AA accessibility - 4.5:1 color contrast</constraint>
+    <constraint source="Project">Use 'use client' directive for client components</constraint>
+    <constraint source="Project">Follow existing context pattern from AuthContext.tsx</constraint>
+    <constraint source="Story">Status colors (success/warning/danger) must remain constant across all themes</constraint>
+    <constraint source="Story">Default theme must be Trustworthy Blue</constraint>
+  </constraints>
+
+  <tests>
+    <standards>No test framework configured. Manual validation required.</standards>
+    <locations>N/A</locations>
+    <ideas>
+      <test ac="0.X.1">Verify data-theme attribute changes on document.documentElement when theme changes</test>
+      <test ac="0.X.2">Verify all 4 themes render with correct primary colors</test>
+      <test ac="0.X.3">Verify new session defaults to trustworthy-blue theme</test>
+      <test ac="0.X.4">Verify localStorage persists theme and survives page refresh</test>
+      <test ac="0.X.5">Verify layout structure: sidebar left, header top, content main area</test>
+      <test ac="0.X.6">Verify sidebar collapse at 768px breakpoint</test>
+      <test ac="0.X.7">Verify /daep/settings/appearance page renders ThemePicker</test>
+      <test ac="0.X.8">Verify --daep-success, --daep-warning, --daep-danger unchanged across themes</test>
+    </ideas>
+  </tests>
+
+  <colorReference>
+    <theme name="trustworthy-blue" default="true">
+      <color name="primary" hex="#3B82F6" rgb="59 130 246"/>
+      <color name="sidebar" hex="#1E293B" rgb="30 41 59"/>
+      <color name="background" hex="#F9FAFB" rgb="249 250 251"/>
+    </theme>
+    <theme name="modern-slate">
+      <color name="primary" hex="#0EA5E9" rgb="14 165 233"/>
+      <color name="sidebar" hex="#0F172A" rgb="15 23 42"/>
+      <color name="background" hex="#F8FAFC" rgb="248 250 252"/>
+    </theme>
+    <theme name="academic-green">
+      <color name="primary" hex="#16A34A" rgb="22 163 74"/>
+      <color name="sidebar" hex="#14532D" rgb="20 83 45"/>
+      <color name="background" hex="#F0FDF4" rgb="240 253 244"/>
+    </theme>
+    <theme name="texas-heritage">
+      <color name="primary" hex="#EA580C" rgb="234 88 12"/>
+      <color name="sidebar" hex="#292524" rgb="41 37 36"/>
+      <color name="background" hex="#FEFCE8" rgb="254 252 232"/>
+    </theme>
+    <shared>
+      <color name="success" hex="#10B981" rgb="16 185 129"/>
+      <color name="warning" hex="#F59E0B" rgb="245 158 11"/>
+      <color name="danger" hex="#EF4444" rgb="239 68 68"/>
+      <color name="info" hex="#6366F1" rgb="99 102 241"/>
+    </shared>
+  </colorReference>
+
+  <navItems>
+    <item href="/daep" label="Dashboard" icon="LayoutDashboard"/>
+    <item href="/daep/students" label="Students" icon="Users"/>
+    <item href="/daep/placements" label="Placements" icon="ClipboardList"/>
+    <item href="/daep/attendance" label="Attendance" icon="Calendar"/>
+    <item href="/daep/reconciliation" label="Reconciliation" icon="FileSpreadsheet"/>
+    <item href="/daep/notifications" label="Notifications" icon="Bell"/>
+    <item href="/daep/settings" label="Settings" icon="Settings"/>
+  </navItems>
+</story-context>

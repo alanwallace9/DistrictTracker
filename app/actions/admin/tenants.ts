@@ -39,7 +39,7 @@ export async function getTenants(): Promise<Tenant[]> {
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      throw new Error('Unauthorized: Master admin access required');
+      throw new Error('Unauthorized: Super admin access required');
     }
 
     // Get all tenants
@@ -79,7 +79,7 @@ export async function getTenantById(tenantId: string): Promise<Tenant | null> {
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      throw new Error('Unauthorized: Master admin access required');
+      throw new Error('Unauthorized: Super admin access required');
     }
 
     const { data: tenant, error } = await supabaseAdmin
@@ -151,7 +151,7 @@ export async function createTenant(data: {
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      return { success: false, error: 'Unauthorized: Master admin access required' };
+      return { success: false, error: 'Unauthorized: Super admin access required' };
     }
 
     // Validate subdomain format (lowercase alphanumeric and hyphens only)
@@ -249,7 +249,7 @@ export async function updateTenant(
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      return { success: false, error: 'Unauthorized: Master admin access required' };
+      return { success: false, error: 'Unauthorized: Super admin access required' };
     }
 
     // Verify tenant exists
@@ -334,7 +334,7 @@ export async function deactivateTenant(tenantId: string): Promise<{
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      return { success: false, error: 'Unauthorized: Master admin access required' };
+      return { success: false, error: 'Unauthorized: Super admin access required' };
     }
 
     // Verify tenant exists
@@ -401,7 +401,7 @@ export async function reactivateTenant(tenantId: string): Promise<{
       .single();
 
     if (!adminProfile || adminProfile.role !== 'super_admin') {
-      return { success: false, error: 'Unauthorized: Master admin access required' };
+      return { success: false, error: 'Unauthorized: Super admin access required' };
     }
 
     // Verify tenant exists

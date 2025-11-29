@@ -4,9 +4,8 @@
 Website/
 Zips/
 
-# Documentation - NOW TRACKED (previously ignored, caused data loss)
-# Only ignore sensitive subdirectories
-docs/sessions/
+# Documentation - ALL TRACKED (sessions restored after data loss incident)
+# Security folder is local-only until vulnerabilities are remediated
 docs/security/
 
 # dependencies

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Plus, Users } from 'lucide-react';
@@ -17,6 +18,7 @@ import type { PlacementStatus } from '@/lib/validation/schemas';
 type SortKey = 'name' | 'school_id' | 'status' | 'home_campus' | 'days_remaining' | 'room';
 
 export default function DAEPStudentsPage() {
+  const router = useRouter();
   const { toast } = useToast();
 
   // Data state
@@ -199,12 +201,11 @@ export default function DAEPStudentsPage() {
             variant="outline"
             size="sm"
             onClick={fetchStudents}
-            className="bg-white border border-slate-300"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => alert('New Placement - Coming in Story 2.4')}>
+          <Button size="sm" onClick={() => router.push('/daep/placements/new')}>
             <Plus className="w-4 h-4 mr-2" />
             New Placement
           </Button>

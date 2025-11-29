@@ -75,8 +75,8 @@ export function AdminTenantProvider({ children }: { children: ReactNode }) {
           const currentPath = window.location.pathname;
           const isInAdminPanel = currentPath.startsWith('/admin');
 
-          // If in admin panel, preserve current admin path; otherwise redirect to dashboard
-          const targetPath = isInAdminPanel ? currentPath : '/dashboard';
+          // If in admin panel, preserve current admin path; otherwise redirect to trespass
+          const targetPath = isInAdminPanel ? currentPath : '/trespass';
           const newUrl = `${protocol}//${tenant.subdomain}.${baseHost}${targetPath}`;
 
           console.log('[AdminTenantContext] Redirecting to tenant subdomain:', newUrl, '(preserving admin path:', isInAdminPanel, ')');

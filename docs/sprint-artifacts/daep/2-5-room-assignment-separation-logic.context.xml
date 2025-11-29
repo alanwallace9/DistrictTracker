@@ -1,0 +1,194 @@
+<story-context id="2-5-room-assignment-separation-logic" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>5</storyId>
+    <title>Room Assignment &amp; Separation Logic</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-28</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-5.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>room assignment to enforce student separation rules and show room availability</iWant>
+    <soThat>students who must be kept apart are never in adjacent rooms and I can see occupancy at a glance</soThat>
+    <tasks>
+      <task id="1" acs="2.5.1,2.5.2,2.5.3,2.5.4">Server Actions for Room Availability</task>
+      <task id="2" acs="2.5.5,2.5.6">Student Separation Management</task>
+      <task id="3" acs="all">Validation Schemas</task>
+      <task id="4" acs="2.5.1,2.5.2,2.5.3,2.5.4">Room Assignment Dialog Component</task>
+      <task id="5" acs="2.5.5,2.5.6">Student Separation Management UI</task>
+      <task id="6" acs="all">Integration Points</task>
+      <task id="7" acs="2.5.7">Audit Events</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="2.5.1">Room selection dropdown filtered by capacity - Show only rooms with available spots</ac>
+    <ac id="2.5.2">Display current room occupancy - Format: X/15 students</ac>
+    <ac id="2.5.3">Student separation enforcement - Block rooms in same building section as separated students</ac>
+    <ac id="2.5.4">Separation reason displayed - Show why room is blocked</ac>
+    <ac id="2.5.5">Create new separation flags - Admin UI to add separations</ac>
+    <ac id="2.5.6">Separation flags have expiration dates - Auto-deactivate expired separations</ac>
+    <ac id="2.5.7">Audit log for room assignments - Log all room changes and separation flag changes</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-story-2-5.md" title="Tech Spec Story 2-5" section="Full implementation spec">
+        Complete implementation guidance with TypeScript code samples for all 5 server actions, UI mockups, and database queries.
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/story-2-4.md" title="Story 2-4 Placement Creation" section="Learnings">
+        Patterns: getTenantId(), searchStudentsForPlacement(), audit logging with logAuditEvent()
+      </doc>
+      <doc path="docs/sessions/ux-design-specification.md" title="UX Design Specification" section="Component Patterns">
+        Button styles, card patterns, toast notifications, dialog patterns, iPad touch targets (44x44px)
+      </doc>
+    </docs>
+
+    <code>
+      <file path="app/actions/daep/rooms.ts" kind="server-action" lines="1-465" reason="EXTEND THIS FILE - Add room availability and separation functions">
+        <symbols>
+          <symbol name="getTenantId" type="function" lines="37-58">Reuse for tenant isolation</symbol>
+          <symbol name="checkDAEPAdminRole" type="function" lines="61-87">Reuse for role checks</symbol>
+          <symbol name="logDAEPAuditEvent" type="function" lines="90-112">Reuse for audit logging</symbol>
+          <symbol name="DAEPRoom" type="interface" lines="9-23">Existing room interface with building_section field</symbol>
+          <symbol name="getDAEPRooms" type="function" lines="116-136">Reference for room queries</symbol>
+        </symbols>
+      </file>
+      <file path="app/actions/daep/placements.ts" kind="server-action" lines="1-578" reason="Reference patterns for student search and validation">
+        <symbols>
+          <symbol name="searchStudentsForPlacement" type="function" lines="116-166">Reuse pattern for separation student search</symbol>
+          <symbol name="createPlacement" type="function" lines="319-457">Reference for audit logging pattern</symbol>
+        </symbols>
+      </file>
+      <file path="lib/validation/schemas.ts" kind="schema" lines="1-399" reason="ADD schemas here - AssignRoomSchema, CreateSeparationSchema">
+        <symbols>
+          <symbol name="DAEPRoomSchema" type="schema" lines="133-140">Existing room schema with building_section</symbol>
+          <symbol name="CreatePlacementSchema" type="schema" lines="327-339">Reference for validation patterns</symbol>
+          <symbol name="validateData" type="function" lines="383-398">Helper for schema validation</symbol>
+        </symbols>
+      </file>
+      <file path="lib/audit-logger.ts" kind="utility" lines="1-91" reason="Audit event types already defined">
+        <symbols>
+          <symbol name="AuditEventType" type="type" lines="15-46">INCLUDES room.assignment_changed, student.separation_added, student.separation_removed</symbol>
+          <symbol name="logAuditEvent" type="function" lines="67-90">Use for audit logging</symbol>
+        </symbols>
+      </file>
+      <file path="components/daep/CurrentPlacementCard.tsx" kind="component" reason="Reference for card patterns and placement display">
+        Add "Change Room" button integration point
+      </file>
+      <file path="components/daep/StudentProfileHeader.tsx" kind="component" reason="Reference for student profile layout">
+        Add separation management tab integration
+      </file>
+    </code>
+
+    <dependencies>
+      <dep name="@radix-ui/react-dialog" version="^1.1.15" use="RoomAssignmentDialog, AddSeparationDialog" />
+      <dep name="@radix-ui/react-radio-group" version="^1.2.0" use="Room selection radio buttons" />
+      <dep name="@radix-ui/react-tooltip" version="^1.1.2" use="Blocked room reason tooltips" />
+      <dep name="@radix-ui/react-tabs" version="^1.1.0" use="Separations tab on student profile" />
+      <dep name="sonner" version="^1.7.4" use="Toast notifications for success/error" />
+      <dep name="react-day-picker" version="^8.10.1" use="Expiration date picker for separations" />
+      <dep name="date-fns" version="^3.6.0" use="Date formatting and comparisons" />
+      <dep name="zod" version="^3.25.76" use="Schema validation" />
+      <dep name="lucide-react" version="^0.446.0" use="Icons for status indicators" />
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="RoomAvailability" kind="TypeScript interface" path="app/actions/daep/rooms.ts">
+      <![CDATA[
+interface RoomAvailability {
+  id: string;
+  room_number: string;
+  room_name: string | null;
+  building_section: string | null;
+  capacity: number;
+  current_count: number;
+  available_spots: number;
+  is_available: boolean;
+  blocked_reason?: string;
+  blocked_students?: string[];
+}
+      ]]>
+    </interface>
+    <interface name="StudentSeparation" kind="TypeScript interface" path="app/actions/daep/rooms.ts">
+      <![CDATA[
+interface StudentSeparation {
+  id: string;
+  other_student_id: string;
+  other_student_name: string;
+  reason: string;
+  expires_at: string | null;
+  created_at: string;
+  created_by_name: string;
+}
+      ]]>
+    </interface>
+    <interface name="CreateSeparationInput" kind="TypeScript interface" path="app/actions/daep/rooms.ts">
+      <![CDATA[
+interface CreateSeparationInput {
+  student_a_id: string;
+  student_b_id: string;
+  reason: string;
+  expires_at?: string;
+}
+      ]]>
+    </interface>
+    <interface name="getAvailableRoomsForStudent" kind="Server Action" path="app/actions/daep/rooms.ts">
+      <![CDATA[
+async function getAvailableRoomsForStudent(
+  school_id: string,
+  placement_id?: string
+): Promise<RoomAvailability[]>
+      ]]>
+    </interface>
+    <interface name="assignRoom" kind="Server Action" path="app/actions/daep/rooms.ts">
+      <![CDATA[
+async function assignRoom(
+  placement_id: string,
+  room_id: string
+): Promise<{ success: boolean; error?: string }>
+      ]]>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="pattern">Always use active_tenant_id || tenant_id pattern via getTenantId() for super_admin support</constraint>
+    <constraint type="pattern">Use checkDAEPAdminRole() for role-based access control on mutation actions</constraint>
+    <constraint type="pattern">Log all mutations to admin_audit_log via logAuditEvent()</constraint>
+    <constraint type="pattern">Use Zod schemas for all input validation before database operations</constraint>
+    <constraint type="pattern">Use revalidatePath() after mutations to refresh cached data</constraint>
+    <constraint type="database">Separations are bidirectional - query for student in EITHER student_a_id OR student_b_id</constraint>
+    <constraint type="database">Filter expired separations: expires_at IS NULL OR expires_at > NOW()</constraint>
+    <constraint type="database">Building section blocking: rooms in same building_section are all blocked, not just one room</constraint>
+    <constraint type="ux">Never hardcode colors - use theme variables from DAEPThemeContext</constraint>
+    <constraint type="ux">Touch targets minimum 44x44px for iPad compatibility</constraint>
+    <constraint type="ux">Use color + icon for status (not color alone) for accessibility</constraint>
+    <constraint type="ux">Confirmation modal required for destructive actions (remove separation)</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      No automated test framework currently configured. Manual testing via browser.
+      TypeScript type checking via `npm run typecheck`.
+      Build validation via `npm run build`.
+    </standards>
+    <locations>
+      - Manual testing in development environment
+      - Type checking: `npx tsc --noEmit`
+      - Build: `npm run build`
+    </locations>
+    <ideas>
+      <idea ac="2.5.1">Verify room dropdown shows only rooms with available_spots > 0</idea>
+      <idea ac="2.5.2">Verify occupancy displays as "X/Y students" format</idea>
+      <idea ac="2.5.3">Create separation A↔B, assign A to A-Wing, verify B cannot select A-Wing rooms</idea>
+      <idea ac="2.5.4">Verify blocked room tooltip shows "Separation: [Name] in this section"</idea>
+      <idea ac="2.5.5">Create separation via dialog, verify appears in student profile</idea>
+      <idea ac="2.5.6">Create separation with past expires_at, verify it does not block rooms</idea>
+      <idea ac="2.5.7">Verify admin_audit_log entries for room.assignment_changed, student.separation_added</idea>
+    </ideas>
+  </tests>
+</story-context>

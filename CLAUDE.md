@@ -9,14 +9,63 @@
 
 **Never hardcode or assume project IDs - always verify from environment files first.**
 
+## Documentation Folder Structure
+
+```
+docs/
+├── index.md                    # Master index (auto-generated)
+├── todo.md                     # Quick task tracking
+├── reference/                  # Stable reference docs
+│   ├── architecture*.md        # System architecture
+│   ├── epics*.md              # Epic definitions
+│   ├── prd.md                 # Product requirements
+│   ├── data-models.md         # Database schemas
+│   └── api-contracts.md       # API specifications
+├── sprint-artifacts/           # Active development
+│   ├── sprint-status.yaml     # Sprint tracking (source of truth)
+│   ├── tech-spec-epic-*.md    # Technical specifications
+│   ├── {story-key}.md         # Story files
+│   ├── bug-*.md               # Bug reports
+│   └── *-retro-*.md           # Retrospectives
+├── workflows/                  # Process documentation
+│   ├── user-auth-workflow.md  # Auth/authorization flow
+│   ├── development-guide.md   # Dev setup & patterns
+│   └── GetStarted.md          # Onboarding guide
+└── sessions/                   # Research & planning
+    ├── brainstorming-*.md     # Brainstorming sessions
+    ├── research-*.md          # Market/technical research
+    ├── product-brief-*.md     # Product briefs
+    └── ux-*.md/html           # UX explorations
+```
+
+**Where to put new docs:**
+- Bug reports → `sprint-artifacts/bug-{name}.md`
+- Tech specs → `sprint-artifacts/tech-spec-epic-{N}.md`
+- Story files → `sprint-artifacts/{story-key}.md`
+- Process docs → `workflows/`
+- Research/brainstorming → `sessions/`
+
+## Reference Documentation Paths
+
+**All stable reference docs are in `docs/reference/`:**
+
+| Document | Path | Description |
+|----------|------|-------------|
+| PRD | `docs/reference/prd.md` | Product Requirements Document |
+| Architecture | `docs/reference/architecture-part1.md`, `architecture-part2.md` | System architecture (sharded) |
+| Epics | `docs/reference/epics-part1.md`, `epics-part2.md` | Epic definitions (sharded) |
+| Data Models | `docs/reference/data-models.md` | Database schemas |
+| API Contracts | `docs/reference/api-contracts.md` | REST API + Server Actions |
+| UX Design | `docs/sessions/ux-design-specification.md` | Visual design system |
+
 ## Large Document Handling
 
 **CRITICAL: Do NOT read these files in full - they are split into parts:**
 
 | Instead of reading... | Load this instead |
 |----------------------|-------------------|
-| `docs/epics.md` | `docs/epics-part1.md` OR `docs/epics-part2.md` |
-| `docs/architecture.md` | `docs/architecture-part1.md` OR `docs/architecture-part2.md` |
+| `docs/reference/epics.md` | `docs/reference/epics-part1.md` OR `docs/reference/epics-part2.md` |
+| `docs/reference/architecture.md` | `docs/reference/architecture-part1.md` OR `docs/reference/architecture-part2.md` |
 
 **Epic Part Reference:**
 - **Part 1**: Overview, FR Inventory, Epics 1a, 1b, 2
@@ -87,16 +136,21 @@ Load the specific epic's tech spec, not the full architecture.
 - All stories (1-5 through 1-10): `done`
 - Key bugs resolved: composite PK migration, tenant column naming
 
-**Epic 2: Placement Management** - IN PROGRESS
+**Epic 2: Placement Management** - IN PROGRESS (4/13 done)
 - Status: `contexted`
-- Story 2-1 (Student Search List View): `done`
-- Stories 2-2 through 2-13: `backlog`
-- 13 stories, 34 points
+- Stories done: 2-1, 2-2, 2-4, 2-10 (13 pts)
+- Next up: 2-3 (TrespassTracker Status Display) → `ready-for-dev`
+- Backlog: 2-5 through 2-9, 2-11 through 2-13 (19 pts)
+- 13 stories, 34 points total
 - FRs: FR9-FR26, FR73-FR77
 
 **Tech Specs Available:**
-- `docs/sprint-artifacts/tech-spec-epic-1a.md` (completed)
-- `docs/sprint-artifacts/tech-spec-epic-1b.md` (completed)
+- `docs/sprint-artifacts/daep/tech-spec-epic-2-part1.md` (Stories 2.1-2.6)
+- `docs/sprint-artifacts/daep/tech-spec-epic-2-part2.md` (Stories 2.7-2.13)
+- `docs/sprint-artifacts/daep/tech-spec-stories-2-2-2-3-2-10.md` (Profile batch)
+- `docs/sprint-artifacts/daep/tech-spec-story-2-4.md` (Placement creation)
+- `docs/sprint-artifacts/daep/tech-spec-story-2-5.md` (Room assignment)
+- `docs/sprint-artifacts/daep/tech-spec-stories-2-6-2-7.md` (Lifecycle + days calc)
 
 ## Key Patterns Learned (Epic 1b)
 
@@ -112,7 +166,7 @@ FOREIGN KEY (tenant_id, campus_id) REFERENCES campuses(tenant_id, id)
 See: `bug-campus-tenant-isolation.md`
 
 ### active_tenant_id Pattern
-For master_admin tenant switching, always use:
+For super_admin tenant switching, always use:
 ```typescript
 const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
 ```

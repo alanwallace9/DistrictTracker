@@ -36,6 +36,12 @@ story_location: docs/sprint-artifacts
 
 development_status:
   # ============================================
+  # Epic 0: Foundation (Design System)
+  # Theme provider, layout shell, UX infrastructure
+  # ============================================
+  0-x-theme-foundation: drafted  # Tech spec: docs/sprint-artifacts/daep/0-x-theme-foundation.md
+
+  # ============================================
   # Epic 1a: Core Schema & Security (5 stories, 21 pts)
   # FRs: FR3, FR4, FR4a, FR4b, FR5 + Schema foundation
   # ============================================
@@ -66,18 +72,18 @@ development_status:
   # ============================================
   epic-2: contexted
   2-1-student-search-list-view: done
-  2-2-student-profile-page: backlog
-  2-3-trespasstracker-status-display: backlog
-  2-4-create-new-placement: backlog
-  2-5-room-assignment-separation-logic: backlog
-  2-6-placement-lifecycle-state-machine: backlog
-  2-7-days-remaining-calculation: backlog
-  2-8-edit-placement: backlog
-  2-9-transition-workflow: backlog
-  2-10-prevent-duplicate-placements: backlog
-  2-11-rollover-student-handling: backlog
-  2-12-no-show-student-tracking: backlog
-  2-13-trespasstracker-sync: backlog
+  2-2-student-profile-page: done
+  2-3-trespasstracker-status-display: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-2-2-3-2-10.md
+  2-4-create-new-placement: done
+  2-5-room-assignment-separation-logic: done  # Context: docs/sprint-artifacts/daep/2-5-room-assignment-separation-logic.context.xml
+  2-6-placement-lifecycle-state-machine: backlog   # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-6-2-7.md
+  2-7-days-remaining-calculation: backlog          # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-6-2-7.md
+  2-8-edit-placement: backlog                      # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-8-2-9.md
+  2-9-transition-workflow: backlog                 # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-8-2-9.md
+  2-10-prevent-duplicate-placements: done          # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-2-2-3-2-10.md
+  2-11-rollover-student-handling: backlog          # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-11-2-12-2-13.md
+  2-12-no-show-student-tracking: backlog           # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-11-2-12-2-13.md
+  2-13-trespasstracker-sync: backlog               # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-11-2-12-2-13.md
   epic-2-retrospective: optional
 
   # ============================================

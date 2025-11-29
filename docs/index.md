@@ -1,7 +1,7 @@
 # DistrictTracker Project Documentation
 
 **Version:** 1.0.0
-**Last Updated:** 2025-11-23
+**Last Updated:** 2025-11-26
 **Project Type:** Modular Monolith (Next.js 15 + React 19 + TypeScript)
 **Status:** TrespassTracker (Operational), DAEPManagement (In Development)
 
@@ -55,28 +55,41 @@
 
 ## 📚 Documentation Index
 
-### Core Documentation (Generated)
+### Folder Structure
 
-1. **[Technology Stack](./technology-stack.md)** - Comprehensive tech stack analysis
-   *Frameworks, libraries, dependencies, architecture patterns*
+```
+docs/
+├── reference/          # Stable architecture & requirements docs
+├── sprint-artifacts/   # Stories, tech specs, bug reports, sprint tracking
+├── workflows/          # Process documentation & guides
+└── sessions/           # Research, brainstorming, UX exploration
+```
 
-2. **[API Contracts](./api-contracts.md)** - REST API routes + Server Actions
-   *6 REST endpoints, 24+ server actions, authentication, validation*
+### Reference Documentation (docs/reference/)
 
-3. **[Data Models](./data-models.md)** - Database schema and relationships
-   *14 tables, RLS policies, TypeScript types, migration history*
+1. **[Technology Stack](./reference/technology-stack.md)** - Comprehensive tech stack analysis
+2. **[API Contracts](./reference/api-contracts.md)** - REST API routes + Server Actions
+3. **[Data Models](./reference/data-models.md)** - Database schema and relationships
+4. **[RLS Policies - Detailed](./reference/rls-policies-detailed.md)** - Row-Level Security reference
+5. **[Source Tree Analysis](./reference/source-tree-analysis.md)** - Project structure
+6. **[Integration Architecture](./reference/integration-architecture.md)** - Module communication
+7. **[PRD](./reference/prd.md)** - Product Requirements Document
+8. **[Architecture Part 1](./reference/architecture-part1.md)** - Tech stack, schema, security
+9. **[Architecture Part 2](./reference/architecture-part2.md)** - API design, UI, integrations
+10. **[Epics Part 1](./reference/epics-part1.md)** - Overview, Epics 1a, 1b, 2
+11. **[Epics Part 2](./reference/epics-part2.md)** - Epics 3-7, FR Coverage Matrix
 
-4. **[RLS Policies - Detailed](./rls-policies-detailed.md)** - Complete Row-Level Security reference
-   *70+ verified policies, helper functions, role-based access, demo tenant handling*
+### Workflow Documentation (docs/workflows/)
 
-5. **[Source Tree Analysis](./source-tree-analysis.md)** - Project structure with annotations
-   *Directory organization, entry points, module boundaries*
+1. **[Development Guide](./workflows/development-guide.md)** - Setup and development workflow
+2. **[Getting Started](./workflows/GetStarted.md)** - New developer onboarding
+3. **[User Auth Workflow](./workflows/user-auth-workflow.md)** - Clerk + Supabase auth flow
+4. **[BMM Workflow Status](./workflows/bmm-workflow-status.yaml)** - BMM state tracking
 
-6. **[Development Guide](./development-guide.md)** - Setup and development workflow
-   *Prerequisites, scripts, common tasks, troubleshooting*
+### Sprint Artifacts (docs/sprint-artifacts/)
 
-7. **[Integration Architecture](./integration-architecture.md)** - How modules communicate
-   *Shared infrastructure, cross-module data flow, integration points*
+- **[Sprint Status](./sprint-artifacts/sprint-status.yaml)** - Current sprint tracking (source of truth)
+- Tech specs, story files, bug reports, retrospectives
 
 ### Module-Specific Documentation
 
@@ -127,36 +140,15 @@
 - [daep_implementation_plan.md](../modules/DAEPManagement/daep_implementation_plan.md) - Implementation roadmap
 - `docs/sprint-artifacts/` - Sprint documentation (empty, planned)
 
-**DAEP Design & Planning Documentation:**
+### Sessions & Research (docs/sessions/)
 
-- **[DAEP UI Mockup Analysis](./daep-ui-mockup-analysis.md)** - Comprehensive analysis of bolt.new UI mockup
-  *Complete screen-by-screen breakdown, component library mapping, integration requirements with TrespassTracker, data model specifications, incident tracking integration, recidivism calculation algorithms*
-
-- **[Brainstorming Session Results (2025-11-23)](./brainstorming-session-results-2025-11-23.md)** - BMAD brainstorming session
-  *100+ features across 4 techniques (Mind Mapping, Five Whys, What If Scenarios, SCAMPER), 8 workflow branches, edge case analysis, critical realizations*
-
-- **[Product Brief: DAEP Module (2025-11-24)](./product-brief-DAEPManagement-2025-11-24.md)** - Strategic product vision and MVP scope
-  *Problem statement, target users, success metrics, MVP scope (17 features in 3 tiers), technical architecture preferences, multi-tenant configuration, risks and assumptions*
-
-- **[Product Brief Party Mode Findings (2025-11-24)](./product-brief-party-mode-findings-2025-11-24.md)** - Multi-agent review session findings
-  *Schema design requirements, edge case documentation, granular permissions system, performance indexes, pilot testing strategy, complete SQL schemas*
-
-### DAEP Core Design Documents (Split for AI Context)
-
-- **[PRD - DAEPManagement](./PRD.md)** - Product Requirements Document
-  *Complete functional requirements, user personas, success metrics*
-
-- **[Architecture - Part 1](./architecture-part1.md)** - Patterns & Decisions
-  *Executive summary, implementation patterns, CSV reconciliation architecture, decision records*
-
-- **[Architecture - Part 2](./architecture-part2.md)** - Data & Structure
-  *Data architecture, database schema, analytics, project structure*
-
-- **[Epics - Part 1](./epics-part1.md)** - Epics 1a, 1b, 2
-  *Overview, FR inventory, Epic 1a (Core Schema), Epic 1b (Config UI), Epic 2 (Placement Management)*
-
-- **[Epics - Part 2](./epics-part2.md)** - Epics 3-7
-  *Epic 3 (Daily Ops), Epic 4 (Behavior), Epic 5 (CSV), Epic 6 (Dashboard), Epic 7 (Notifications)*
+- **[DAEP UI Mockup Analysis](./sessions/daep-ui-mockup-analysis.md)** - UI mockup analysis
+- **[Brainstorming Session (2025-11-23)](./sessions/brainstorming-session-results-2025-11-23.md)** - BMAD brainstorming
+- **[Product Brief: DAEP](./sessions/product-brief-DAEPManagement-2025-11-24.md)** - Product vision
+- **[Party Mode Findings](./sessions/product-brief-party-mode-findings-2025-11-24.md)** - Multi-agent review
+- **[Market Research](./sessions/research-market-2025-11-24.md)** - Competitive analysis
+- **[Implementation Readiness](./sessions/implementation-readiness-report-2025-11-24.md)** - Pre-implementation check
+- **[UX Design Specification](./sessions/ux-design-specification.md)** - Final UX specs
 
 ---
 
@@ -210,7 +202,7 @@ Tenant (e.g., "Birdville ISD")
 - `viewer` - Read-only access to assigned campus
 - `campus_admin` - Full CRUD for assigned campus
 - `district_admin` - Full CRUD for all campuses in tenant
-- `master_admin` - Cross-tenant access + tenant management
+- `super_admin` - Cross-tenant access + tenant management
 
 ---
 
@@ -253,7 +245,7 @@ Tenant (e.g., "Birdville ISD")
 | `demo_seed_snapshots` | Demo tenant snapshots |
 | `waitlist` | Public waitlist signups |
 
-**See:** [Data Models Documentation](./data-models.md) for complete schema
+**See:** [Data Models Documentation](./reference/data-models.md) for complete schema
 
 ---
 
@@ -294,7 +286,7 @@ Tenant (e.g., "Birdville ISD")
 5. `/api/admin/reset-demo-now` - Manual demo reset
 6. `/api/cron/reset-demo` - Scheduled demo reset
 
-**See:** [API Contracts Documentation](./api-contracts.md) for complete API reference
+**See:** [API Contracts Documentation](./reference/api-contracts.md) for complete API reference
 
 ---
 
@@ -386,7 +378,7 @@ npm run dev
 # Open http://localhost:3000
 ```
 
-**See:** [Development Guide](./development-guide.md) for detailed setup instructions
+**See:** [Development Guide](./workflows/development-guide.md) for detailed setup instructions
 
 ---
 
@@ -428,7 +420,7 @@ DistrictTracker/
 └── next.config.js          # Next.js config
 ```
 
-**See:** [Source Tree Analysis](./source-tree-analysis.md) for detailed structure
+**See:** [Source Tree Analysis](./reference/source-tree-analysis.md) for detailed structure
 
 ---
 
@@ -463,7 +455,7 @@ supabase db push
 npm run seed:demo
 ```
 
-**See:** [Development Guide](./development-guide.md) for complete workflow
+**See:** [Development Guide](./workflows/development-guide.md) for complete workflow
 
 ---
 
@@ -520,7 +512,7 @@ __tests__/
 - Shared `campus_id` and `tenant_id` hierarchy
 - Common user roles and permissions
 
-**See:** [Integration Architecture](./integration-architecture.md) for details
+**See:** [Integration Architecture](./reference/integration-architecture.md) for details
 
 ---
 
@@ -596,11 +588,12 @@ __tests__/
 
 **When working on this project, always reference:**
 
-1. **[Technology Stack](./technology-stack.md)** - Understand the full tech stack
-2. **[Data Models](./data-models.md)** - Database schema and relationships
-3. **[API Contracts](./api-contracts.md)** - Available APIs and their usage
-4. **[Source Tree](./source-tree-analysis.md)** - Navigate the codebase
-5. **[Integration Architecture](./integration-architecture.md)** - Module boundaries
+1. **[Technology Stack](./reference/technology-stack.md)** - Understand the full tech stack
+2. **[Data Models](./reference/data-models.md)** - Database schema and relationships
+3. **[API Contracts](./reference/api-contracts.md)** - Available APIs and their usage
+4. **[Source Tree](./reference/source-tree-analysis.md)** - Navigate the codebase
+5. **[Integration Architecture](./reference/integration-architecture.md)** - Module boundaries
+6. **[User Auth Workflow](./workflows/user-auth-workflow.md)** - Auth/authorization patterns
 
 **Module-Specific Work:**
 - TrespassTracker: See `modules/TrespassTracker/docs/`

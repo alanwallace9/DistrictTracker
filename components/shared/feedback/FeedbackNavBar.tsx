@@ -24,7 +24,7 @@ export function FeedbackNavBar() {
   const handleAuth = () => {
     if (user) {
       // Already logged in - could show profile menu
-      router.push('/dashboard');
+      router.push('/trespass');
     } else {
       router.push('/login?redirect=/feedback');
     }

@@ -28,9 +28,9 @@ const supabaseAdmin = createClient(
 );
 
 function getSubdomainFromHostname(hostname: string): string | null {
-  // Development: default to demo
+  // Development: use staging tenant for local testing
   if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
-    return 'demo';
+    return 'staging';
   }
 
   const parts = hostname.split('.');
@@ -40,11 +40,12 @@ function getSubdomainFromHostname(hostname: string): string | null {
 
   const subdomain = parts[0];
 
-  // staging and app are special domains - don't map to any tenant
-  if (subdomain === 'staging' || subdomain === 'app') {
+  // app is special domain - don't map to any tenant
+  if (subdomain === 'app') {
     return null;
   }
 
+  // staging subdomain maps to staging tenant
   return subdomain;
 }
 
@@ -65,6 +66,25 @@ export default clerkMiddleware(async (auth, request) => {
   // If authenticated and subdomain present, check tenant access
   if (userId && subdomain) {
     console.log('[MIDDLEWARE] Authenticated user on subdomain', { userId, subdomain });
+
+    // Check if tenant has access restrictions
+    const { data: tenant } = await supabaseAdmin
+      .from('tenants')
+      .select('id, restricted_to_user_ids')
+      .eq('id', subdomain)
+      .single();
+
+    if (tenant?.restricted_to_user_ids && tenant.restricted_to_user_ids.length > 0) {
+      // Tenant has restrictions - check if user is allowed
+      if (!tenant.restricted_to_user_ids.includes(userId)) {
+        console.log('[MIDDLEWARE] Access denied - tenant restricted', { subdomain, userId });
+        const accessDeniedUrl = new URL('/access-denied', request.url);
+        accessDeniedUrl.searchParams.set('reason', 'restricted_tenant');
+        return NextResponse.redirect(accessDeniedUrl);
+      }
+      console.log('[MIDDLEWARE] User authorized for restricted tenant', { subdomain, userId });
+    }
+
     // Get user's profile including module_access
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
@@ -92,6 +112,21 @@ export default clerkMiddleware(async (auth, request) => {
             console.error('[MIDDLEWARE] Failed to switch to demo:', error);
           } else {
             console.log('[MIDDLEWARE] Successfully switched to demo');
+          }
+        }
+      } else if (subdomain === 'staging') {
+        // Staging tenant - auto-switch if needed (access already verified above)
+        if (userActiveTenant !== 'staging') {
+          console.log('[MIDDLEWARE] Auto-switching to staging workspace');
+          const { error } = await supabaseAdmin
+            .from('user_profiles')
+            .update({ active_tenant_id: 'staging' })
+            .eq('id', userId);
+
+          if (error) {
+            console.error('[MIDDLEWARE] Failed to switch to staging:', error);
+          } else {
+            console.log('[MIDDLEWARE] Successfully switched to staging');
           }
         }
       } else if (subdomain === userAssignedTenant) {

@@ -9,15 +9,15 @@
  *
  * Examples:
  * - demo.districttracker.com → 'demo'
- * - staging.districttracker.com → 'demo' (staging uses demo data)
+ * - staging.districttracker.com → 'staging' (isolated test environment)
  * - birdville.districttracker.com → 'birdville'
- * - localhost:3000 → 'demo' (development default)
+ * - localhost:3000 → 'staging' (development uses staging tenant)
  * - districttracker.com → null (root domain)
  */
 export function getSubdomainFromHostname(hostname: string): string | null {
-  // Development: default to demo
+  // Development: use staging tenant (keeps birdville clean for production)
   if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
-    return 'demo';
+    return 'staging';
   }
 
   const parts = hostname.split('.');
@@ -29,11 +29,6 @@ export function getSubdomainFromHostname(hostname: string): string | null {
 
   const subdomain = parts[0];
 
-  // Staging subdomain uses demo tenant data
-  if (subdomain === 'staging') {
-    return 'demo';
-  }
-
-  // Return the subdomain (e.g., 'demo', 'birdville')
+  // Return the subdomain directly (e.g., 'demo', 'birdville', 'staging')
   return subdomain;
 }

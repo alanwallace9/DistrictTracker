@@ -47,7 +47,7 @@ export async function switchActiveTenant(tenantId: string): Promise<{
         userId,
         role: userProfile.role,
       });
-      return { success: false, error: 'Only master admins can switch tenants' };
+      return { success: false, error: 'Only super admins can switch tenants' };
     }
 
     // Verify target tenant exists

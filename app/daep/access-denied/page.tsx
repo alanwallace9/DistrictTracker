@@ -23,8 +23,8 @@ export default function DAEPAccessDeniedPage() {
               Back to DAEP
             </Button>
           </Link>
-          <Link href="/dashboard">
-            <Button>Go to Dashboard</Button>
+          <Link href="/trespass">
+            <Button>Go to Trespass</Button>
           </Link>
         </div>
       </div>

@@ -15,9 +15,10 @@ _Generated using BMad Method - Create UX Design Workflow v1.0_
 
 **Target Users:**
 - **DAEP Administrators** - Manage placements, approve points, run reports, reconcile data
-- **DAEP Staff/Teachers** - Enter attendance, award points (0-10), write behavior notes
+- **DAEP Staff/Teachers** - Enter attendance, award points (-15 - +10), quick add comments with note buttons and/or write behavior notes
 - **Campus Administrators** - View home-campus students in DAEP, track progress
 - **District Administrators** - System configuration, user management, PEIMS compliance
+- **Parents and Students** - to view and track thier progress and teacher notes during their placement
 
 **Platform:** Web application (Next.js 14, Shadcn/ui, Tailwind CSS) with responsive design for iPad classroom use. Integrates with TrespassTracker module.
 

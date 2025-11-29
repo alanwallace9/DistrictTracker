@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Users, Building2, FileText, Activity, Database, Loader2, RotateCcw } from 'lucide-react';
 import { getAdminStats, type AdminStats } from '@/app/actions/admin/overview';
 import { useAdminTenant } from '@/contexts/AdminTenantContext';
+import { useDemoRole } from '@/contexts/DemoRoleContext';
 import { getUserProfile } from '@/app/actions/users';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ import {
 export default function AdminOverview() {
   const { selectedTenantId } = useAdminTenant();
   const { user } = useUser();
+  const { isDemoMode, demoRole } = useDemoRole();
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     activeUsers: 0,
@@ -131,8 +133,12 @@ export default function AdminOverview() {
     }
   };
 
-  // Show demo snapshot button only for master admin on demo tenant
-  const showDemoSnapshotButton = userRole === 'super_admin' && selectedTenantId === 'demo';
+  // Compute effective role (respects demo mode impersonation)
+  const effectiveRole = isDemoMode ? demoRole : userRole;
+
+  // Show demo snapshot button only for super_admin (using effectiveRole) on demo tenant
+  // When impersonating district_admin, this should be hidden
+  const showDemoSnapshotButton = effectiveRole === 'super_admin' && selectedTenantId === 'demo';
 
   const statCards = [
     {

@@ -187,71 +187,23 @@ export async function POST(req: Request) {
 
       case 'user.updated': {
         // Update user in Supabase when Clerk user is updated
-        const { id, email_addresses, public_metadata } = evt.data;
+        // IMPORTANT: Do NOT sync role from Clerk - Supabase is source of truth
+        // Role only flows Supabase → Clerk (via admin panel), never Clerk → Supabase
+        const { id, email_addresses } = evt.data;
 
         const primaryEmail = email_addresses?.find(
           (email) => email.id === evt.data.primary_email_address_id
         )?.email_address;
 
-        const role = (public_metadata?.role as string) || 'viewer';
-        const campusId = public_metadata?.campus_id as string | null;
-        const tenantId = public_metadata?.tenant_id as string | null;
-
-        // Validate role against whitelist
-        if (!ALLOWED_ROLES.includes(role as any)) {
-          logger.error('Invalid role in user metadata', { userId: id, role });
-          return new Response('Invalid role. Must be one of: viewer, campus_admin, district_admin, super_admin', { status: 400 });
-        }
-
-        // Validate required metadata
-        if (!tenantId) {
-          logger.error('Missing required tenant_id in user metadata', { userId: id });
-          return new Response('User missing required tenant_id metadata.', { status: 400 });
-        }
-
-        // Verify tenant_id exists in database
-        const { data: tenant, error: tenantError } = await supabaseAdmin
-          .from('tenants')
-          .select('id')
-          .eq('id', tenantId)
-          .single();
-
-        if (tenantError || !tenant) {
-          logger.error('Invalid tenant_id in user metadata', { userId: id, tenantId });
-          return new Response('Invalid tenant_id. Tenant does not exist in database.', { status: 400 });
-        }
-
-        // Validate campus_id for campus_admin role
-        if (role === 'campus_admin' && !campusId) {
-          logger.error('Missing required campus_id for campus_admin', { userId: id });
-          return new Response('Campus admin users must have campus_id metadata.', { status: 400 });
-        }
-
-        // Verify campus_id exists in database if provided
-        if (campusId) {
-          const { data: campus, error: campusError } = await supabaseAdmin
-            .from('campuses')
-            .select('id')
-            .eq('id', campusId)
-            .eq('tenant_id', tenantId)
-            .single();
-
-          if (campusError || !campus) {
-            logger.error('Invalid campus_id in user metadata', { userId: id, campusId, tenantId });
-            return new Response('Invalid campus_id. Campus does not exist in tenant.', { status: 400 });
-          }
-        }
-
         // Log to server (no PII in console)
-        logger.info('Updating user profile', { userId: id, role, tenantId });
+        logger.info('Updating user profile (email only, preserving role)', { userId: id });
 
         const { error } = await supabaseAdmin
           .from('user_profiles')
           .update({
             email: primaryEmail,
-            role: role,
-            campus_id: campusId || null,
-            tenant_id: tenantId,
+            // DO NOT update role, campus_id, or tenant_id from Clerk
+            // Supabase is the source of truth for authorization data
             updated_at: new Date().toISOString(),
           })
           .eq('id', id);
@@ -267,11 +219,8 @@ export async function POST(req: Request) {
           actorId: 'system',
           actorRole: 'system',
           targetId: id,
-          action: 'User profile updated via webhook',
+          action: 'User email synced via webhook (role preserved)',
           details: {
-            role,
-            campusId,
-            tenantId,
             email: primaryEmail,
           },
         });

@@ -1046,8 +1046,8 @@
 ### Story 7.6: Compliance Deadline Alerts
 
 **As a** DAEP administrator
-**I want** alerts for 90-day and 120-day compliance deadlines
-**So that** I don't miss state requirements
+**I want** alerts for 90-day and 120-day compliance deadlines and separation expiration reviews
+**So that** I don't miss state requirements and can review expired separations
 
 **Acceptance Criteria:**
 - [ ] Alert at 7 days before 90-day assessment due
@@ -1056,10 +1056,19 @@
 - [ ] Action link goes to student profile
 - [ ] Email alert to district admins
 - [ ] Daily cron job checks for upcoming deadlines
+- [ ] **Separation Expiration Review:**
+  - [ ] Alert when student separation expires (expires_at date passed)
+  - [ ] Expired separations continue to block room assignments until reviewed
+  - [ ] Notification to DAEP Admin L1 with both student names and reason
+  - [ ] Review queue at `/daep/separations/review` showing all expired separations
+  - [ ] Admin actions: Remove block (confirm expiration), Extend date, Make permanent (remove expiration)
+  - [ ] Audit trail for all separation review actions
 
 **Technical Notes:**
 - Vercel Cron job runs daily
 - Check `days_served` against 90 and 120 thresholds
+- Check `daep_student_separations.expires_at < NOW()` for expired separations pending review
+- Separations remain `active = true` until admin confirms removal (safe by default)
 
 **FRs:** FR94
 

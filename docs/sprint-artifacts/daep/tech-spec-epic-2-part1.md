@@ -39,6 +39,77 @@ Epic 2 implements the core placement management functionality for the DAEP modul
 
 ---
 
+## Theme & Styling Guidelines
+
+All Epic 2 components must use the DAEP theme system. **Never hardcode colors** - use CSS variables or semantic Tailwind classes.
+
+### CSS Variables (defined in `lib/themes/daep-themes.css`)
+
+| Variable | Purpose | Value |
+|----------|---------|-------|
+| `--daep-primary` | Primary actions, buttons, links | RGB (theme-dependent) |
+| `--daep-background` | Page background | `#F9FAFB` |
+| `--daep-success` | Success states, positive numbers | `#10B981` |
+| `--daep-warning` | Warnings, caution states | `#F59E0B` |
+| `--daep-danger` | Errors, destructive actions | `#EF4444` |
+| `--daep-info` | Informational badges | `#6366F1` |
+
+### Shadcn Overrides (via `.daep-theme` class)
+
+| Variable | Purpose | Value |
+|----------|---------|-------|
+| `--card` | Card/surface backgrounds | `#FFFFFF` |
+| `--border` | Border color | `#E2E8F0` |
+| `--muted` | Subtle backgrounds | `#F1F5F9` |
+| `--muted-foreground` | Secondary text | `#64748B` |
+| `--foreground` | Primary text | `#0F172A` |
+| `--accent` | Hover backgrounds | `#F1F5F9` |
+
+### Usage Patterns
+
+```tsx
+// ✅ CORRECT - Use semantic classes
+<div className="bg-card border rounded-lg">           // White card with border
+<div className="bg-muted">                            // Subtle gray background
+<span className="text-muted-foreground">             // Secondary text
+<div className="hover:bg-accent">                     // Hover state
+
+// ✅ CORRECT - Use DAEP variables for status colors
+<span className="text-[rgb(var(--daep-success))]">   // Green text
+<div className="bg-[rgb(var(--daep-warning))]/10">   // Light amber background
+
+// ❌ WRONG - Never hardcode colors
+<div className="bg-white">                            // Use bg-card
+<div className="bg-slate-50">                         // Use bg-muted
+<span className="text-slate-600">                     // Use text-muted-foreground
+<span className="text-amber-600">                     // Use text-[rgb(var(--daep-warning))]
+```
+
+### Component Surfaces
+
+| Element | Class |
+|---------|-------|
+| Page background | Automatic via `.daep-theme` |
+| Cards | `bg-card border rounded-lg` |
+| Input fields | Default shadcn (white with border) |
+| Info boxes | `bg-muted border rounded-lg` |
+| Dropdowns | `bg-card border rounded-md shadow-lg` |
+| Table rows (alt) | `bg-muted/30` |
+| Hover states | `hover:bg-accent` |
+
+### Status Badge Colors
+
+```tsx
+const STATUS_BADGE_CLASSES = {
+  pending: 'bg-[rgb(var(--daep-warning))]/15 text-[rgb(var(--daep-warning))]',
+  active: 'bg-[rgb(var(--daep-success))]/15 text-[rgb(var(--daep-success))]',
+  transition: 'bg-[rgb(var(--daep-info))]/15 text-[rgb(var(--daep-info))]',
+  complete: 'bg-muted text-muted-foreground',
+};
+```
+
+---
+
 ## Data Models
 
 ### Existing Tables (from Epic 1a/1b)
