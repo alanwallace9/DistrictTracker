@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DAEPRoomSchema, type CreateDAEPRoomInput } from '@/lib/validation/schemas';
 import { updateDAEPRoom, type DAEPRoom } from '@/app/actions/daep/rooms';
-import { getCampuses } from '@/app/actions/campuses';
+import { getDAEPCampuses } from '@/app/actions/daep/settings';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -65,10 +65,10 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
 
   const fetchCampuses = async () => {
     try {
-      const data = await getCampuses();
+      const data = await getDAEPCampuses();
       setCampuses(data);
     } catch (error) {
-      console.error('Failed to fetch campuses:', error);
+      console.error('Failed to fetch DAEP campuses:', error);
     }
   };
 

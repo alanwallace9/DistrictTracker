@@ -56,7 +56,13 @@ if (!userId) {
 - `viewer` - Read-only access to assigned campus data
 - `campus_admin` - Manage records for assigned campus
 - `district_admin` - Manage all campuses in tenant
-- `master_admin` - Full tenant administration + cross-tenant (demo switching)
+- `super_admin` - Full tenant administration + cross-tenant (demo switching)
+- `daep_admin_l1` - DAEP program director, full DAEP module access
+- `daep_admin_l2` - DAEP assistant admin/registrar
+- `daep_staff` - DAEP teachers/aides, daily operations
+- `counselor` - Cross-module student access
+- `parent` - DAEP module, own child records
+- `student` - DAEP module, own records
 
 ---
 
@@ -111,7 +117,7 @@ Clerk user lifecycle webhook for syncing users to Supabase.
 ```
 
 **Validation:**
-- Role must be one of: `viewer`, `campus_admin`, `district_admin`, `master_admin`
+- Role must be one of: `viewer`, `campus_admin`, `district_admin`, `super_admin`, `daep_admin_l1`, `daep_admin_l2`, `daep_staff`, `counselor`, `parent`, `student`
 - `tenant_id` is required and must exist in `tenants` table
 - `campus_id` required for `campus_admin` role
 - Campus must belong to specified tenant
@@ -135,7 +141,7 @@ Clerk user lifecycle webhook for syncing users to Supabase.
 
 Get current demo tenant snapshot metadata.
 
-**Auth Required:** Yes (master_admin only)
+**Auth Required:** Yes (super_admin only)
 
 **Response:**
 ```json
@@ -153,7 +159,7 @@ Get current demo tenant snapshot metadata.
 
 Manually trigger demo tenant reset to snapshot state.
 
-**Auth Required:** Yes (master_admin only)
+**Auth Required:** Yes (super_admin only)
 
 **Response:**
 - `200` - Reset initiated successfully
@@ -165,7 +171,7 @@ Manually trigger demo tenant reset to snapshot state.
 
 Create new snapshot of demo tenant for future resets.
 
-**Auth Required:** Yes (master_admin only)
+**Auth Required:** Yes (super_admin only)
 
 **Response:**
 - `200` - Snapshot created successfully
@@ -609,15 +615,15 @@ Retrieve audit log entries.
 
 ---
 
-### Tenant Management (Master Admin)
+### Tenant Management (Super Admin)
 
 #### `switchTenant(tenantId)`
 
-Switch master_admin context to different tenant.
+Switch super_admin context to different tenant.
 
 **File:** `app/actions/admin/switch-tenant.ts`
 
-**Auth Required:** Yes (master_admin only)
+**Auth Required:** Yes (super_admin only)
 
 **Response:** Success boolean
 

@@ -15,7 +15,7 @@ DistrictTracker uses a **multi-tenant PostgreSQL database** hosted on Supabase w
 - Multi-tenant isolation via `tenant_id` column + RLS policies
 - Soft deletes (`deleted_at` timestamps) for audit compliance
 - Comprehensive audit logging (`admin_audit_log` table)
-- Role-based access control (viewer, campus_admin, district_admin, master_admin)
+- Role-based access control (viewer, campus_admin, district_admin, super_admin, daep_admin_l1, daep_admin_l2, daep_staff, counselor, parent, student)
 - Foreign key constraints for data integrity
 
 **Reference:** Detailed schema documentation in `modules/TrespassTracker/docs/planning/DATABASE_SCHEMA.md`
@@ -76,7 +76,7 @@ DistrictTracker uses a **multi-tenant PostgreSQL database** hosted on Supabase w
 |--------|------|----------|-------------|
 | `id` | text | No | Primary key (Clerk user ID) |
 | `email` | text | No | User email address |
-| `role` | text | No | 'viewer', 'campus_admin', 'district_admin', 'master_admin' |
+| `role` | text | No | 'viewer', 'campus_admin', 'district_admin', 'super_admin', 'daep_admin_l1', 'daep_admin_l2', 'daep_staff', 'counselor', 'parent', 'student' |
 | `tenant_id` | text | No | Foreign key to `tenants.id` |
 | `campus_id` | uuid | Yes | Foreign key to `campuses.id` (required for campus_admin) |
 | `display_name` | text | Yes | User's display name |
@@ -450,7 +450,7 @@ export type TrespassRecord = {
 export type UserProfile = {
   id: string;
   email: string;
-  role: 'viewer' | 'campus_admin' | 'district_admin' | 'master_admin';
+  role: 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin' | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff' | 'counselor' | 'parent' | 'student';
   tenant_id: string;
   campus_id?: string;
   display_name?: string;
