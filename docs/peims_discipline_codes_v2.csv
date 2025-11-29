@@ -1,0 +1,79 @@
+Behavior_Code,Location_Code,Location_Description,Offense_Summary,Mandatory_DAEP,Discretionary_DAEP,Mandatory_Expulsion,Discretionary_Expulsion,DAEP_Capacity_Rule,TEC_Reference
+01,01,On Campus,Teacher Removal - Disruptive/Abusive Behavior,N,Y,N,N,N,TEC §37.002(c)
+02,01,On Campus,Felony Conduct (Non-Title 5),Y,N,N,N,N,TEC §37.006(a)(2)(A)
+02,02,Within 300 Feet,Felony Conduct (Non-Title 5),Y,N,N,N,N,TEC §37.006(a)(2)(A)
+02,03,School Activity Off Campus,Felony Conduct (Non-Title 5),Y,N,N,N,N,TEC §37.006(a)(2)(A)
+02,04,Off Campus - Not School Related,Felony Conduct (Non-Title 5),N,Y,N,N,N,TEC §37.006(d)(2)(A)(B)
+05,01,On Campus,Alcohol - Possession/Use/Under Influence,Y,N,N,Y,Y,TEC §37.006(a)(2)(D); §37.007(b)(2)(A)(iii)
+05,02,Within 300 Feet,Alcohol - Possession/Use/Under Influence,Y,N,N,Y,Y,TEC §37.006(a)(2)(D); §37.007(b)(2)(A)(iii)
+05,03,School Activity Off Campus,Alcohol - Possession/Use/Under Influence,Y,N,N,Y,Y,TEC §37.006(a)(2)(D); §37.007(b)(2)(A)(iii)
+06,01,On Campus,Abusable Volatile Chemical (Inhalants),Y,N,N,Y,Y,TEC §37.006(a)(2)(E); §37.007(b)(2)(B)
+06,02,Within 300 Feet,Abusable Volatile Chemical (Inhalants),Y,N,N,Y,Y,TEC §37.006(a)(2)(E); §37.007(b)(2)(B)
+06,03,School Activity Off Campus,Abusable Volatile Chemical (Inhalants),Y,N,N,Y,Y,TEC §37.006(a)(2)(E); §37.007(b)(2)(B)
+07,01,On Campus,Public Lewdness/Indecent Exposure,Y,N,N,N,N,TEC §37.006(a)(2)(F)
+07,02,Within 300 Feet,Public Lewdness/Indecent Exposure,Y,N,N,N,N,TEC §37.006(a)(2)(F)
+07,03,School Activity Off Campus,Public Lewdness/Indecent Exposure,Y,N,N,N,N,TEC §37.006(a)(2)(F)
+09,04,Off Campus - Not School Related,Title 5 Felony - Crimes Against Person,Y,N,N,Y,N,TEC §37.006(c)(1)(A); §37.0081
+10,04,Off Campus - Not School Related,Non-Title 5 Felony - Off Campus,N,Y,N,N,N,TEC §37.006(d)(2)(A)
+12,00,Any Location,Knife - Blade Over 5.5 Inches,N,N,Y,N,N,TEC §37.007(a)(1); PC §46.01(6)
+14,00,Any Location,Prohibited Weapons (Explosive/Machine Gun/Zip Gun),N,N,Y,N,N,TEC §37.007(a)(1); PC §46.05
+16,00,Any Location,Arson,N,N,Y,N,N,TEC §37.007(a)(2)(B); PC §28.02
+17,00,Any Location,Murder/Capital Murder/Attempt,N,N,Y,N,N,TEC §37.007(a)(2)(C); PC §19.02-03
+18,00,Any Location,Indecency with Child,N,N,Y,N,N,TEC §37.007(a)(2)(D); PC §21.11
+19,00,Any Location,Aggravated Kidnapping,N,N,Y,N,N,TEC §37.007(a)(2)(E); PC §20.04
+21,00,Any Location,Code of Conduct Violation - General,N,Y,N,N,N,TEC §37.001
+22,00,Any Location,Felony Criminal Mischief,N,N,N,Y,N,TEC §37.007(f); PC §28.03
+23,01,On Campus,Emergency Placement/Expulsion,N,Y,N,Y,N,TEC §37.019
+26,01,On Campus,Terroristic Threat - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §22.07
+26,02,Within 300 Feet,Terroristic Threat - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §22.07
+26,03,School Activity Off Campus,Terroristic Threat - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §22.07
+26,04,Off Campus - Not School Related,Terroristic Threat - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §22.07
+27,00,Any Location,Assault - District Employee/Volunteer,N,N,Y,N,N,TEC §37.007(a)(4); PC §22.01(a)(1)
+28,01,On Campus,Assault - Non-Employee (Bodily Injury),Y,N,N,N,N,TEC §37.006(a)(2)(B); PC §22.01(a)(1)
+28,02,Within 300 Feet,Assault - Non-Employee (Bodily Injury),Y,N,N,N,N,TEC §37.006(a)(2)(B); PC §22.01(a)(1)
+28,03,School Activity Off Campus,Assault - Non-Employee (Bodily Injury),Y,N,N,N,N,TEC §37.006(a)(2)(B); PC §22.01(a)(1)
+29,00,Any Location,Aggravated Assault - Employee/Volunteer,N,N,Y,N,N,TEC §37.007(a)(2)(A); PC §22.02
+30,00,Any Location,Aggravated Assault - Non-Employee,N,N,Y,N,N,TEC §37.007(a)(2)(A); PC §22.02
+31,00,Any Location,Sexual Assault - Employee/Volunteer,N,N,Y,N,N,TEC §37.007(a)(2)(A); PC §22.011
+32,00,Any Location,Sexual Assault - Non-Employee,N,N,Y,N,N,TEC §37.007(a)(2)(A); PC §22.011
+35,01,On Campus,False Alarm/Report - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §42.06
+35,02,Within 300 Feet,False Alarm/Report - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §42.06
+35,03,School Activity Off Campus,False Alarm/Report - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §42.06
+35,04,Off Campus - Not School Related,False Alarm/Report - Public School,Y,N,N,Y,N,TEC §37.006(a)(1); §37.007(b)(1); PC §42.06
+36,00,Any Location,Felony Controlled Substance (Not Marijuana/THC),N,N,Y,N,N,TEC §37.007(a)(3); HSC Ch. 481/483
+41,00,Any Location,Fighting/Mutual Combat,N,Y,N,N,N,TEC §37.001
+47,00,Any Location,Manslaughter,N,N,Y,N,N,TEC §37.007(a)(2)(G); PC §19.04
+48,00,Any Location,Criminally Negligent Homicide,N,N,Y,N,N,TEC §37.007(a)(2)(H); PC §19.05
+49,01,On Campus,Deadly Conduct,N,N,N,Y,N,TEC §37.007(b)(2)(C); PC §22.05
+49,02,Within 300 Feet,Deadly Conduct,N,N,N,Y,N,TEC §37.007(b)(2)(C); PC §22.05
+49,03,School Activity Off Campus,Deadly Conduct,N,N,N,Y,N,TEC §37.007(b)(2)(C); PC §22.05
+49,04,Off Campus - Not School Related,Deadly Conduct,Y,N,N,N,N,TEC §37.006(c)(1)(B); PC §22.05
+55,00,Any Location,Registered Sex Offender - Under Supervision,Y,N,N,Y,N,TEC §37.304
+56,00,Any Location,Registered Sex Offender - Not Under Supervision,N,Y,N,Y,N,TEC §37.305
+57,00,Any Location,Continuous Sexual Abuse of Child/Disabled,N,N,Y,N,N,TEC §37.007(a)(2)(I); PC §21.02
+58,01,On Campus,Breach of Computer Security - District System,N,N,N,Y,N,TEC §37.007(b)(4); PC §33.02
+58,02,Within 300 Feet,Breach of Computer Security - District System,N,N,N,Y,N,TEC §37.007(b)(4); PC §33.02
+58,03,School Activity Off Campus,Breach of Computer Security - District System,N,N,N,Y,N,TEC §37.007(b)(4); PC §33.02
+58,04,Off Campus - Not School Related,Breach of Computer Security - District System,N,N,N,Y,N,TEC §37.007(b)(4); PC §33.02
+59,01,On Campus (DAEP),Serious Misbehavior While at DAEP,N,N,N,Y,N,TEC §37.007(c)
+61,00,Any Location,Bullying - Suicide/Violence/Intimate Material,N,Y,N,Y,N,TEC §37.0052(b)
+62,01,On Campus,Marijuana/THC - Any Amount,Y,N,N,Y,Y,TEC §37.006(a)(2)(C-1); §37.007(b)(2)(A)(i)
+62,02,Within 300 Feet,Marijuana/THC - Any Amount,Y,N,N,Y,Y,TEC §37.006(a)(2)(C-1); §37.007(b)(2)(A)(i)
+62,03,School Activity Off Campus,Marijuana/THC - Any Amount,Y,N,N,Y,Y,TEC §37.006(a)(2)(C-1); §37.007(b)(2)(A)(i)
+64,01,On Campus,Non-Felony Controlled Substance/Dangerous Drug,Y,N,N,Y,N,TEC §37.006(a)(2)(C)(i); §37.007(b)(2)(A)(i)
+64,02,Within 300 Feet,Non-Felony Controlled Substance/Dangerous Drug,Y,N,N,Y,N,TEC §37.006(a)(2)(C)(i); §37.007(b)(2)(A)(i)
+64,03,School Activity Off Campus,Non-Felony Controlled Substance/Dangerous Drug,Y,N,N,Y,N,TEC §37.006(a)(2)(C)(i); §37.007(b)(2)(A)(i)
+65,01,On Campus,Threatens Health/Safety - Classroom,N,Y,N,N,N,TEC §37.005(c)(2)
+66,01,On Campus,Repeated/Significant Classroom Disruption,N,Y,N,N,N,TEC §37.005(c)(3)
+67,01,On Campus,E-Cigarette/Vape - Possession/Use,N,Y,N,N,N,TEC §37.001(a)(2); §37.006(d)(1)(C)
+68,01,On Campus,E-Cigarette/Vape - Sells/Gives/Delivers,Y,N,N,N,Y,TEC §37.006(a)(2)(C-2)
+68,02,Within 300 Feet,E-Cigarette/Vape - Sells/Gives/Delivers,Y,N,N,N,Y,TEC §37.006(a)(2)(C-2)
+68,03,School Activity Off Campus,E-Cigarette/Vape - Sells/Gives/Delivers,Y,N,N,N,Y,TEC §37.006(a)(2)(C-2)
+69,04,Off Campus - Not School Related,Disorderly Conduct - Firearm Display,Y,N,N,N,N,TEC §37.006(c)(1)(D); PC §42.01(a)(7)(8)
+70,01,On Campus,Disruptive Activities - TEC §37.123,N,Y,N,N,N,TEC §37.006(d)(1)(A); §37.123
+71,06,School Property/Within 500 Feet,Disruption of Classes - TEC §37.124,N,Y,N,N,N,TEC §37.006(d)(1)(A); §37.124
+72,00,Any Location,Kidnapping,N,N,Y,N,N,TEC §37.007(a)(2)(E); PC §20.03
+73,00,Any Location,Firearm - Exhibition/Use/Threat at School,N,N,Y,N,N,TEC §37.007(a)(5); §37.125
+74,00,Any Location,Retaliation - Against Employee/Volunteer,Y,N,N,N,N,TEC §37.006(b); PC §36.06
+75,00,Any Location,Harassment - Against Employee/Volunteer,Y,N,N,N,N,TEC §37.006(b); PC §42.07
+76,00,Any Location,Burglary/Robbery/Aggravated Robbery,N,N,Y,N,N,TEC §37.007(a)(2)(F); PC §30.02/29.02/29.03

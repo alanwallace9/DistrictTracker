@@ -32,9 +32,13 @@ import {
   createPlacement,
   getExpectedEndDatePreview,
   createQuickStudent,
+  getOffenseCodesForForm,
+  getLocationCodesForOffense,
   type DisciplineCodeOption,
   type CampusOption,
   type StudentSearchResult,
+  type OffenseCodeOption,
+  type LocationCodeOption,
 } from '@/app/actions/daep/placements';
 import {
   Dialog,
@@ -52,8 +56,11 @@ export default function NewPlacementPage() {
 
   // Form options
   const [disciplineCodes, setDisciplineCodes] = useState<DisciplineCodeOption[]>([]);
+  const [offenseCodes, setOffenseCodes] = useState<OffenseCodeOption[]>([]);
+  const [locationCodes, setLocationCodes] = useState<LocationCodeOption[]>([]);
   const [campuses, setCampuses] = useState<CampusOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loadingLocations, setLoadingLocations] = useState(false);
 
   // Student search
   const [studentQuery, setStudentQuery] = useState('');
@@ -70,6 +77,7 @@ export default function NewPlacementPage() {
   const [startDate, setStartDate] = useState('');
   const [daysAssigned, setDaysAssigned] = useState<number>(30);
   const [offenseCode, setOffenseCode] = useState('');
+  const [locationCode, setLocationCode] = useState('');
   const [homeCampusId, setHomeCampusId] = useState('');
   const [placementReason, setPlacementReason] = useState('');
   const [mandatoryPlacement, setMandatoryPlacement] = useState(false);
@@ -102,11 +110,13 @@ export default function NewPlacementPage() {
   useEffect(() => {
     async function loadOptions() {
       try {
-        const [codes, campusList] = await Promise.all([
+        const [codes, offenses, campusList] = await Promise.all([
           getDisciplineCodesForForm(),
+          getOffenseCodesForForm(),
           getCampusesForForm(),
         ]);
         setDisciplineCodes(codes);
+        setOffenseCodes(offenses);
         setCampuses(campusList);
       } catch (error: any) {
         toast({
@@ -120,6 +130,32 @@ export default function NewPlacementPage() {
     }
     loadOptions();
   }, [toast]);
+
+  // Load location codes when offense code changes
+  useEffect(() => {
+    async function loadLocationCodes() {
+      if (!offenseCode) {
+        setLocationCodes([]);
+        setLocationCode('');
+        return;
+      }
+
+      setLoadingLocations(true);
+      try {
+        const locations = await getLocationCodesForOffense(offenseCode);
+        setLocationCodes(locations);
+        // Reset location code when offense changes
+        setLocationCode('');
+        setMandatoryPlacement(false);
+      } catch (error: any) {
+        console.error('Error loading location codes:', error);
+        setLocationCodes([]);
+      } finally {
+        setLoadingLocations(false);
+      }
+    }
+    loadLocationCodes();
+  }, [offenseCode]);
 
   // Debounced student search
   useEffect(() => {
@@ -197,15 +233,15 @@ export default function NewPlacementPage() {
     return () => clearTimeout(timer);
   }, [startDate, daysAssigned]);
 
-  // Auto-set mandatory based on offense code
+  // Auto-set mandatory based on offense + location combo
   useEffect(() => {
-    if (offenseCode) {
-      const code = disciplineCodes.find((c) => c.code === offenseCode);
-      if (code?.mandatory_placement) {
-        setMandatoryPlacement(true);
+    if (locationCode && locationCodes.length > 0) {
+      const selectedLocation = locationCodes.find((loc) => loc.location_code === locationCode);
+      if (selectedLocation) {
+        setMandatoryPlacement(selectedLocation.mandatory_daep);
       }
     }
-  }, [offenseCode, disciplineCodes]);
+  }, [locationCode, locationCodes]);
 
   const handleSelectStudent = (student: StudentSearchResult) => {
     setSelectedStudent(student);
@@ -298,6 +334,7 @@ export default function NewPlacementPage() {
         start_date: startDate,
         days_assigned: daysAssigned,
         offense_code: offenseCode,
+        location_code: locationCode,
         placement_reason: placementReason,
         mandatory_placement: mandatoryPlacement,
         home_campus_id: homeCampusId,
@@ -514,12 +551,9 @@ export default function NewPlacementPage() {
                     <SelectValue placeholder="Select offense code" />
                   </SelectTrigger>
                   <SelectContent>
-                    {disciplineCodes.map((code) => (
-                      <SelectItem key={code.code} value={code.code}>
-                        <span className="font-mono">{code.code}</span> - {code.label}
-                        {code.mandatory_placement && (
-                          <span className="text-[rgb(var(--daep-warning))] ml-1">(Mandatory)</span>
-                        )}
+                    {offenseCodes.map((code) => (
+                      <SelectItem key={code.behavior_code} value={code.behavior_code}>
+                        <span className="font-mono">{code.behavior_code}</span> - {code.behavior_label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -527,7 +561,32 @@ export default function NewPlacementPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              {/* Location Code */}
+              <div>
+                <Label htmlFor="location-code">Location *</Label>
+                <Select
+                  value={locationCode}
+                  onValueChange={setLocationCode}
+                  disabled={!offenseCode || loadingLocations}
+                  required
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder={loadingLocations ? "Loading..." : offenseCode ? "Select location" : "Select offense first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locationCodes.map((loc) => (
+                      <SelectItem key={loc.location_code} value={loc.location_code}>
+                        <span className="font-mono">{loc.location_code}</span> - {loc.location_description}
+                        {loc.mandatory_daep && (
+                          <span className="text-[rgb(var(--daep-warning))] ml-1">(Mandatory)</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Home Campus */}
               <div>
                 <Label htmlFor="home-campus">Home Campus *</Label>
@@ -623,10 +682,14 @@ export default function NewPlacementPage() {
               <Checkbox
                 id="mandatory"
                 checked={mandatoryPlacement}
+                disabled={!!locationCode} // Disabled when location is selected (auto-set)
                 onCheckedChange={(checked) => setMandatoryPlacement(checked === true)}
               />
-              <Label htmlFor="mandatory" className="font-normal cursor-pointer">
+              <Label htmlFor="mandatory" className={`font-normal ${locationCode ? 'text-muted-foreground' : 'cursor-pointer'}`}>
                 Mandatory DAEP placement (required by law based on offense)
+                {locationCode && mandatoryPlacement && (
+                  <span className="text-[rgb(var(--daep-warning))] ml-1">(Auto-set based on offense/location)</span>
+                )}
               </Label>
             </div>
 
@@ -673,6 +736,7 @@ export default function NewPlacementPage() {
               !!duplicateError ||
               !incidentNumber ||
               !offenseCode ||
+              !locationCode ||
               !homeCampusId ||
               !startDate ||
               !daysAssigned ||

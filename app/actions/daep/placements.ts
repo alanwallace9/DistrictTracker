@@ -24,6 +24,19 @@ export interface DisciplineCodeOption {
   mandatory_placement: boolean;
 }
 
+// New types for offense/location combo
+export interface OffenseCodeOption {
+  behavior_code: string;
+  behavior_label: string;
+}
+
+export interface LocationCodeOption {
+  location_code: string;
+  location_description: string;
+  mandatory_daep: boolean;
+  discretionary_daep: boolean;
+}
+
 export interface CampusOption {
   id: string;
   name: string;
@@ -69,6 +82,67 @@ export async function getDisciplineCodesForForm(): Promise<DisciplineCodeOption[
   return data || [];
 }
 
+// ========== GET OFFENSE CODES FOR FORM (NEW) ==========
+
+export async function getOffenseCodesForForm(): Promise<OffenseCodeOption[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Get unique behavior codes with their labels
+  const { data, error } = await supabase
+    .from('daep_offense_location_rules')
+    .select('behavior_code, behavior_label')
+    .eq('tenant_id', tenantId)
+    .eq('active', true)
+    .order('behavior_code');
+
+  if (error) {
+    console.error('Error fetching offense codes:', error);
+    throw new Error('Failed to fetch offense codes');
+  }
+
+  // Deduplicate by behavior_code (same code may have multiple locations)
+  const uniqueCodes = new Map<string, OffenseCodeOption>();
+  for (const row of data || []) {
+    if (!uniqueCodes.has(row.behavior_code)) {
+      uniqueCodes.set(row.behavior_code, {
+        behavior_code: row.behavior_code,
+        behavior_label: row.behavior_label,
+      });
+    }
+  }
+
+  return Array.from(uniqueCodes.values());
+}
+
+// ========== GET LOCATION CODES FOR OFFENSE (NEW) ==========
+
+export async function getLocationCodesForOffense(
+  behaviorCode: string
+): Promise<LocationCodeOption[]> {
+  if (!behaviorCode) {
+    return [];
+  }
+
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data, error } = await supabase
+    .from('daep_offense_location_rules')
+    .select('location_code, location_description, mandatory_daep, discretionary_daep')
+    .eq('tenant_id', tenantId)
+    .eq('behavior_code', behaviorCode)
+    .eq('active', true)
+    .order('location_code');
+
+  if (error) {
+    console.error('Error fetching location codes:', error);
+    throw new Error('Failed to fetch location codes');
+  }
+
+  return data || [];
+}
+
 // ========== GET CAMPUSES FOR FORM ==========
 
 export async function getCampusesForForm(): Promise<CampusOption[]> {
@@ -102,11 +176,6 @@ export async function searchStudentsForPlacement(
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
   const searchTerm = query.trim().toLowerCase();
-
-  // DEBUG: Check what RLS functions return
-  const { data: rlsDebug } = await supabase.rpc('get_my_clerk_id');
-  const { data: tenantDebug } = await supabase.rpc('get_my_tenant_id');
-  console.log('[DEBUG searchStudentsForPlacement] RLS clerk_id:', rlsDebug, 'RLS tenant_id:', tenantDebug, 'App tenant_id:', tenantId);
 
   // Search trespass_records for students
   const { data: students, error } = await supabase
@@ -336,15 +405,16 @@ export async function createPlacement(
       };
     }
 
-    // 3. Check if offense code requires mandatory placement
-    const { data: offenseCode } = await supabase
-      .from('daep_discipline_codes')
-      .select('mandatory_placement')
+    // 3. Check if offense + location combo requires mandatory placement
+    const { data: offenseRule } = await supabase
+      .from('daep_offense_location_rules')
+      .select('mandatory_daep')
       .eq('tenant_id', tenantId)
-      .eq('code', data.offense_code)
+      .eq('behavior_code', data.offense_code)
+      .eq('location_code', data.location_code)
       .single();
 
-    const isMandatory = offenseCode?.mandatory_placement || data.mandatory_placement;
+    const isMandatory = offenseRule?.mandatory_daep || data.mandatory_placement;
 
     // 4. Calculate expected end date based on school calendar
     const expectedEndDate = await calculateExpectedEndDate(
@@ -380,6 +450,7 @@ export async function createPlacement(
         days_remaining: data.days_assigned,
         expected_end_date: expectedEndDate,
         offense_code: data.offense_code,
+        location_code: data.location_code,
         placement_reason: data.placement_reason,
         mandatory_placement: isMandatory,
         home_campus_id: data.home_campus_id,

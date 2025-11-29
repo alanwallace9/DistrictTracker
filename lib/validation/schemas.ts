@@ -331,6 +331,7 @@ export const CreatePlacementSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
   days_assigned: z.number().int('Must be a whole number').min(1, 'Must assign at least 1 day').max(365, 'Cannot exceed 365 days'),
   offense_code: z.string().min(1, 'Offense code is required'),
+  location_code: z.string().min(1, 'Location code is required'),
   placement_reason: z.string().min(10, 'Reason must be at least 10 characters').max(2000, 'Reason too long'),
   mandatory_placement: z.boolean().default(false),
   home_campus_id: z.string().min(1, 'Home campus is required'),

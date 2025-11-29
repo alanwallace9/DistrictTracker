@@ -76,10 +76,11 @@ next-env.d.ts
 
 # Planning documents
 adminsettings.md
-docs/sessions/
 docs/features/
 docs/security/
 docs/planning/
 CHANGELOG.md
-CLAUDE.md
 TODO.md
+
+# Note: docs/sessions/ is now indexed (contains research/brainstorming docs)
+# Note: CLAUDE.md is now indexed (contains project instructions)
