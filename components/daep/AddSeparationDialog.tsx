@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DAEPDialogContent,
@@ -13,22 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import { Users, Calendar as CalendarIcon, Loader2, Search } from 'lucide-react';
+import { Users, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
@@ -59,15 +44,19 @@ export function AddSeparationDialog({
   const [reason, setReason] = useState('');
   const [expiresAt, setExpiresAt] = useState<Date | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchQuery.length >= 2) {
         setSearching(true);
+        setShowDropdown(true);
         searchStudentsForSeparation(searchQuery, studentId)
-          .then(setSearchResults)
+          .then((results) => {
+            setSearchResults(results);
+            setShowDropdown(true);
+          })
           .catch((err) => {
             console.error('Search error:', err);
             setSearchResults([]);
@@ -75,6 +64,7 @@ export function AddSeparationDialog({
           .finally(() => setSearching(false));
       } else {
         setSearchResults([]);
+        setShowDropdown(false);
       }
     }, 300);
 
@@ -141,71 +131,85 @@ export function AddSeparationDialog({
             <Label htmlFor="student-search">
               Separate From Student <span className="text-destructive">*</span>
             </Label>
-            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={searchOpen}
-                  className="w-full justify-between"
-                >
-                  {selectedStudent ? (
-                    <span>
-                      {selectedStudent.first_name} {selectedStudent.last_name} (
-                      {selectedStudent.school_id})
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      Search for a student...
-                    </span>
-                  )}
-                  <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
-                <Command shouldFilter={false}>
-                  <CommandInput
-                    placeholder="Search by name or ID..."
-                    value={searchQuery}
-                    onValueChange={setSearchQuery}
-                  />
-                  <CommandList>
-                    {searching && (
-                      <div className="flex items-center justify-center py-6">
-                        <Loader2 className="w-4 h-4 animate-spin" />
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="student-search"
+                  placeholder={
+                    selectedStudent
+                      ? `${selectedStudent.first_name} ${selectedStudent.last_name} (${selectedStudent.school_id})`
+                      : 'Search by name or ID...'
+                  }
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (selectedStudent) {
+                      setSelectedStudent(null);
+                    }
+                  }}
+                  className="pl-10"
+                />
+                {searching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+
+              {/* Student Dropdown */}
+              {showDropdown && searchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-card border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {searchResults.map((student) => (
+                    <button
+                      key={student.school_id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setShowDropdown(false);
+                        setSearchQuery('');
+                      }}
+                      className="w-full px-4 py-2 text-left hover:bg-accent flex items-center gap-2"
+                    >
+                      <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium">
+                          {student.first_name} {student.last_name}
+                        </span>
+                        <span className="text-muted-foreground ml-2 text-sm">
+                          ID: {student.school_id}
+                          {student.grade_level && ` | Grade ${student.grade_level}`}
+                        </span>
                       </div>
-                    )}
-                    {!searching && searchQuery.length >= 2 && searchResults.length === 0 && (
-                      <CommandEmpty>No students found.</CommandEmpty>
-                    )}
-                    {!searching && searchResults.length > 0 && (
-                      <CommandGroup>
-                        {searchResults.map((student) => (
-                          <CommandItem
-                            key={student.school_id}
-                            value={student.school_id}
-                            onSelect={() => {
-                              setSelectedStudent(student);
-                              setSearchOpen(false);
-                              setSearchQuery('');
-                            }}
-                          >
-                            <Users className="mr-2 h-4 w-4" />
-                            <span>
-                              {student.first_name} {student.last_name}
-                            </span>
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              ID: {student.school_id}
-                              {student.grade_level && ` | Grade ${student.grade_level}`}
-                            </span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* No Results */}
+              {showDropdown && searchResults.length === 0 && searchQuery.length >= 2 && !searching && (
+                <div className="absolute z-10 w-full mt-1 bg-card border rounded-md shadow-lg p-4">
+                  <p className="text-center text-muted-foreground">
+                    No students found matching "{searchQuery}"
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Selected Student Indicator */}
+            {selectedStudent && !searchQuery && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                <Users className="w-4 h-4" />
+                <span>
+                  Selected: <strong>{selectedStudent.first_name} {selectedStudent.last_name}</strong> ({selectedStudent.school_id})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudent(null)}
+                  className="ml-auto text-xs hover:text-foreground"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Reason */}
@@ -229,42 +233,33 @@ export function AddSeparationDialog({
 
           {/* Expiration Date (Optional) */}
           <div className="space-y-2">
-            <Label>Expiration Date (Optional)</Label>
-            <Popover>
-              <PopoverTrigger asChild>
+            <Label htmlFor="expires-at">Expiration Date (Optional)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="expires-at"
+                type="date"
+                value={expiresAt ? format(expiresAt, 'yyyy-MM-dd') : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setExpiresAt(new Date(e.target.value + 'T00:00:00'));
+                  } else {
+                    setExpiresAt(undefined);
+                  }
+                }}
+                min={format(new Date(), 'yyyy-MM-dd')}
+                className="flex-1"
+              />
+              {expiresAt && (
                 <Button
-                  variant="outline"
-                  className={cn(
-                    'w-full justify-start text-left font-normal',
-                    !expiresAt && 'text-muted-foreground'
-                  )}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExpiresAt(undefined)}
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {expiresAt ? format(expiresAt, 'PPP') : 'No expiration'}
+                  Clear
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={expiresAt}
-                  onSelect={setExpiresAt}
-                  disabled={(date) => date < new Date()}
-                  initialFocus
-                />
-                {expiresAt && (
-                  <div className="p-2 border-t">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setExpiresAt(undefined)}
-                    >
-                      Clear expiration
-                    </Button>
-                  </div>
-                )}
-              </PopoverContent>
-            </Popover>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               If set, the separation will automatically expire on this date.
             </p>

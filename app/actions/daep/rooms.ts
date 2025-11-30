@@ -755,7 +755,7 @@ export async function getStudentSeparations(school_id: string): Promise<StudentS
       .in('school_id', otherIds),
     supabase
       .from('user_profiles')
-      .select('id, first_name, last_name')
+      .select('id, first_name, last_name, email')
       .in('id', creatorIds),
   ]);
 
@@ -763,7 +763,10 @@ export async function getStudentSeparations(school_id: string): Promise<StudentS
     (students || []).map((s) => [s.school_id, `${s.first_name} ${s.last_name}`])
   );
   const creatorMap = new Map(
-    (creators || []).map((c) => [c.id, `${c.first_name} ${c.last_name}`])
+    (creators || []).map((c) => {
+      const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+      return [c.id, fullName || c.email || 'Unknown'];
+    })
   );
 
   return activeSeparations.map((sep) => ({
@@ -797,38 +800,41 @@ export async function createSeparation(
     return { success: false, error: 'Reason must be at least 5 characters' };
   }
 
+  // Sort student IDs to satisfy CHECK constraint (student_a_id < student_b_id)
+  // This ensures consistent storage regardless of which student is selected first
+  const [sortedStudentA, sortedStudentB] = [input.student_a_id, input.student_b_id].sort();
+
   // Validate students exist
   const { data: students, error: studentsError } = await supabase
     .from('trespass_records')
     .select('school_id, first_name, last_name')
     .eq('tenant_id', tenantId)
-    .in('school_id', [input.student_a_id, input.student_b_id]);
+    .in('school_id', [sortedStudentA, sortedStudentB]);
 
   if (studentsError || !students || students.length !== 2) {
     return { success: false, error: 'One or both students not found' };
   }
 
-  // Check if separation already exists (in either direction)
+  // Check if separation already exists (IDs are already sorted, so only one check needed)
   const { data: existing } = await supabase
     .from('daep_student_separations')
     .select('id')
     .eq('tenant_id', tenantId)
     .eq('active', true)
-    .or(
-      `and(student_a_id.eq.${input.student_a_id},student_b_id.eq.${input.student_b_id}),and(student_a_id.eq.${input.student_b_id},student_b_id.eq.${input.student_a_id})`
-    );
+    .eq('student_a_id', sortedStudentA)
+    .eq('student_b_id', sortedStudentB);
 
   if (existing && existing.length > 0) {
     return { success: false, error: 'Separation already exists between these students' };
   }
 
-  // Create separation
+  // Create separation (using sorted IDs to satisfy CHECK constraint)
   const { data: separation, error: insertError } = await supabase
     .from('daep_student_separations')
     .insert({
       tenant_id: tenantId,
-      student_a_id: input.student_a_id,
-      student_b_id: input.student_b_id,
+      student_a_id: sortedStudentA,
+      student_b_id: sortedStudentB,
       reason: input.reason,
       expires_at: input.expires_at || null,
       created_by: userId,
@@ -842,9 +848,9 @@ export async function createSeparation(
     return { success: false, error: 'Failed to create separation' };
   }
 
-  // Get student names for audit
-  const studentA = students.find((s) => s.school_id === input.student_a_id);
-  const studentB = students.find((s) => s.school_id === input.student_b_id);
+  // Get student names for audit (use original input IDs for display purposes)
+  const studentA = students.find((s) => s.school_id === sortedStudentA);
+  const studentB = students.find((s) => s.school_id === sortedStudentB);
 
   // Audit log (AC: 2.5.7)
   await logDAEPAuditEvent(
@@ -855,9 +861,9 @@ export async function createSeparation(
     `Created separation between ${studentA?.first_name} ${studentA?.last_name} and ${studentB?.first_name} ${studentB?.last_name}`,
     tenantId,
     {
-      student_a_id: input.student_a_id,
+      student_a_id: sortedStudentA,
       student_a_name: `${studentA?.first_name} ${studentA?.last_name}`,
-      student_b_id: input.student_b_id,
+      student_b_id: sortedStudentB,
       student_b_name: `${studentB?.first_name} ${studentB?.last_name}`,
       reason: input.reason,
       expires_at: input.expires_at,
@@ -865,8 +871,8 @@ export async function createSeparation(
   );
 
   revalidatePath('/daep/students');
-  revalidatePath(`/daep/students/${input.student_a_id}`);
-  revalidatePath(`/daep/students/${input.student_b_id}`);
+  revalidatePath(`/daep/students/${sortedStudentA}`);
+  revalidatePath(`/daep/students/${sortedStudentB}`);
 
   return { success: true, id: separation.id };
 }
