@@ -166,6 +166,8 @@ Load the specific epic's tech spec, not the full architecture.
 
 ## Current Project State
 
+**Current Version:** `0.3.0`
+
 **Epic 1a: Core Schema & Security** - COMPLETE
 - All stories (1-0 through 1-4): `done`
 
@@ -173,13 +175,16 @@ Load the specific epic's tech spec, not the full architecture.
 - All stories (1-5 through 1-10): `done`
 - Key bugs resolved: composite PK migration, tenant column naming
 
-**Epic 2: Placement Management** - IN PROGRESS (4/13 done)
-- Status: `contexted`
-- Stories done: 2-1, 2-2, 2-4, 2-10 (13 pts)
-- Next up: 2-3 (TrespassTracker Status Display) → `ready-for-dev`
-- Backlog: 2-5 through 2-9, 2-11 through 2-13 (19 pts)
+**Epic 2: Placement Management** - COMPLETE (v0.3.0)
+- All stories (2-1 through 2-13): `done`
 - 13 stories, 34 points total
 - FRs: FR9-FR26, FR73-FR77
+- Backlog item: Story 2-8b (UX improvement) - `drafted`
+
+**Epic 3: Daily Operations** - NEXT
+- Status: `backlog`
+- 12 stories, 29 points
+- FRs: FR27-FR44
 
 **Tech Specs Available:**
 - `docs/sprint-artifacts/daep/tech-spec-epic-2-part1.md` (Stories 2.1-2.6)
@@ -225,4 +230,70 @@ These files are large and should only be loaded via their sharded parts:
 5. Implement tasks sequentially
 6. Update checkboxes as you go
 7. Mark story done in sprint-status.yaml when complete
+8. Suggest commit when story is complete (see Commit Conventions below)
 ```
+
+## Commit & Changelog Conventions
+
+**IMPORTANT:** After completing a story, prompt the user: "Story complete - ready to commit?"
+
+### Versioning (Semantic Versioning)
+
+| Version | When to Use |
+|---------|-------------|
+| `0.x.0` | Epic complete (major feature set) |
+| `0.x.y` | Individual story, bug fix, or patch |
+| `1.0.0` | MVP launch (production-ready) |
+
+**Current mapping:**
+- Epic 1a → 0.1.0
+- Epic 1b → 0.2.0
+- Epic 2 → 0.3.0
+- Epic 3 → 0.4.0 (and so on)
+
+### Commit Message Format
+
+Use **conventional commits** with this structure:
+
+```
+feat(module): Short description (vX.Y.Z)
+
+Customer-facing summary of what's new.
+
+## What's New
+- Feature 1
+- Feature 2
+
+## Stories Completed
+- X-Y: Story title
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+**Commit types:**
+- `feat(daep):` - New feature
+- `fix(daep):` - Bug fix
+- `chore(db):` - Database/infrastructure
+- `docs:` - Documentation only
+
+### When to Commit
+
+| Scenario | Version Bump | Commit Type |
+|----------|--------------|-------------|
+| Single story complete | Patch (0.3.1) | `feat` or `fix` |
+| Multiple stories batched | Patch (0.3.1) | `feat` |
+| Full epic complete | Minor (0.4.0) | `feat` |
+| Bug fix only | Patch (0.3.1) | `fix` |
+
+### Changelog Integration
+
+The `/feedback/changelog` page pulls from completed feedback items. After committing:
+
+1. Create feedback item in admin panel
+2. Set category (DAEP Management, Trespass Tracker, etc.)
+3. Set status: Completed
+4. Add release notes to `admin_response` field
+
+**Full process doc:** `docs/workflows/release-process.md`
