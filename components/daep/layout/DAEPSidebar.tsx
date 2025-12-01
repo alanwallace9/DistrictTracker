@@ -14,6 +14,8 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -25,6 +27,11 @@ const NAV_ITEMS = [
   { href: '/daep/reconciliation', label: 'Reconciliation', icon: FileSpreadsheet },
   { href: '/daep/notifications', label: 'Notifications', icon: Bell },
   { href: '/daep/settings', label: 'Settings', icon: Settings },
+];
+
+// Reports section - shown separately with divider
+const REPORT_ITEMS = [
+  { href: '/daep/reports/rollover', label: 'Rollover Report', icon: AlertTriangle, badge: 'rollover' },
 ];
 
 interface DAEPSidebarProps {
@@ -91,6 +98,39 @@ export function DAEPSidebar({ collapsed = false, onCollapsedChange }: DAEPSideba
             >
               <Icon className="h-5 w-5 shrink-0" />
               {!isCollapsed && <span>{item.label}</span>}
+            </Link>
+          );
+        })}
+
+        {/* Reports Section Divider */}
+        <div className="my-3 mx-1 border-t border-white/10" />
+        {!isCollapsed && (
+          <div className="px-3 py-1 text-xs font-medium text-white/40 uppercase tracking-wider">
+            Reports
+          </div>
+        )}
+
+        {/* Report Items */}
+        {REPORT_ITEMS.map((item) => {
+          const active = isActive(item.href);
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md transition-colors',
+                active
+                  ? 'bg-[rgb(var(--daep-warning))]/80 text-white'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              )}
+              title={isCollapsed ? item.label : undefined}
+            >
+              <Icon className={cn('h-5 w-5 shrink-0', !active && 'text-[rgb(var(--daep-warning))]')} />
+              {!isCollapsed && (
+                <span className="flex-1">{item.label}</span>
+              )}
             </Link>
           );
         })}

@@ -304,7 +304,7 @@ export type CreateBehaviorCategoryInput = z.infer<typeof BehaviorCategorySchema>
 // DAEP STUDENT SEARCH SCHEMAS
 // ============================================================================
 
-export const PLACEMENT_STATUSES = ['pending', 'active', 'transition', 'complete'] as const;
+export const PLACEMENT_STATUSES = ['pending', 'active', 'met', 'complete'] as const;
 
 export type PlacementStatus = (typeof PLACEMENT_STATUSES)[number];
 
@@ -375,6 +375,80 @@ export type CheckActivePlacementInput = z.infer<typeof CheckActivePlacementSchem
 export type ValidatePlacementInput = z.infer<typeof ValidatePlacementSchema>;
 
 // ============================================================================
+// DAEP PLACEMENT TRANSITION SCHEMAS (Story 2-6)
+// ============================================================================
+
+export const PlacementTransitionSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  to_status: z.enum(PLACEMENT_STATUSES),
+  transition_reason: z.string().max(500, 'Reason too long').optional(),
+  notes: z.string().max(2000, 'Notes too long').optional(),
+  // Required for met → complete transition
+  transition_meeting_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)')
+    .optional(),
+  first_day_back_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)')
+    .optional(),
+});
+
+export type PlacementTransitionInput = z.infer<typeof PlacementTransitionSchema>;
+
+// ============================================================================
+// DAEP UPDATE PLACEMENT SCHEMAS (Story 2-8)
+// ============================================================================
+
+export const UpdatePlacementSchema = z.object({
+  id: z.string().uuid('Invalid placement ID'),
+  days_assigned: z.number().int('Must be a whole number').min(1, 'Must assign at least 1 day').max(365, 'Cannot exceed 365 days').optional(),
+  assigned_room_id: z.string().uuid('Invalid room ID').nullable().optional(),
+  intake_notes: z.string().max(2000, 'Intake notes too long').optional(),
+  completion_notes: z.string().max(2000, 'Completion notes too long').optional(),
+  placement_reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000, 'Reason too long').optional(),
+  offense_code: z.string().optional(),
+});
+
+export type UpdatePlacementInput = z.infer<typeof UpdatePlacementSchema>;
+
+// ============================================================================
+// DAEP TRANSITION WORKFLOW SCHEMAS (Story 2-9)
+// ============================================================================
+
+export const InitiateTransitionSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  transition_meeting_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  campus_contact_name: z.string().min(1, 'Contact name is required').max(100, 'Contact name too long'),
+  campus_contact_email: z.string().email('Invalid email').max(255).optional().or(z.literal('')),
+  notes: z.string().max(2000, 'Notes too long').optional(),
+});
+
+export type InitiateTransitionInput = z.infer<typeof InitiateTransitionSchema>;
+
+export const CompleteTransitionSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  first_day_back_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  meeting_confirmed: z.boolean().refine(val => val === true, {
+    message: 'Meeting confirmation is required',
+  }),
+  completion_notes: z.string().max(2000, 'Notes too long').optional(),
+});
+
+export type CompleteTransitionInput = z.infer<typeof CompleteTransitionSchema>;
+
+// ============================================================================
+// DAEP NO-SHOW SCHEMAS (Story 2-12)
+// ============================================================================
+
+export const MarkNoShowSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  reason: z.string().max(2000, 'Reason too long').optional(),
+});
+
+export type MarkNoShowInput = z.infer<typeof MarkNoShowSchema>;
+
+// ============================================================================
 // DAEP ROOM ASSIGNMENT SCHEMAS (Story 2-5)
 // ============================================================================
 
@@ -400,6 +474,40 @@ export const CreateSeparationSchema = z.object({
 });
 
 export type CreateSeparationInput = z.infer<typeof CreateSeparationSchema>;
+
+// ============================================================================
+// DAEP ROLLOVER SCHEMAS (Story 2-11)
+// ============================================================================
+
+export const RolloverDecisionValues = ['continue_daep', 'return_home'] as const;
+export type RolloverDecision = typeof RolloverDecisionValues[number];
+
+export const RolloverDecisionSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  decision: z.enum(RolloverDecisionValues, {
+    errorMap: () => ({ message: 'Decision must be continue_daep or return_home' }),
+  }),
+  notes: z.string().max(2000, 'Notes too long').optional().nullable(),
+});
+
+export type RolloverDecisionInput = z.infer<typeof RolloverDecisionSchema>;
+
+export const CreateRolloverPlacementSchema = z.object({
+  original_placement_id: z.string().uuid('Invalid original placement ID'),
+  days_remaining: z.number().int().min(1, 'Days remaining must be at least 1'),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  notes: z.string().max(2000, 'Notes too long').optional().nullable(),
+});
+
+export type CreateRolloverPlacementInput = z.infer<typeof CreateRolloverPlacementSchema>;
+
+export const ApproveRolloverPlacementSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  approved: z.boolean(),
+  rejection_reason: z.string().max(500, 'Reason too long').optional().nullable(),
+});
+
+export type ApproveRolloverPlacementInput = z.infer<typeof ApproveRolloverPlacementSchema>;
 
 // ============================================================================
 // HELPER FUNCTIONS

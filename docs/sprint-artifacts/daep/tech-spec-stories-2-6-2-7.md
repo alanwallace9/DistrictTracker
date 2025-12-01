@@ -1,66 +1,32 @@
 # Technical Specification: Stories 2-6, 2-7
 
-**Date:** 2025-11-28
+**Date:** 2025-11-29
 **Author:** Bob (SM Agent)
 **Epic:** 2 - Placement Management
-**Status:** Draft - NEEDS REVISION
+**Status:** VALIDATED
 
 ---
 
-## ⚠️ CORRECTIONS FROM DEV REVIEW (2025-11-28)
+## Revision History
 
-**Reviewer:** Amelia (Dev Agent) + Alan (Product Owner)
+| Date | Author | Changes |
+|------|--------|---------|
+| 2025-11-28 | Bob | Initial draft |
+| 2025-11-29 | Bob + Alan | Applied corrections from PO review session |
 
-### Critical Corrections Required
+### Key Changes (2025-11-29)
 
-#### 1. Story 2-6: Auto-Start NOT Manual Button
-- **Tech spec says:** Manual "Start Placement" button to transition pending → active
-- **Correct behavior:** Placement auto-transitions to `active` when **first attendance is recorded**
-- **Impact:** Remove "Start Placement" button logic, add attendance trigger
-
-#### 2. Story 2-6: Button Set Revised
-| Button | When Available | Action |
-|--------|----------------|--------|
-| Edit | Always | Modify placement details |
-| Review Met | Days complete (days_remaining = 0) | Mark ready for transition meeting |
-| Complete | After transition meeting | Finalize placement with meeting date + first day back |
-| Cancel | Admin only | Requires notes |
-
-**Removed:** "Start Placement" button (auto-triggers on attendance)
-
-#### 3. Story 2-7: Color Logic INVERTED
-- **Tech spec says:** < 5 days = red (danger)
-- **Correct behavior:** < 5 days = GREEN (almost done, good!)
-- **Color should indicate:** At-risk of NOT completing on time (attendance issues, falling behind)
-- **NOT:** Simple countdown where low = bad
-
-#### 4. Missing: Intake Pipeline (Separate Story Needed)
-UX mockup shows Kanban-style intake workflow:
-- Columns: Approved → Scheduled → Arrived Today → No-Show
-- Drag students through stages
-- "Needs Scheduling", "Today", "Processing", "Reschedule" badges
-- **This is NOT in current tech spec - needs separate story**
-
-### Already Implemented (Verified via Screenshots)
-- Days Progress bar: "7 of 45 days (38 remaining)" ✓
-- Days Remaining column in student list ✓
-- Status badges (Active/green) ✓
-- Expected End date display ✓
-- Placement History table ✓
-
-### Schema Fix Required
-```typescript
-// lib/validation/schemas.ts line 307
-// ADD 'cancelled' to status enum
-export const PLACEMENT_STATUSES = ['pending', 'active', 'transition', 'complete', 'cancelled'] as const;
-```
-
-### Migration Required
-- `daep_placement_transitions` table needs to be created before Story 2-6
+1. **Status enum simplified:** `pending`, `active`, `met`, `complete` (4 statuses only)
+2. **Removed:** `cancelled`, `no_show`, `appealed` - these are workflow states, not placement statuses
+3. **Auto-start trigger:** Attendance (present/tardy) transitions `pending → active` and sets `start_date`
+4. **Manual override:** "Start Placement" button kept for edge cases
+5. **Days color coding:** ON HOLD - keeping existing progress bar design
+6. **Kanban/Intake Pipeline:** Moved to Epic 2B (out of scope for 2-6/2-7)
+7. **Renamed:** `transition` → `met` (triggers notifications)
 
 ---
 
-> ⚠️ **Theme Requirement:** All UI components must follow the [Theme & Styling Guidelines](./tech-spec-epic-2-part1.md#theme--styling-guidelines). Never hardcode colors.
+> **Theme Requirement:** All UI components must follow the [Theme & Styling Guidelines](./tech-spec-epic-2-part1.md#theme--styling-guidelines). Never hardcode colors.
 
 ---
 
@@ -78,35 +44,42 @@ This document provides detailed technical specifications for two related Epic 2 
 **Recommended Implementation Order:** 2-7 → 2-6
 
 - Story 2-7 creates the days calculation utility needed by placement cards
-- Story 2-6 uses days remaining for transition eligibility checks
+- Story 2-6 uses days remaining for `met` status eligibility checks
 
 ---
 
-## UX Design Reference
+## Status Definitions
 
-Per `docs/sessions/ux-design-specification.md`:
+| Status | Meaning | Terminal? |
+|--------|---------|-----------|
+| `pending` | Approved, awaiting first day at DAEP | No |
+| `active` | Currently attending DAEP | No |
+| `met` | Review met, preparing to return to home campus | No |
+| `complete` | Placement ended (with optional notes) | Yes |
 
-### Color Coding (Days Remaining)
-| Days Remaining | Color | CSS Variable |
-|----------------|-------|--------------|
-| > 10 days | Green | `--daep-success` (`#10B981`) |
-| 5-10 days | Yellow/Warning | `--daep-warning` (`#F59E0B`) |
-| < 5 days | Red | `--daep-danger` (`#EF4444`) |
+**Notes field:** Optional text for context (e.g., "Appeal granted - reduced to 10 days", "Time served per campus decision")
 
-### Status Badge Colors
+### What's NOT a Status
+
+These are handled elsewhere:
+
+| Concept | Where It Lives |
+|---------|----------------|
+| No-show | Kanban column position (Epic 2B) |
+| Appealed | Workflow process - student stays pending/active during appeal |
+| Cancelled | Use `complete` with notes |
+| Intake stage | `intake_stage` field for Kanban (Epic 2B) |
+
+---
+
+## Status Badge Colors
+
 | Status | Color | Meaning |
 |--------|-------|---------|
-| Pending | Yellow | Awaiting intake |
+| Pending | Yellow | Awaiting first day |
 | Active | Green | Currently at DAEP |
-| Transition | Blue | Ready to return |
+| Met | Blue | Review met, returning to campus |
 | Complete | Gray | Placement closed |
-| Cancelled | Red | Administratively cancelled |
-
-### Component Patterns
-- Cards: Shadcn Card with `p-4` or `p-6` padding
-- Badges: Shadcn Badge with theme-aware variants
-- Progress bars: Tailwind with theme primary color
-- Touch targets: Minimum 44x44px for iPad use
 
 ---
 
@@ -125,8 +98,8 @@ Create utility functions that calculate expected end date and days remaining bas
 | 2.7.3 | Exclude teacher workdays and bad weather days | Non-school days not counted |
 | 2.7.4 | Handle missing school calendar gracefully | Falls back to Mon-Fri business days |
 | 2.7.5 | Recalculate when calendar is updated | Manual trigger function exists |
-| 2.7.6 | Display days remaining badge with color coding | Green >10, Yellow 5-10, Red <5 |
-| 2.7.7 | Show expected end date on placement cards | Date formatted as "MMM d, yyyy" |
+| 2.7.6 | Display days remaining on placement cards | Text display (no color coding for now) |
+| 2.7.7 | Show expected end date on placement cards | Date formatted as "MMM d, yyyy" (e.g., "Nov 29, 2025") |
 
 ### Data Sources
 
@@ -217,12 +190,11 @@ function calculateBusinessDaysFallback(startDate: string, daysAssigned: number):
 }
 
 /**
- * Calculate days served based on attendance records.
- * Counts school days between start_date and today where student was present.
+ * Calculate days served based on school calendar.
+ * Counts school days between start_date and today.
  */
 export async function calculateDaysServed(
   tenantId: string,
-  placementId: string,
   startDate: string
 ): Promise<number> {
   const supabase = await createServerClient();
@@ -247,10 +219,10 @@ export async function calculateDaysServed(
 
 /**
  * Calculate complete days info for a placement.
+ * NOTE: No color coding - that's handled separately by at-risk system
  */
 export async function calculateDaysInfo(
   tenantId: string,
-  placementId: string,
   startDate: string,
   daysAssigned: number,
   daysServed: number
@@ -259,7 +231,6 @@ export async function calculateDaysInfo(
   expected_end_date: string;
   is_complete: boolean;
   progress_percent: number;
-  color: 'success' | 'warning' | 'danger';
 }> {
   const daysRemaining = Math.max(0, daysAssigned - daysServed);
   const isComplete = daysRemaining === 0;
@@ -269,85 +240,12 @@ export async function calculateDaysInfo(
   const today = format(new Date(), 'yyyy-MM-dd');
   const expectedEndDate = await calculateExpectedEndDate(tenantId, today, daysRemaining);
 
-  // Color coding per UX spec
-  let color: 'success' | 'warning' | 'danger';
-  if (daysRemaining > 10) {
-    color = 'success';
-  } else if (daysRemaining >= 5) {
-    color = 'warning';
-  } else {
-    color = 'danger';
-  }
-
   return {
     days_remaining: daysRemaining,
     expected_end_date: expectedEndDate,
     is_complete: isComplete,
     progress_percent: progressPercent,
-    color,
   };
-}
-
-/**
- * Get current period based on bell schedule and current time.
- */
-export async function getCurrentPeriod(
-  tenantId: string
-): Promise<{ period: string; schedule_name: string } | null> {
-  const supabase = await createServerClient();
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const now = format(new Date(), 'HH:mm');
-
-  // Get today's bell schedule from calendar
-  const { data: calendarDay } = await supabase
-    .from('daep_school_calendar')
-    .select('bell_schedule_id')
-    .eq('tenant_id', tenantId)
-    .eq('date', today)
-    .single();
-
-  let scheduleId = calendarDay?.bell_schedule_id;
-
-  // Fall back to default schedule
-  if (!scheduleId) {
-    const { data: defaultSchedule } = await supabase
-      .from('daep_bell_schedules')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('is_default', true)
-      .single();
-
-    scheduleId = defaultSchedule?.id;
-  }
-
-  if (!scheduleId) return null;
-
-  // Get schedule periods
-  const { data: schedule } = await supabase
-    .from('daep_bell_schedules')
-    .select('schedule_name, periods')
-    .eq('id', scheduleId)
-    .single();
-
-  if (!schedule) return null;
-
-  // Find current period
-  const periods = schedule.periods as Array<{
-    period: string;
-    start_time: string;
-    end_time: string;
-  }>;
-
-  for (const p of periods) {
-    if (now >= p.start_time && now <= p.end_time) {
-      return {
-        period: p.period,
-        schedule_name: schedule.schedule_name,
-      };
-    }
-  }
-
-  return null; // Outside school hours
 }
 ```
 
@@ -384,7 +282,6 @@ export async function recalculatePlacementDays(placementId: string): Promise<voi
   // Recalculate
   const daysInfo = await calculateDaysInfo(
     tenantId,
-    placementId,
     placement.start_date,
     placement.days_assigned,
     placement.days_served
@@ -430,12 +327,12 @@ export async function recalculateAllActivePlacements(): Promise<{ updated: numbe
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
 
-  // Get all active placements
+  // Get all non-complete placements
   const { data: placements } = await supabase
     .from('daep_placements')
     .select('id')
     .eq('tenant_id', tenantId)
-    .in('status', ['pending', 'active', 'transition']);
+    .in('status', ['pending', 'active', 'met']);
 
   if (!placements) return { updated: 0 };
 
@@ -450,62 +347,6 @@ export async function recalculateAllActivePlacements(): Promise<{ updated: numbe
   }
 
   return { updated };
-}
-```
-
-### UI Component: Days Remaining Badge
-
-```typescript
-// components/daep/shared/DaysRemainingBadge.tsx
-
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-
-interface DaysRemainingBadgeProps {
-  daysRemaining: number;
-  showLabel?: boolean;
-  size?: 'sm' | 'md' | 'lg';
-}
-
-const COLOR_MAP = {
-  success: 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))] border-[rgb(var(--daep-success))]/20',
-  warning: 'bg-[rgb(var(--daep-warning))]/10 text-[rgb(var(--daep-warning))] border-[rgb(var(--daep-warning))]/20',
-  danger: 'bg-[rgb(var(--daep-danger))]/10 text-[rgb(var(--daep-danger))] border-[rgb(var(--daep-danger))]/20',
-};
-
-export function DaysRemainingBadge({
-  daysRemaining,
-  showLabel = true,
-  size = 'md',
-}: DaysRemainingBadgeProps) {
-  // Determine color based on days remaining
-  let color: 'success' | 'warning' | 'danger';
-  if (daysRemaining > 10) {
-    color = 'success';
-  } else if (daysRemaining >= 5) {
-    color = 'warning';
-  } else {
-    color = 'danger';
-  }
-
-  const sizeClasses = {
-    sm: 'text-xs px-1.5 py-0.5',
-    md: 'text-sm px-2 py-1',
-    lg: 'text-base px-3 py-1.5',
-  };
-
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        'font-semibold',
-        COLOR_MAP[color],
-        sizeClasses[size]
-      )}
-    >
-      {daysRemaining} {showLabel && (daysRemaining === 1 ? 'day' : 'days')}
-    </Badge>
-  );
 }
 ```
 
@@ -531,16 +372,6 @@ export function DaysProgressBar({
 }: DaysProgressBarProps) {
   const progressPercent = Math.round((daysServed / daysAssigned) * 100);
 
-  // Color based on remaining
-  let barColor: string;
-  if (daysRemaining > 10) {
-    barColor = 'bg-[rgb(var(--daep-success))]';
-  } else if (daysRemaining >= 5) {
-    barColor = 'bg-[rgb(var(--daep-warning))]';
-  } else {
-    barColor = 'bg-[rgb(var(--daep-danger))]';
-  }
-
   return (
     <div className="space-y-1">
       {showLabels && (
@@ -551,7 +382,7 @@ export function DaysProgressBar({
       )}
       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
-          className={cn('h-full transition-all duration-300', barColor)}
+          className="h-full transition-all duration-300 bg-primary"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
@@ -571,57 +402,76 @@ export function DaysProgressBar({
 
 ### Goal
 
-Implement the placement state machine that tracks student progress through DAEP: Pending → Active → Transition → Complete.
+Implement the placement state machine that tracks student progress through DAEP: Pending → Active → Met → Complete.
 
 ### State Machine Diagram
 
 ```
-┌─────────────┐    intake     ┌─────────────┐    requirements    ┌─────────────┐    meeting +    ┌─────────────┐
-│   PENDING   │───────────────│   ACTIVE    │────────────────────│ TRANSITION  │────first day────│  COMPLETE   │
-│ (approved)  │               │ (at DAEP)   │       met          │ (returning) │     back        │  (closed)   │
-└─────────────┘               └─────────────┘                    └─────────────┘                 └─────────────┘
-       │                             │                                  │                              │
-       │                             │                                  │                              │
-       │                        ┌────┴────┐                             │                              │
-       │                        │  mark   │                             │                              │
-       │                        │ no-show │                             │                              │
-       │                        └────┬────┘                             │                              │
-       │                             │                                  │                              │
-       └────────────────────────────┼──────────────────────────────────┼──────────────────────────────┘
-           appeal granted           │    early termination              │    revert (meeting failed)
-                                    ▼                                   │
-                            ┌─────────────┐                             │
-                            │ CANCELLED   │◄────────────────────────────┘
-                            │ (terminated)│     administrative cancel
-                            └─────────────┘
+┌─────────────┐   attendance    ┌─────────────┐    days met     ┌─────────────┐   meeting +    ┌─────────────┐
+│   PENDING   │────────────────▶│   ACTIVE    │────────────────▶│     MET     │───first day───▶│  COMPLETE   │
+│ (scheduled) │  (present/tardy)│ (at DAEP)   │                 │  (review)   │    back        │  (closed)   │
+└─────────────┘   OR manual btn └─────────────┘                 └─────────────┘               └─────────────┘
+       │                               │                               │
+       │                               │                               │
+       │                               │                               │
+       └───────────────────────────────┴───────────────────────────────┘
+                                    │
+                             appeal/early term
+                             (update days or
+                              mark complete
+                              with notes)
 ```
+
+### Auto-Start Trigger
+
+When attendance is recorded:
+
+```typescript
+// Trigger logic (in attendance recording action)
+IF placement.status === 'pending'
+AND attendance.status IN ['present', 'tardy']  // NOT 'absent'
+THEN
+  placement.status = 'active'
+  placement.start_date = today
+  // Log transition
+```
+
+**Note:** `intake_date` is set earlier during scheduling. `start_date` is their first actual day at DAEP.
 
 ### Valid Transitions
 
-| From | To | Trigger | Validation |
+| From | To | Trigger | Sets Field |
 |------|----|---------|------------|
-| pending | active | Intake processed | Room assigned |
-| pending | complete | Appeal granted | Notes required |
-| pending | cancelled | Administrative | Notes required |
-| active | transition | Days complete OR manual | days_remaining <= 0 OR admin override |
-| active | cancelled | Early termination | Notes required |
-| transition | complete | Meeting + first day confirmed | Both dates required |
-| transition | active | Meeting failed, return to DAEP | Notes required |
-| transition | cancelled | Administrative | Notes required |
+| pending | active | Attendance (present/tardy) OR manual button | `start_date = today` |
+| pending | complete | Appeal granted (0 days) | `notes` |
+| active | met | Days complete (days_remaining = 0) | `review_met_date = today` |
+| active | complete | Early termination / appeal | `notes` |
+| met | complete | Meeting + first day back confirmed | `transition_meeting_date`, `first_day_back_date` |
+| met | active | Revert (meeting failed, more days needed) | `notes` |
 
 ### Acceptance Criteria
 
 | AC# | Criteria | Testable Assertion |
 |-----|----------|-------------------|
-| 2.6.1 | Placement states: Pending, Active, Transition, Complete, Cancelled | All 5 states exist |
+| 2.6.1 | Placement states: Pending, Active, Met, Complete | All 4 states exist |
 | 2.6.2 | Visual state indicator on placement card | Status badge with correct color |
 | 2.6.3 | State transition buttons based on current state | Only valid transitions shown |
-| 2.6.4 | Pending → Active: "Start Placement" sets intake_date | Status changes, date recorded |
-| 2.6.5 | Active → Transition: "Ready for Transition" (days met) | Transition date recorded |
-| 2.6.6 | Transition → Complete: Requires meeting + first day back | Both fields validated |
+| 2.6.4 | Pending → Active: Auto on attendance OR manual button | Status changes, start_date set |
+| 2.6.5 | Active → Met: "Review Met" button (days complete) | review_met_date recorded |
+| 2.6.6 | Met → Complete: Requires meeting + first day back | Both fields validated |
 | 2.6.7 | All transitions logged to `daep_placement_transitions` | Audit trail complete |
 | 2.6.8 | Invalid transitions rejected with error | Error message shows valid options |
 | 2.6.9 | TrespassTracker sync on completion | is_daep flag updated |
+| 2.6.10 | Met status triggers notifications | Parent email, staff notifications |
+
+### Button Matrix (Role-Based)
+
+| Status | Buttons | Visible To |
+|--------|---------|------------|
+| Pending | Start Placement, Edit | Admin, DAEP Staff |
+| Active | Edit, Review Met | Admin, DAEP Staff (Edit hidden from teachers) |
+| Met | Edit, Complete, Revert | Admin only |
+| Complete | Edit (notes only) | Admin only |
 
 ### Server Actions
 
@@ -634,11 +484,10 @@ import { PlacementTransitionSchema, type PlacementTransitionInput } from '@/lib/
  * Valid state transitions map
  */
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  pending: ['active', 'complete', 'cancelled'],
-  active: ['transition', 'cancelled'],
-  transition: ['complete', 'active', 'cancelled'],
+  pending: ['active', 'complete'],
+  active: ['met', 'complete'],
+  met: ['complete', 'active'],
   complete: [], // Terminal state
-  cancelled: [], // Terminal state
 };
 
 /**
@@ -702,11 +551,11 @@ export async function transitionPlacement(
   // Status-specific updates
   switch (input.to_status) {
     case 'active':
-      updateData.intake_date = new Date().toISOString().split('T')[0];
+      updateData.start_date = new Date().toISOString().split('T')[0];
       break;
 
-    case 'transition':
-      updateData.transition_requested_date = new Date().toISOString().split('T')[0];
+    case 'met':
+      updateData.review_met_date = new Date().toISOString().split('T')[0];
       break;
 
     case 'complete':
@@ -717,12 +566,9 @@ export async function transitionPlacement(
       if (input.first_day_back_date) {
         updateData.first_day_back_date = input.first_day_back_date;
       }
-      updateData.transition_complete = true;
-      break;
-
-    case 'cancelled':
-      updateData.actual_end_date = new Date().toISOString().split('T')[0];
-      updateData.completion_notes = input.notes || 'Placement cancelled';
+      if (input.notes) {
+        updateData.completion_notes = input.notes;
+      }
       break;
   }
 
@@ -749,8 +595,14 @@ export async function transitionPlacement(
       notes: input.notes,
     });
 
-  // Sync TrespassTracker on completion/cancellation
-  if (input.to_status === 'complete' || input.to_status === 'cancelled') {
+  // Trigger notifications on 'met' status
+  if (input.to_status === 'met') {
+    // TODO: Epic 7 - Send parent email, staff notifications
+    console.log('[DAEP] Placement met - notifications would be sent here');
+  }
+
+  // Sync TrespassTracker on completion
+  if (input.to_status === 'complete') {
     await syncTrespassTrackerStatus(tenantId, placement.school_id);
   }
 
@@ -778,6 +630,39 @@ export async function transitionPlacement(
 }
 
 /**
+ * Auto-activate placement on attendance.
+ * Called from attendance recording action.
+ */
+export async function autoActivatePlacementOnAttendance(
+  tenantId: string,
+  studentSchoolId: string,
+  attendanceStatus: 'present' | 'tardy' | 'absent'
+): Promise<void> {
+  // Only activate on present or tardy
+  if (attendanceStatus === 'absent') return;
+
+  const supabase = await createServerClient();
+
+  // Find pending placement for this student
+  const { data: placement } = await supabase
+    .from('daep_placements')
+    .select('id, status')
+    .eq('tenant_id', tenantId)
+    .eq('school_id', studentSchoolId)
+    .eq('status', 'pending')
+    .single();
+
+  if (!placement) return;
+
+  // Transition to active
+  await transitionPlacement({
+    placement_id: placement.id,
+    to_status: 'active',
+    transition_reason: `Auto-activated on attendance: ${attendanceStatus}`,
+  });
+}
+
+/**
  * Sync TrespassTracker is_daep flag after placement changes
  */
 async function syncTrespassTrackerStatus(
@@ -786,13 +671,13 @@ async function syncTrespassTrackerStatus(
 ): Promise<void> {
   const supabase = await createServerClient();
 
-  // Check if student has any active placements
-  const { data: activePlacements, count } = await supabase
+  // Check if student has any non-complete placements
+  const { count } = await supabase
     .from('daep_placements')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('school_id', schoolId)
-    .in('status', ['pending', 'active', 'transition']);
+    .in('status', ['pending', 'active', 'met']);
 
   const hasActive = (count || 0) > 0;
 
@@ -813,7 +698,7 @@ async function syncTrespassTrackerStatus(
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-type PlacementStatus = 'pending' | 'active' | 'transition' | 'complete' | 'cancelled';
+type PlacementStatus = 'pending' | 'active' | 'met' | 'complete';
 
 interface PlacementStatusBadgeProps {
   status: PlacementStatus;
@@ -829,17 +714,13 @@ const STATUS_CONFIG: Record<PlacementStatus, { label: string; className: string 
     label: 'Active',
     className: 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))] border-[rgb(var(--daep-success))]/20',
   },
-  transition: {
-    label: 'Transition',
+  met: {
+    label: 'Review Met',
     className: 'bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))] border-[rgb(var(--daep-info))]/20',
   },
   complete: {
     label: 'Complete',
     className: 'bg-gray-100 text-gray-600 border-gray-200',
-  },
-  cancelled: {
-    label: 'Cancelled',
-    className: 'bg-[rgb(var(--daep-danger))]/10 text-[rgb(var(--daep-danger))] border-[rgb(var(--daep-danger))]/20',
   },
 };
 
@@ -885,9 +766,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { transitionPlacement, getValidTransitions } from '@/app/actions/daep/placements';
 import { useToast } from '@/components/ui/use-toast';
-import { Play, ArrowRight, CheckCircle, XCircle } from 'lucide-react';
+import { Play, CheckCircle, ArrowRight, RotateCcw } from 'lucide-react';
 
-type PlacementStatus = 'pending' | 'active' | 'transition' | 'complete' | 'cancelled';
+type PlacementStatus = 'pending' | 'active' | 'met' | 'complete';
 
 interface StatusTransitionActionsProps {
   placementId: string;
@@ -899,7 +780,7 @@ interface StatusTransitionActionsProps {
 const TRANSITION_CONFIG: Record<string, {
   label: string;
   icon: React.ReactNode;
-  variant: 'default' | 'secondary' | 'destructive';
+  variant: 'default' | 'secondary' | 'outline';
   requiresNotes?: boolean;
   requiresMeetingDate?: boolean;
   requiresFirstDayBack?: boolean;
@@ -909,8 +790,8 @@ const TRANSITION_CONFIG: Record<string, {
     icon: <Play className="h-4 w-4 mr-2" />,
     variant: 'default',
   },
-  transition: {
-    label: 'Ready for Transition',
+  met: {
+    label: 'Review Met',
     icon: <ArrowRight className="h-4 w-4 mr-2" />,
     variant: 'secondary',
   },
@@ -921,10 +802,11 @@ const TRANSITION_CONFIG: Record<string, {
     requiresMeetingDate: true,
     requiresFirstDayBack: true,
   },
-  cancelled: {
-    label: 'Cancel Placement',
-    icon: <XCircle className="h-4 w-4 mr-2" />,
-    variant: 'destructive',
+  // Revert from met back to active
+  'active-from-met': {
+    label: 'Revert to Active',
+    icon: <RotateCcw className="h-4 w-4 mr-2" />,
+    variant: 'outline',
     requiresNotes: true,
   },
 };
@@ -992,18 +874,27 @@ export function StatusTransitionActions({
     setIsOpen(true);
   };
 
-  const config = targetStatus ? TRANSITION_CONFIG[targetStatus] : null;
+  const getConfigKey = (status: string) => {
+    // Special case: revert from met to active
+    if (currentStatus === 'met' && status === 'active') {
+      return 'active-from-met';
+    }
+    return status;
+  };
+
+  const config = targetStatus ? TRANSITION_CONFIG[getConfigKey(targetStatus)] : null;
 
   return (
     <>
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-2">
         {validTransitions.map((status) => {
-          const btnConfig = TRANSITION_CONFIG[status];
+          const configKey = getConfigKey(status);
+          const btnConfig = TRANSITION_CONFIG[configKey];
           if (!btnConfig) return null;
 
-          // Disable "transition" if days not complete (unless admin override)
-          const disabled = status === 'transition' && daysRemaining > 0;
+          // Disable "met" if days not complete
+          const disabled = status === 'met' && daysRemaining > 0;
 
           return (
             <Button
@@ -1061,7 +952,7 @@ export function StatusTransitionActions({
 
             <div className="space-y-2">
               <Label htmlFor="notes">
-                Notes {config?.requiresNotes && '*'}
+                Notes {config?.requiresNotes ? '*' : '(optional)'}
               </Label>
               <Textarea
                 id="notes"
@@ -1080,8 +971,12 @@ export function StatusTransitionActions({
             </Button>
             <Button
               onClick={handleTransition}
-              disabled={loading || (config?.requiresNotes && !notes)}
-              variant={config?.variant || 'default'}
+              disabled={
+                loading ||
+                (config?.requiresNotes && !notes) ||
+                (config?.requiresMeetingDate && !meetingDate) ||
+                (config?.requiresFirstDayBack && !firstDayBack)
+              }
             >
               {loading ? 'Processing...' : 'Confirm'}
             </Button>
@@ -1098,12 +993,16 @@ export function StatusTransitionActions({
 ## Zod Validation Schemas
 
 ```typescript
-// lib/validation/schemas.ts - ADD
+// lib/validation/schemas.ts - ADD/UPDATE
+
+// Placement statuses - UPDATED
+export const PLACEMENT_STATUSES = ['pending', 'active', 'met', 'complete'] as const;
+export type PlacementStatus = typeof PLACEMENT_STATUSES[number];
 
 // Placement transition
 export const PlacementTransitionSchema = z.object({
   placement_id: z.string().uuid(),
-  to_status: z.enum(['pending', 'active', 'transition', 'complete', 'cancelled']),
+  to_status: z.enum(PLACEMENT_STATUSES),
   transition_reason: z.string().optional(),
   notes: z.string().optional(),
   transition_meeting_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -1121,15 +1020,14 @@ lib/
 ├── daep/
 │   └── days-remaining.ts              # Story 2-7 utilities
 └── validation/
-    └── schemas.ts                      # Add PlacementTransitionSchema
+    └── schemas.ts                      # Update PLACEMENT_STATUSES, add PlacementTransitionSchema
 
 app/actions/daep/
-└── placements.ts                       # Add transition actions
+└── placements.ts                       # Add transition actions, auto-activate
 
 components/daep/
 ├── shared/
-│   ├── DaysRemainingBadge.tsx         # Story 2-7
-│   ├── DaysProgressBar.tsx            # Story 2-7
+│   ├── DaysProgressBar.tsx            # Story 2-7 (no color coding)
 │   └── PlacementStatusBadge.tsx       # Story 2-6
 └── placements/
     └── StatusTransitionActions.tsx     # Story 2-6
@@ -1140,21 +1038,24 @@ components/daep/
 ## Integration Points
 
 ### With Story 2-2 (Student Profile)
-- `DaysRemainingBadge` displays in `CurrentPlacementCard`
-- `DaysProgressBar` shows placement progress
+- `DaysProgressBar` displays in `CurrentPlacementCard`
 - `PlacementStatusBadge` shows current status
 
 ### With Story 2-4 (Create Placement)
 - `calculateExpectedEndDate()` called on placement creation
 - Initial status set to `pending`
 
-### With Story 2-8 (Edit Placement)
-- Days recalculated when `days_assigned` changes
-- Status can be changed via transition actions
+### With Attendance Recording (Epic 3)
+- Call `autoActivatePlacementOnAttendance()` when recording attendance
+- Triggers `pending → active` transition
 
 ### With School Calendar (Story 1-8)
 - Calendar changes trigger `recalculateAllActivePlacements()`
 - Weather day additions update expected end dates
+
+### With Epic 2B (Kanban Boards)
+- Kanban column position is separate from placement status
+- `intake_stage` field tracks Kanban position (not implemented in 2-6/2-7)
 
 ---
 
@@ -1166,20 +1067,53 @@ components/daep/
 |------|-------|-----------|
 | `calculateExpectedEndDate` with calendar | 2-7 | Returns correct date from calendar |
 | `calculateExpectedEndDate` without calendar | 2-7 | Falls back to Mon-Fri |
-| `calculateDaysInfo` color coding | 2-7 | Returns correct color by threshold |
-| `getValidTransitions('pending')` | 2-6 | Returns ['active', 'complete', 'cancelled'] |
+| `calculateDaysInfo` | 2-7 | Returns correct days remaining, progress % |
+| `formatExpectedEndDate` | 2-7 | Returns date in "MMM d, yyyy" format (e.g., "Nov 29, 2025") |
+| `getValidTransitions('pending')` | 2-6 | Returns ['active', 'complete'] |
+| `getValidTransitions('active')` | 2-6 | Returns ['met', 'complete'] |
+| `getValidTransitions('met')` | 2-6 | Returns ['complete', 'active'] |
 | `getValidTransitions('complete')` | 2-6 | Returns [] (terminal) |
 | `transitionPlacement` invalid | 2-6 | Returns error with valid options |
 | `transitionPlacement` valid | 2-6 | Updates status, creates log |
+| `autoActivatePlacementOnAttendance` present | 2-6 | Transitions pending → active |
+| `autoActivatePlacementOnAttendance` absent | 2-6 | Does nothing |
 
 ### Integration Tests
 
 | Test | Story | Steps |
 |------|-------|-------|
-| Placement lifecycle flow | 2-6 | Create → Start → Transition → Complete |
-| Days badge updates | 2-7 | Create placement → Verify badge color |
+| Placement lifecycle flow | 2-6 | Create → Attend → Met → Complete |
+| Days progress updates | 2-7 | Create placement → Verify progress bar |
 | Calendar recalculation | 2-7 | Add weather day → Verify dates update |
 | TT sync on complete | 2-6 | Complete placement → Verify is_daep = false |
+
+---
+
+## Non-Functional Requirements
+
+### Performance
+- **Batch recalculation target:** Complete within 30s for 500 active placements
+- **Single calculation:** < 100ms response time
+- **Query optimization:** Index on calendar table (see Migration section)
+
+### Security
+- All tables use RLS with `tenant_id = get_my_tenant_id()`
+- Role checks include `super_admin` (see `bug-room-creation-rls-policies.md` for role rename lessons)
+- Verify RLS policies after any role changes:
+  ```sql
+  SELECT tablename, policyname FROM pg_policies
+  WHERE qual LIKE '%<role_name>%' OR with_check LIKE '%<role_name>%';
+  ```
+
+### Reliability
+- Fallback to Mon-Fri when no school calendar exists
+- Graceful handling of insufficient calendar days
+- Audit trail for all status transitions
+
+### Observability
+- Console warnings for calendar fallback scenarios
+- Audit log entries for all placement changes
+- Use Supabase MCP to verify actual database state during debugging
 
 ---
 
@@ -1188,7 +1122,7 @@ components/daep/
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | No school calendar exists | Medium | Medium | Fallback to Mon-Fri with warning |
-| Large batch recalculation slow | Low | Low | Background job with progress indicator |
+| Large batch recalculation slow | Low | Low | Background job with progress indicator; 500 placement target |
 | Status transition race condition | Low | Medium | Optimistic locking on status field |
 | Missing transition log | Low | High | Database trigger as backup |
 
@@ -1204,10 +1138,18 @@ components/daep/
 - Story 2-7 utilities (days calculation)
 - `daep_placement_transitions` table (create if missing)
 
-### Migration: Placement Transitions Table
+### Out of Scope (Epic 2B)
+- Intake Pipeline Kanban board
+- `intake_stage` field
+- Drag-and-drop workflow
+- No-show column handling
+
+---
+
+## Migration: Placement Transitions Table
 
 ```sql
--- If not already created in Epic 2 Part 1 migration
+-- Required for Story 2-6 audit trail
 CREATE TABLE IF NOT EXISTS daep_placement_transitions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id TEXT NOT NULL,
@@ -1229,9 +1171,15 @@ CREATE POLICY "Users can access their tenant's transitions"
   ON daep_placement_transitions
   FOR ALL
   USING (tenant_id = get_my_tenant_id());
+
+-- Story 2-7: Optimize school calendar queries for days calculation
+CREATE INDEX IF NOT EXISTS idx_daep_school_calendar_days_lookup
+  ON daep_school_calendar(tenant_id, school_year, is_school_day, date)
+  WHERE is_school_day = true;
 ```
 
 ---
 
-*Tech Spec generated by Bob (SM Agent)*
-*Date: 2025-11-28*
+*Tech Spec validated by Bob (SM Agent) + Alan (Product Owner)*
+*Date: 2025-11-29*
+*Re-validated: 2025-11-29 (NFR section added, date format confirmed as "MMM d, yyyy", calendar index added)*

@@ -122,9 +122,9 @@ export default function DAEPStudentsPage() {
           return a.school_id.localeCompare(b.school_id) * multiplier;
 
         case 'status':
-          const statusOrder = { pending: 1, active: 2, transition: 3, complete: 4 };
-          const statusA = a.placement?.status ? statusOrder[a.placement.status] : 5;
-          const statusB = b.placement?.status ? statusOrder[b.placement.status] : 5;
+          const statusOrder: Record<string, number> = { pending: 1, active: 2, met: 3, complete: 4 };
+          const statusA = a.placement?.status ? (statusOrder[a.placement.status] ?? 5) : 5;
+          const statusB = b.placement?.status ? (statusOrder[b.placement.status] ?? 5) : 5;
           return (statusA - statusB) * multiplier;
 
         case 'home_campus':

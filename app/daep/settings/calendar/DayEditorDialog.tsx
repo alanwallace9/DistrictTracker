@@ -56,7 +56,7 @@ export function DayEditorDialog({
   // Form state
   const [isSchoolDay, setIsSchoolDay] = useState(true);
   const [dayType, setDayType] = useState<DayType | ''>('Regular');
-  const [bellScheduleId, setBellScheduleId] = useState<string | ''>('');
+  const [bellScheduleId, setBellScheduleId] = useState<string>('__default__');
   const [notes, setNotes] = useState('');
 
   // Reset form when entry changes
@@ -64,7 +64,7 @@ export function DayEditorDialog({
     if (entry) {
       setIsSchoolDay(entry.is_school_day);
       setDayType(entry.day_type || 'Regular');
-      setBellScheduleId(entry.bell_schedule_id || '');
+      setBellScheduleId(entry.bell_schedule_id || '__default__');
       setNotes(entry.notes || '');
     } else {
       // Default for new entry (weekday = school day)
@@ -72,7 +72,7 @@ export function DayEditorDialog({
       const isWeekday = dayOfWeek !== 0 && dayOfWeek !== 6;
       setIsSchoolDay(isWeekday);
       setDayType('Regular');
-      setBellScheduleId('');
+      setBellScheduleId('__default__');
       setNotes('');
     }
   }, [entry, date, open]);
@@ -87,7 +87,7 @@ export function DayEditorDialog({
         school_year: schoolYear,
         is_school_day: isSchoolDay,
         day_type: dayType || null,
-        bell_schedule_id: bellScheduleId || null,
+        bell_schedule_id: bellScheduleId === '__default__' ? null : bellScheduleId,
         notes: notes || null,
       });
       toast({
@@ -142,7 +142,7 @@ export function DayEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>
             {entry ? 'Edit Calendar Day' : 'Configure Calendar Day'}
@@ -204,7 +204,7 @@ export function DayEditorDialog({
                 <SelectValue placeholder="Use default schedule" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Use default schedule</SelectItem>
+                <SelectItem value="__default__">Use default schedule</SelectItem>
                 {bellSchedules.map((schedule) => (
                   <SelectItem key={schedule.id} value={schedule.id}>
                     {schedule.schedule_name}

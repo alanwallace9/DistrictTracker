@@ -33,18 +33,219 @@ This document provides technical specifications for three related Epic 2 stories
 
 ### Goal
 
-Track students who will not complete their DAEP placement before the end of the school year, allowing administrators to decide whether to continue or reset their days for the next year.
+Identify students who will not complete their DAEP placement before the end of the current school year, generate rollover reports grouped by home campus, and capture decisions from home campus administrators about whether each student should continue at DAEP or return to their home campus for the following school year.
+
+### Scope
+
+**In-Scope:**
+- Rollover candidate identification (days_remaining > school_days_left)
+- Rollover report generation grouped by home campus
+- DAEP admin view: district-wide report with campus filtering
+- Home campus admin view: campus-specific report (their students only)
+- Decision capture: "Continue at DAEP" or "Return to Home Campus"
+- Decision history log (track all decisions, not just latest)
+- Review eligibility calculation displayed with each candidate
+- Incident number link for admin context
+- Pending rollover placement creation (for "Continue at DAEP" decisions)
+- DAEP admin approval queue before batch rollover processing
+- Guard check for school calendar existence
+- Pagination on all report views
+
+**Out-of-Scope:**
+- Notification delivery to home campus (Epic 7)
+- Email generation (Epic 7)
+- Batch rollover processing (separate admin action, may be Epic 7 or manual)
+- Automatic activation of rollover placements (happens on first attendance day)
+- Intake process for rollover students (not required)
+
+### Rollover Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ROLLOVER PROCESS TIMELINE                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  MAY (Last Week of School)                                                  │
+│  ├─ System identifies rollover candidates (shortfall > 0)                   │
+│  ├─ Reports generated per home campus                                       │
+│  ├─ Home campus admins make decisions while students still at DAEP          │
+│  └─ Decisions communicated to parents for planning                          │
+│                                                                             │
+│  JUNE - JULY                                                                │
+│  ├─ Decisions can still be updated                                          │
+│  ├─ DAEP admin reviews approval queue                                       │
+│  └─ Pending rollover placements created for "Continue at DAEP" students     │
+│                                                                             │
+│  AUGUST (Before School Starts)                                              │
+│  ├─ Final decision updates possible through mid-August                      │
+│  ├─ Batch rollover processing finalizes placements                          │
+│  └─ Rollover placements go "active" when student attends first day          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Decision Options
+
+| Decision | Label | What Happens |
+|----------|-------|--------------|
+| `continue_daep` | "Continue at DAEP" | Student finishes current year. New rollover placement created for next year with remaining days. Does NOT count as new placement for recidivism. Review eligibility carries over. |
+| `return_home` | "Return to Home Campus" | Student finishes remaining days THIS year at DAEP, then starts fresh at home campus next year. Placement marked complete after days served. |
+
+**Rollover Placement Identity:**
+- Rollover placements receive a **NEW `incident_number`** (distinct from original)
+- The `is_rollover_placement = true` flag excludes them from recidivism counts
+- `original_placement_id` links back to the original placement for audit/history
+- Reporting queries filter: `WHERE is_rollover_placement = false` for recidivism metrics
+
+**Review Eligibility Example:**
+- Original: 40-day placement with review at 30 days
+- Days remaining at EOY: 13 days
+- Review eligibility next year: Day 3 (30 - 17 days already served = 13 remaining, review at 30 means 3 more days)
 
 ### Acceptance Criteria
 
 | AC# | Criteria | Testable Assertion |
 |-----|----------|-------------------|
-| 2.11.1 | Report shows students with days_remaining > school_days_left | Report lists rollover candidates |
-| 2.11.2 | Rollover decision options: "Continue Next Year" or "Reset" | Both options available |
-| 2.11.3 | Decision captured with timestamp and user | Decision logged |
-| 2.11.4 | Rollover flag set on placement record | rollover_student = true |
-| 2.11.5 | Notes field for rollover decisions | Notes saved with decision |
+| 2.11.1 | Report shows students with shortfall > 0 (days_remaining > school_days_left) | Only candidates with shortfall displayed |
+| 2.11.2 | Decision options: "Continue at DAEP" or "Return to Home Campus" | Both options available per student |
+| 2.11.3 | Decision captured with timestamp, user, and campus | Decision logged to history table |
+| 2.11.4 | Decision history preserved (not overwritten) | Multiple decisions visible in log |
+| 2.11.5 | Notes field for rollover decisions | Notes saved with each decision |
 | 2.11.6 | Dashboard indicator for pending rollover decisions | KPI card shows count |
+| 2.11.7 | DAEP admin sees district-wide report with campus filter | Filterable/sortable view |
+| 2.11.8 | Home campus admin sees only their students | Campus-scoped report |
+| 2.11.9 | Review eligibility displayed per candidate | Days until review shown |
+| 2.11.10 | Incident number displayed for context | Clickable link to placement |
+| 2.11.11 | Guard warns if school calendar not configured | Error message if no calendar |
+| 2.11.12 | "Continue at DAEP" creates pending rollover placement | New placement in pending status |
+| 2.11.13 | DAEP admin approval queue for rollover placements | Audit list before batch processing |
+
+### Risks & Assumptions
+
+| Type | Item | Mitigation |
+|------|------|------------|
+| **Assumption** | School calendar for current year exists | Guard check with user warning if missing |
+| **Assumption** | School calendar for next year loaded before July rollover | Document as prerequisite; warn if missing |
+| **Assumption** | Home campus admin has access to their students only | Enforced by restrictive RLS policies |
+| **Risk** | Two admins make conflicting decisions | Decision history log captures all; DAEP admin can see conflicts and follow up |
+| **Risk** | Decision made after batch rollover processed | Allow updates through mid-August; manual correction if needed |
+| **Risk** | Review eligibility calculation complex with multiple placements | Calculate based on original placement terms; carry over remaining review days |
+| **Question** | What if student has multiple active placements? | Use primary/most recent placement for rollover; edge case - manual review |
+
+### Data Model
+
+#### New Table: `daep_rollover_decisions`
+
+Tracks decision history for rollover candidates. Multiple decisions per placement allowed.
+
+```sql
+CREATE TABLE daep_rollover_decisions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  placement_id UUID NOT NULL REFERENCES daep_placements(id),
+  student_id UUID NOT NULL,  -- For display: student name, ID number
+  school_id TEXT NOT NULL,   -- Incident number link
+  home_campus_id UUID NOT NULL REFERENCES campuses(tenant_id, id),
+
+  -- Decision
+  decision TEXT NOT NULL CHECK (decision IN ('continue_daep', 'return_home')),
+  days_remaining INTEGER NOT NULL,
+  review_eligible_day INTEGER,  -- Days until review eligibility in next year
+
+  -- Audit
+  decided_by UUID NOT NULL REFERENCES auth.users(id),
+  decided_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  notes TEXT,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS: Restrictive policy
+ALTER TABLE daep_rollover_decisions ENABLE ROW LEVEL SECURITY;
+
+-- Home campus admin sees their campus decisions only
+CREATE POLICY "home_campus_admin_view" ON daep_rollover_decisions
+  FOR SELECT USING (
+    home_campus_id IN (
+      SELECT campus_id FROM user_campus_assignments
+      WHERE user_id = auth.uid() AND tenant_id = daep_rollover_decisions.tenant_id
+    )
+  );
+
+-- DAEP admin sees all decisions in tenant
+CREATE POLICY "daep_admin_view" ON daep_rollover_decisions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND tenant_id = daep_rollover_decisions.tenant_id
+      AND role IN ('daep_admin', 'district_admin', 'super_admin')
+    )
+  );
+
+-- Insert policy for authorized users
+CREATE POLICY "authorized_insert" ON daep_rollover_decisions
+  FOR INSERT WITH CHECK (
+    -- Home campus admin for their campus OR DAEP/district admin
+    home_campus_id IN (
+      SELECT campus_id FROM user_campus_assignments
+      WHERE user_id = auth.uid() AND tenant_id = daep_rollover_decisions.tenant_id
+    )
+    OR EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND tenant_id = daep_rollover_decisions.tenant_id
+      AND role IN ('daep_admin', 'district_admin', 'super_admin')
+    )
+  );
+
+-- Index for performance
+CREATE INDEX idx_rollover_decisions_placement ON daep_rollover_decisions(placement_id);
+CREATE INDEX idx_rollover_decisions_campus ON daep_rollover_decisions(home_campus_id);
+CREATE INDEX idx_rollover_decisions_tenant ON daep_rollover_decisions(tenant_id);
+```
+
+#### Updates to `daep_placements`
+
+```sql
+-- Add rollover-related fields
+ALTER TABLE daep_placements ADD COLUMN IF NOT EXISTS is_rollover_candidate BOOLEAN DEFAULT FALSE;
+ALTER TABLE daep_placements ADD COLUMN IF NOT EXISTS rollover_decision TEXT CHECK (rollover_decision IN ('continue_daep', 'return_home', NULL));
+ALTER TABLE daep_placements ADD COLUMN IF NOT EXISTS is_rollover_placement BOOLEAN DEFAULT FALSE;  -- For next-year placements; excludes from recidivism counts
+ALTER TABLE daep_placements ADD COLUMN IF NOT EXISTS original_placement_id UUID REFERENCES daep_placements(id);  -- Links rollover to original placement
+```
+
+#### Data Model Diagram
+
+```
+┌─────────────────────────┐         ┌─────────────────────────┐
+│    daep_placements      │         │ daep_rollover_decisions │
+├─────────────────────────┤         ├─────────────────────────┤
+│ id ─────────────────────┼────────►│ placement_id            │
+│ tenant_id               │         │ tenant_id               │
+│ school_id (incident#) ──┼────────►│ school_id               │
+│ days_assigned           │         │ student_id              │
+│ days_served             │         │ home_campus_id          │
+│ days_remaining          │         │ decision                │
+│ review_at_days          │         │ days_remaining          │
+│ is_rollover_candidate ◄─┼─────────│ review_eligible_day     │
+│ rollover_decision ◄─────┼─────────│ decided_by              │
+│ is_rollover_placement   │         │ decided_at              │
+│ original_placement_id     │         │ notes                   │
+└─────────────────────────┘         └─────────────────────────┘
+         │                                     │
+         │ (if continue_daep)                  │
+         ▼                                     │
+┌─────────────────────────┐                    │
+│ NEW rollover placement  │                    │
+├─────────────────────────┤                    │
+│ is_rollover_placement=T │                    │
+│ original_placement_id ────┼────────────────────┘
+│ status = 'pending'      │
+│ days_assigned = remaining│
+│ school_year = next      │
+└─────────────────────────┘
+```
 
 ### Server Actions
 
@@ -53,33 +254,42 @@ Track students who will not complete their DAEP placement before the end of the 
 
 export interface RolloverCandidate {
   placement_id: string;
-  school_id: string;
+  school_id: string;         // Incident number
+  student_id: string;
   student_name: string;
+  student_number: string;    // SIS ID for display
   days_assigned: number;
   days_served: number;
   days_remaining: number;
   school_days_left: number;
-  shortfall: number; // days_remaining - school_days_left
-  home_campus: string;
+  shortfall: number;         // days_remaining - school_days_left
+  home_campus_id: string;
+  home_campus_name: string;
   start_date: string;
-  rollover_decision: 'continue' | 'reset' | null;
+  review_at_days: number | null;
+  review_eligible_day: number | null;  // Days until review in next year
+  current_decision: 'continue_daep' | 'return_home' | null;
+  decision_count: number;    // How many decisions made (for conflict detection)
 }
 
 /**
- * Get students who will not complete before end of school year
+ * Check if school calendar exists for current year
+ * Guard function to warn users if calendar not configured
  */
-export async function getRolloverCandidates(): Promise<RolloverCandidate[]> {
+export async function checkSchoolCalendarExists(): Promise<{
+  exists: boolean;
+  schoolYear: string;
+  daysRemaining: number;
+}> {
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
 
-  // Determine current school year
   const today = new Date();
   const schoolYear = today.getMonth() >= 7
     ? `${today.getFullYear()}-${today.getFullYear() + 1}`
     : `${today.getFullYear() - 1}-${today.getFullYear()}`;
 
-  // Count remaining school days in current year
-  const { count: schoolDaysLeft } = await supabase
+  const { count } = await supabase
     .from('daep_school_calendar')
     .select('date', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
@@ -87,10 +297,34 @@ export async function getRolloverCandidates(): Promise<RolloverCandidate[]> {
     .eq('is_school_day', true)
     .gte('date', today.toISOString().split('T')[0]);
 
-  const remainingDays = schoolDaysLeft || 0;
+  return {
+    exists: (count || 0) > 0,
+    schoolYear,
+    daysRemaining: count || 0,
+  };
+}
 
-  // Get active placements with more days remaining than school days left
-  const { data: placements, error } = await supabase
+/**
+ * Get rollover candidates with full details
+ * Groups by home campus for report generation
+ * @param campusFilter - Optional campus ID for home campus admin view
+ */
+export async function getRolloverCandidates(
+  campusFilter?: string
+): Promise<{ candidates: RolloverCandidate[]; calendarWarning: boolean }> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Check calendar first
+  const calendarCheck = await checkSchoolCalendarExists();
+  if (!calendarCheck.exists) {
+    return { candidates: [], calendarWarning: true };
+  }
+
+  const remainingDays = calendarCheck.daysRemaining;
+
+  // Build query
+  let query = supabase
     .from('daep_placements')
     .select(`
       id,
@@ -99,54 +333,106 @@ export async function getRolloverCandidates(): Promise<RolloverCandidate[]> {
       days_served,
       days_remaining,
       start_date,
-      rollover_student,
+      review_at_days,
+      is_rollover_candidate,
       rollover_decision,
-      home_campus:campuses!fk_daep_placements_home_campus(name),
-      student:trespass_records!inner(first_name, last_name)
+      home_campus_id,
+      home_campus:campuses!fk_daep_placements_home_campus(id, name),
+      student:trespass_records!inner(id, first_name, last_name, student_number)
     `)
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .gt('days_remaining', remainingDays);
 
-  if (error || !placements) return [];
+  // Apply campus filter for home campus admin view
+  if (campusFilter) {
+    query = query.eq('home_campus_id', campusFilter);
+  }
 
-  return placements.map(p => ({
-    placement_id: p.id,
-    school_id: p.school_id,
-    student_name: `${(p.student as any).first_name} ${(p.student as any).last_name}`,
-    days_assigned: p.days_assigned,
-    days_served: p.days_served,
-    days_remaining: p.days_remaining,
-    school_days_left: remainingDays,
-    shortfall: p.days_remaining - remainingDays,
-    home_campus: (p.home_campus as any)?.name || 'Unknown',
-    start_date: p.start_date,
-    rollover_decision: p.rollover_decision as 'continue' | 'reset' | null,
-  }));
+  const { data: placements, error } = await query;
+
+  if (error || !placements) return { candidates: [], calendarWarning: false };
+
+  // Get decision counts for conflict detection
+  const placementIds = placements.map(p => p.id);
+  const { data: decisionCounts } = await supabase
+    .from('daep_rollover_decisions')
+    .select('placement_id')
+    .in('placement_id', placementIds);
+
+  const countMap = new Map<string, number>();
+  decisionCounts?.forEach(d => {
+    countMap.set(d.placement_id, (countMap.get(d.placement_id) || 0) + 1);
+  });
+
+  const candidates = placements.map(p => {
+    const daysServed = p.days_served || 0;
+    const reviewAtDays = p.review_at_days;
+    // Calculate review eligibility for next year
+    // If review_at_days = 30 and days_served = 17, then review_eligible_day = 30 - 17 = 13
+    // But if they have 13 days remaining, review is at day 3 of next year (13 - 10 = 3)
+    const reviewEligibleDay = reviewAtDays
+      ? Math.max(0, reviewAtDays - daysServed)
+      : null;
+
+    return {
+      placement_id: p.id,
+      school_id: p.school_id,
+      student_id: (p.student as any).id,
+      student_name: `${(p.student as any).first_name} ${(p.student as any).last_name}`,
+      student_number: (p.student as any).student_number || '',
+      days_assigned: p.days_assigned,
+      days_served: daysServed,
+      days_remaining: p.days_remaining,
+      school_days_left: remainingDays,
+      shortfall: p.days_remaining - remainingDays,
+      home_campus_id: p.home_campus_id,
+      home_campus_name: (p.home_campus as any)?.name || 'Unknown',
+      start_date: p.start_date,
+      review_at_days: reviewAtDays,
+      review_eligible_day: reviewEligibleDay,
+      current_decision: p.rollover_decision as 'continue_daep' | 'return_home' | null,
+      decision_count: countMap.get(p.id) || 0,
+    };
+  });
+
+  return { candidates, calendarWarning: false };
 }
 
 export interface RolloverDecisionInput {
   placement_id: string;
-  decision: 'continue' | 'reset';
+  decision: 'continue_daep' | 'return_home';
   notes?: string;
 }
 
 /**
  * Record rollover decision for a placement
+ * Creates entry in decision history table (doesn't overwrite)
+ * If 'continue_daep', creates pending rollover placement for next year
  */
 export async function recordRolloverDecision(
   input: RolloverDecisionInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; rollover_placement_id?: string }> {
   const supabase = await createServerClient();
   const user = await currentUser();
   if (!user) throw new Error('Unauthorized');
 
   const tenantId = await getTenantId();
+  const profile = await getProfile();
 
-  // Get placement
+  // Get placement with full details
   const { data: placement, error: fetchError } = await supabase
     .from('daep_placements')
-    .select('id, school_id, days_remaining')
+    .select(`
+      id,
+      school_id,
+      days_assigned,
+      days_served,
+      days_remaining,
+      review_at_days,
+      home_campus_id,
+      student:trespass_records!inner(id, first_name, last_name)
+    `)
     .eq('id', input.placement_id)
     .eq('tenant_id', tenantId)
     .single();
@@ -155,58 +441,194 @@ export async function recordRolloverDecision(
     return { success: false, error: 'Placement not found' };
   }
 
-  // Update placement
-  const updateData: Record<string, any> = {
-    rollover_student: true,
-    rollover_decision: input.decision,
-    rollover_decided_at: new Date().toISOString(),
-    rollover_decided_by: user.id,
-  };
+  // Calculate review eligibility
+  const daysServed = placement.days_served || 0;
+  const reviewEligibleDay = placement.review_at_days
+    ? Math.max(0, placement.review_at_days - daysServed)
+    : null;
 
-  // If reset, clear days_remaining
-  if (input.decision === 'reset') {
-    updateData.completion_notes = `Rollover reset: ${input.notes || 'Days reset for new school year'}`;
-  } else {
-    updateData.completion_notes = `Rollover continue: ${input.notes || 'Days will carry over to next year'}`;
-  }
+  // Insert into decision history (never overwrites)
+  const { error: insertError } = await supabase
+    .from('daep_rollover_decisions')
+    .insert({
+      tenant_id: tenantId,
+      placement_id: input.placement_id,
+      student_id: (placement.student as any).id,
+      school_id: placement.school_id,
+      home_campus_id: placement.home_campus_id,
+      decision: input.decision,
+      days_remaining: placement.days_remaining,
+      review_eligible_day: reviewEligibleDay,
+      decided_by: user.id,
+      notes: input.notes,
+    });
 
-  const { error: updateError } = await supabase
-    .from('daep_placements')
-    .update(updateData)
-    .eq('id', input.placement_id);
-
-  if (updateError) {
+  if (insertError) {
     return { success: false, error: 'Failed to record decision' };
   }
 
+  // Update placement with current decision
+  await supabase
+    .from('daep_placements')
+    .update({
+      is_rollover_candidate: true,
+      rollover_decision: input.decision,
+    })
+    .eq('id', input.placement_id);
+
+  let rolloverPlacementId: string | undefined;
+
+  // If continue_daep, create pending rollover placement for next year
+  if (input.decision === 'continue_daep') {
+    const nextSchoolYear = getNextSchoolYear();
+
+    const { data: newPlacement, error: createError } = await supabase
+      .from('daep_placements')
+      .insert({
+        tenant_id: tenantId,
+        school_id: placement.school_id,
+        home_campus_id: placement.home_campus_id,
+        days_assigned: placement.days_remaining,
+        days_served: 0,
+        days_remaining: placement.days_remaining,
+        review_at_days: reviewEligibleDay,  // Carry over remaining review days
+        status: 'pending',
+        school_year: nextSchoolYear,
+        is_rollover_placement: true,
+        original_placement_id: input.placement_id,
+      })
+      .select('id')
+      .single();
+
+    if (!createError && newPlacement) {
+      rolloverPlacementId = newPlacement.id;
+    }
+  }
+
   // Audit log
+  const studentName = `${(placement.student as any).first_name} ${(placement.student as any).last_name}`;
   await logAuditEvent({
     eventType: 'placement.rollover_decision',
     module: 'daep_management',
     actorId: user.id,
     targetId: input.placement_id,
-    action: `Recorded rollover decision: ${input.decision}`,
+    action: `Recorded rollover decision: ${input.decision} for ${studentName}`,
+    recordSubjectName: studentName,
     recordSchoolId: placement.school_id,
     tenantId,
     details: {
       decision: input.decision,
       days_remaining: placement.days_remaining,
+      review_eligible_day: reviewEligibleDay,
       notes: input.notes,
+      rollover_placement_id: rolloverPlacementId,
+      decided_by_name: profile?.full_name,
     },
   });
 
   revalidatePath('/daep/reports/rollover');
   revalidatePath('/daep/students');
 
-  return { success: true };
+  return { success: true, rollover_placement_id: rolloverPlacementId };
+}
+
+/**
+ * Get decision history for a placement (for conflict review)
+ */
+export async function getRolloverDecisionHistory(
+  placementId: string
+): Promise<Array<{
+  decision: string;
+  decided_by_name: string;
+  decided_at: string;
+  notes: string | null;
+}>> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data, error } = await supabase
+    .from('daep_rollover_decisions')
+    .select(`
+      decision,
+      decided_at,
+      notes,
+      decided_by_user:profiles!decided_by(full_name, email)
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .order('decided_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map(d => ({
+    decision: d.decision,
+    decided_by_name: (d.decided_by_user as any)?.full_name || (d.decided_by_user as any)?.email || 'Unknown',
+    decided_at: d.decided_at,
+    notes: d.notes,
+  }));
+}
+
+/**
+ * Get pending rollover placements for DAEP admin approval queue
+ */
+export async function getPendingRolloverPlacements(): Promise<Array<{
+  id: string;
+  student_name: string;
+  days_remaining: number;
+  home_campus: string;
+  original_placement_id: string;
+  created_at: string;
+}>> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data, error } = await supabase
+    .from('daep_placements')
+    .select(`
+      id,
+      days_remaining,
+      original_placement_id,
+      created_at,
+      home_campus:campuses!fk_daep_placements_home_campus(name),
+      student:trespass_records!inner(first_name, last_name)
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('is_rollover_placement', true)
+    .eq('status', 'pending');
+
+  if (error || !data) return [];
+
+  return data.map(p => ({
+    id: p.id,
+    student_name: `${(p.student as any).first_name} ${(p.student as any).last_name}`,
+    days_remaining: p.days_remaining,
+    home_campus: (p.home_campus as any)?.name || 'Unknown',
+    original_placement_id: p.original_placement_id,
+    created_at: p.created_at,
+  }));
 }
 
 /**
  * Get count of pending rollover decisions (for dashboard)
  */
 export async function getPendingRolloverCount(): Promise<number> {
-  const candidates = await getRolloverCandidates();
-  return candidates.filter(c => !c.rollover_decision).length;
+  const { candidates } = await getRolloverCandidates();
+  return candidates.filter(c => !c.current_decision).length;
+}
+
+/**
+ * Helper: Get next school year string
+ */
+function getNextSchoolYear(): string {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  // If we're in fall semester (Aug-Dec), next year is currentYear+1 to currentYear+2
+  // If we're in spring semester (Jan-Jul), next year is currentYear to currentYear+1
+  if (today.getMonth() >= 7) {
+    return `${currentYear + 1}-${currentYear + 2}`;
+  } else {
+    return `${currentYear}-${currentYear + 1}`;
+  }
 }
 ```
 
@@ -394,6 +816,36 @@ export function RolloverDecisionDialog({
   );
 }
 ```
+
+### NFRs: Story 2-11
+
+#### Performance
+
+| Concern | Requirement | Guidance |
+|---------|-------------|----------|
+| Report Load | < 2 seconds | Seamless - no visible delay, flash, or spinner for typical loads |
+| Pagination | Required | All report views (DAEP admin, home campus admin) must paginate |
+| Default Page Size | 25 records | With options for 50, 100 |
+| Large Districts | 200+ candidates | Must handle without timeout; use server-side pagination |
+
+#### Security
+
+| Concern | Requirement |
+|---------|-------------|
+| Authorization | Home campus admin, DAEP admin (level 1+), District admin |
+| RLS Policy | **Restrictive** - deny by default, explicit grants |
+| Campus Isolation | Home campus admin sees ONLY their campus students |
+| Tenant Isolation | All queries filtered by tenant_id |
+| Audit Trail | All decisions logged with user, timestamp, campus |
+
+#### Reliability
+
+| Concern | Requirement | Guidance |
+|---------|-------------|----------|
+| Calendar Guard | Warn if no calendar | Display error message, don't show empty report |
+| Decision Conflicts | Log all decisions | Decision history table preserves all entries |
+| Failure Notification | Super admin alerted | On critical failures (DB errors, RLS violations) |
+| Data Integrity | FK constraints | Rollover placements linked to parent placement |
 
 ---
 
@@ -891,6 +1343,54 @@ export function EarlyTerminationDialog({
 
 Automatically synchronize DAEP placement status with TrespassTracker records, ensuring `is_daep` flag and `daep_expiration_date` are always current.
 
+### Scope
+
+**In-Scope:**
+- Sync `is_daep` boolean flag on `trespass_records`
+- Sync `daep_expiration_date` field with farthest expected end date
+- Single-student sync (called from placement actions)
+- Batch sync (admin-triggered for all students)
+- Audit logging for batch operations
+
+**Out-of-Scope:**
+- Attendance data sync (handled by Epic 3)
+- Points data sync (handled by Epic 3)
+- Historical placement data sync
+- Real-time/webhook sync (sync is action-triggered only)
+- Sync to external systems (TrespassTracker is internal)
+
+### Data Model
+
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│   daep_placements   │         │   trespass_records  │
+├─────────────────────┤         ├─────────────────────┤
+│ id                  │         │ id                  │
+│ tenant_id           │         │ tenant_id           │
+│ school_id ──────────┼────────►│ school_id           │
+│ status              │         │ is_daep ◄───────────┼── synced
+│ expected_end_date ──┼────────►│ daep_expiration_date│
+│ ...                 │         │ ...                 │
+└─────────────────────┘         └─────────────────────┘
+
+Sync Logic:
+- school_id links placement to student record
+- is_daep = true if ANY placement is pending/active/transition
+- daep_expiration_date = MAX(expected_end_date) across all active placements
+- is_daep = false when ALL placements are complete/cancelled
+```
+
+### Risks & Assumptions
+
+| Type | Item | Mitigation |
+|------|------|------------|
+| **Assumption** | `school_id` uniquely identifies a student within a tenant | Enforced by existing DB constraints |
+| **Assumption** | `trespass_records` always exists before placement creation | Validated in `createPlacement` action |
+| **Risk** | Batch sync fails mid-operation (partial state) | Continue-on-error pattern; return error array; log all failures |
+| **Risk** | Race condition if multiple placements update simultaneously | Sync uses latest DB state; last-write-wins is acceptable |
+| **Risk** | Large dataset (500+ students) causes timeout | Batch processes sequentially with error isolation; consider async queue for >1000 |
+| **Question** | Should batch sync be async/background job? | Deferred to Epic 7 (notifications infrastructure); current sync is sufficient for MVP |
+
 ### Acceptance Criteria
 
 | AC# | Criteria | Testable Assertion |
@@ -1055,6 +1555,17 @@ await syncTrespassTrackerExpiration(placement.school_id);
 await syncTrespassTrackerExpiration(placement.school_id);
 ```
 
+### NFR: Performance & Reliability
+
+| Concern | Guidance |
+|---------|----------|
+| **Single Sync** | O(1) per student - single query + single update. No performance concerns. |
+| **Batch Sync** | Sequential processing with error isolation. For datasets >500 students, expect 10-30 seconds. |
+| **Timeout** | Default 2-minute timeout is sufficient for ~1000 students. For larger districts, consider chunking. |
+| **Error Handling** | Continue-on-error: partial success is acceptable. Return all errors for admin review. |
+| **Retry** | No automatic retry. Admin can re-trigger batch sync if errors occur. |
+| **Concurrency** | No locking required. Last-write-wins is acceptable for this use case. |
+
 ---
 
 ## File Structure
@@ -1083,27 +1594,58 @@ components/daep/
 
 ### Unit Tests
 
-| Test | Story | Assertion |
-|------|-------|-----------|
-| `getRolloverCandidates` returns correct shortfall | 2-11 | shortfall = days_remaining - school_days_left |
-| `recordRolloverDecision` sets flag | 2-11 | rollover_student = true |
-| `markNoShow` preserves days_remaining | 2-12 | days_remaining = days_assigned |
-| `earlyTermination` requires reason | 2-12 | Error on short reason |
-| `syncTrespassTrackerExpiration` sets is_daep | 2-13 | is_daep = true with active placement |
-| `syncTrespassTrackerExpiration` clears flag | 2-13 | is_daep = false with no placements |
-| `syncTrespassTrackerExpiration` uses max date | 2-13 | Farthest date selected |
+| Test | Story | AC | Assertion |
+|------|-------|-----|-----------|
+| `checkSchoolCalendarExists` warns if no calendar | 2-11 | 2.11.11 | Returns `{ exists: false }` when no calendar configured |
+| `getRolloverCandidates` returns correct shortfall | 2-11 | 2.11.1 | shortfall = days_remaining - school_days_left; only candidates with shortfall > 0 |
+| `getRolloverCandidates` filters by campus | 2-11 | 2.11.8 | With campusFilter, returns only that campus's students |
+| `getRolloverCandidates` calculates review eligibility | 2-11 | 2.11.9 | review_eligible_day = review_at_days - days_served |
+| `recordRolloverDecision` sets is_rollover_candidate | 2-11 | 2.11.4 | is_rollover_candidate = true on placement |
+| `recordRolloverDecision` inserts to history table | 2-11 | 2.11.3, 2.11.4 | New row in daep_rollover_decisions (not overwrite) |
+| `recordRolloverDecision` saves notes | 2-11 | 2.11.5 | Notes field populated in decision record |
+| `recordRolloverDecision` creates pending rollover placement | 2-11 | 2.11.12 | When continue_daep, new placement with status=pending, is_rollover_placement=true |
+| `getRolloverDecisionHistory` returns all decisions | 2-11 | 2.11.4 | Multiple decisions for same placement all returned |
+| `getPendingRolloverPlacements` returns approval queue | 2-11 | 2.11.13 | Only placements with is_rollover_placement=true, status=pending |
+| `getPendingRolloverCount` returns correct count | 2-11 | 2.11.6 | Count of candidates without current_decision |
+| `markNoShow` preserves days_remaining | 2-12 | 2.12.2, 2.12.5 | days_remaining = days_assigned |
+| `earlyTermination` requires reason | 2-12 | 2.12.4 | Error on short reason |
+| `syncTrespassTrackerExpiration` sets is_daep | 2-13 | 2.13.1 | is_daep = true with active placement |
+| `syncTrespassTrackerExpiration` syncs expected_end_date | 2-13 | 2.13.2 | daep_expiration_date matches expected_end_date |
+| `syncTrespassTrackerExpiration` uses max date | 2-13 | 2.13.3 | Farthest date selected with multiple placements |
+| `syncTrespassTrackerExpiration` clears flag | 2-13 | 2.13.4 | is_daep = false when all placements complete |
+| `batchSyncTrespassTracker` triggers sync | 2-13 | 2.13.5 | Admin can call batch sync, returns synced_count |
+| `batchSyncTrespassTracker` logs to audit | 2-13 | 2.13.6 | Audit entry created with synced_count and error_count |
 
 ### E2E Tests
 
-| Test | Story | Steps |
-|------|-------|-------|
-| Rollover workflow | 2-11 | View report → Make decision → Verify flag |
-| No-show marking | 2-12 | Open dialog → Confirm → Verify status + days |
-| Early termination | 2-12 | Enter reason → Terminate → Verify status |
-| TT sync on create | 2-13 | Create placement → Verify TT record updated |
-| TT sync on complete | 2-13 | Complete placement → Verify is_daep = false |
+| Test | Story | AC | Steps |
+|------|-------|-----|-------|
+| Calendar guard warning | 2-11 | 2.11.11 | Remove calendar → Load report → Verify warning message |
+| Rollover report shows correct candidates | 2-11 | 2.11.1 | Create 10 students, 3 with shortfall → Report shows only 3 |
+| DAEP admin district-wide view | 2-11 | 2.11.7 | Login as DAEP admin → View report → Can filter by campus |
+| Home campus admin scoped view | 2-11 | 2.11.8 | Login as home campus admin → View report → Only see campus students |
+| Decision workflow continue_daep | 2-11 | 2.11.2, 2.11.12 | Select "Continue at DAEP" → Verify pending rollover placement created |
+| Decision workflow return_home | 2-11 | 2.11.2 | Select "Return to Home Campus" → Verify decision logged, no new placement |
+| Decision history shows conflicts | 2-11 | 2.11.4 | Admin A decides continue → Admin B decides return → Both visible in history |
+| Review eligibility displayed | 2-11 | 2.11.9 | View candidate with review → Verify review_eligible_day shown |
+| Incident number clickable | 2-11 | 2.11.10 | Click incident number → Opens placement detail |
+| Notes field persists | 2-11 | 2.11.5 | Enter notes → Save → Reload → Notes visible |
+| Dashboard pending count | 2-11 | 2.11.6 | Create rollover candidates → Dashboard shows correct pending count |
+| Approval queue for DAEP admin | 2-11 | 2.11.13 | Approve rollover decisions → DAEP admin sees approval queue |
+| No-show marking | 2-12 | 2.12.1-2.12.6 | Open dialog → Confirm → Verify status + days |
+| Early termination | 2-12 | 2.12.3-2.12.6 | Enter reason → Terminate → Verify status |
+| TT sync on create | 2-13 | 2.13.1, 2.13.2 | Create placement → Verify is_daep = true, daep_expiration_date set |
+| TT sync with multiple placements | 2-13 | 2.13.3 | Create 2 placements with different end dates → Verify max date used |
+| TT sync on complete | 2-13 | 2.13.4 | Complete all placements → Verify is_daep = false |
+| Manual batch sync | 2-13 | 2.13.5 | Admin triggers batch sync → Verify all students synced |
+| Batch sync audit log | 2-13 | 2.13.6 | Trigger batch sync → Verify audit entry created |
+
+### Notes on Dashboard Test (AC 2.11.6)
+
+> **Dependency:** The dashboard indicator test requires a dashboard page to exist. If no dashboard story has been implemented yet, this test should be deferred until the dashboard is available. The `getPendingRolloverCount()` function can be unit tested independently.
 
 ---
 
 *Tech Spec generated by Bob (SM Agent)*
 *Date: 2025-11-28*
+*Updated: 2025-11-30 (Story 2-11 validation: scope, workflow, data model, NFRs, tests)*

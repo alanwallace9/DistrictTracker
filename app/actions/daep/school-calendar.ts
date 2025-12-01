@@ -10,6 +10,7 @@ import {
   type CreateSchoolCalendarEntryInput,
   type DayType,
 } from '@/lib/validation/schemas';
+import { recalculateAllActivePlacements } from './placements';
 
 // Types
 export interface SchoolCalendarEntry {
@@ -220,6 +221,10 @@ export async function upsertSchoolCalendarEntry(
     );
 
     revalidatePath('/daep/settings/calendar');
+
+    // Story 2-7: Recalculate placement days after calendar update
+    await recalculateAllActivePlacements();
+
     return data;
   }
 
@@ -252,6 +257,10 @@ export async function upsertSchoolCalendarEntry(
   );
 
   revalidatePath('/daep/settings/calendar');
+
+  // Story 2-7: Recalculate placement days after calendar creation
+  await recalculateAllActivePlacements();
+
   return data;
 }
 
@@ -387,6 +396,12 @@ export async function importSchoolCalendarCSV(
   );
 
   revalidatePath('/daep/settings/calendar');
+
+  // Story 2-7: Recalculate placement days after bulk import
+  if (result.success > 0) {
+    await recalculateAllActivePlacements();
+  }
+
   return result;
 }
 
@@ -463,5 +478,9 @@ export async function generateSchoolYearCalendar(
   );
 
   revalidatePath('/daep/settings/calendar');
+
+  // Story 2-7: Recalculate placement days after calendar generation
+  await recalculateAllActivePlacements();
+
   return { created: entries.length };
 }

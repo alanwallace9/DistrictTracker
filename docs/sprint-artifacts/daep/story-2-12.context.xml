@@ -1,0 +1,251 @@
+<story-context id="story-2-12-no-show-student-tracking" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>12</storyId>
+    <title>No-Show Student Tracking</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-12.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>to track students who were assigned but never attended (no-show) or left before completion (early termination)</iWant>
+    <soThat>I can report on no-shows, follow up appropriately, and track owed days for potential future placements</soThat>
+    <tasks>
+      <task id="1" ac="2.12.1,2.12.2,2.12.5,2.12.6,2.12.7">
+        <name>Server Actions</name>
+        <subtasks>
+          <subtask>1.1 Add markNoShow() to app/actions/daep/placements.ts</subtask>
+          <subtask>1.2 Add earlyTermination() to app/actions/daep/placements.ts</subtask>
+          <subtask>1.3 Add getNoShowCount() to app/actions/daep/placements.ts</subtask>
+        </subtasks>
+      </task>
+      <task id="2" ac="2.12.4">
+        <name>Validation Schemas</name>
+        <subtasks>
+          <subtask>2.1 Add EarlyTerminationSchema to lib/validation/schemas.ts</subtask>
+        </subtasks>
+      </task>
+      <task id="3" ac="2.12.1,2.12.2">
+        <name>No-Show Dialog Component</name>
+        <subtasks>
+          <subtask>3.1 Create components/daep/placements/NoShowDialog.tsx</subtask>
+        </subtasks>
+      </task>
+      <task id="4" ac="2.12.3,2.12.4">
+        <name>Early Termination Dialog Component</name>
+        <subtasks>
+          <subtask>4.1 Create components/daep/placements/EarlyTerminationDialog.tsx</subtask>
+        </subtasks>
+      </task>
+      <task id="5" ac="2.12.1,2.12.3">
+        <name>Integration with Edit Placement Page</name>
+        <subtasks>
+          <subtask>5.1 Add No-Show button to placement card/edit form</subtask>
+          <subtask>5.2 Add Early Termination button to placement card/edit form</subtask>
+          <subtask>5.3 Update StatusTransitionActions.tsx to include no-show/termination options</subtask>
+        </subtasks>
+      </task>
+      <task id="6" ac="all">
+        <name>Manual Testing</name>
+        <subtasks>
+          <subtask>6.1-6.7 Test all acceptance criteria scenarios</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="2.12.1">"Mark No-Show" action on pending/active placements - Button visible and functional on placement card</ac>
+    <ac id="2.12.2">No-show sets status to complete with no_show flag - status='complete', no_show=true, days_remaining preserved</ac>
+    <ac id="2.12.3">"Early Termination" action on active placements - Button visible and functional on active placements</ac>
+    <ac id="2.12.4">Early termination captures reason - Reason required (min 10 chars) and saved to completion_notes</ac>
+    <ac id="2.12.5">Days remaining tracked for future reference - days_remaining preserved in placement record</ac>
+    <ac id="2.12.6">Both actions logged to audit trail - Audit entries created with event details</ac>
+    <ac id="2.12.7">TrespassTracker synced on completion - syncTrespassTrackerExpiration() called</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/sprint-artifacts/daep/tech-spec-stories-2-11-2-12-2-13.md</path>
+        <title>Technical Specification: Stories 2-11, 2-12, 2-13</title>
+        <section>Story 2-12: No-Show Student Tracking</section>
+        <snippet>Full server action implementations for markNoShow(), earlyTermination(), getNoShowCount() with UI component code for NoShowDialog and EarlyTerminationDialog.</snippet>
+      </doc>
+      <doc>
+        <path>docs/reference/epics-part1.md</path>
+        <title>Epic Breakdown Part 1</title>
+        <section>Story 2.12: No-show student tracking</section>
+        <snippet>FR26 coverage - Track students assigned but never attended, days_owed tracking, no-show flag, reactivation workflow.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/daep/story-2-9.md</path>
+        <title>Story 2.9: Transition Workflow</title>
+        <section>Dev Agent Record</section>
+        <snippet>Dialog patterns (InitiateTransitionDialog, CompleteTransitionDialog), server action patterns with validation, transition logging, audit events. StatusTransitionActions component handles conditional button rendering.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/daep/story-2-13.md</path>
+        <title>Story 2.13: TrespassTracker Sync</title>
+        <section>Tasks</section>
+        <snippet>syncTrespassTrackerExpiration() is implemented and ready for use. Integration points documented for markNoShow/earlyTermination calls.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <file>
+        <path>app/actions/daep/placements.ts</path>
+        <kind>server-actions</kind>
+        <symbol>syncTrespassTrackerExpiration</symbol>
+        <lines>1123-1190</lines>
+        <reason>MUST call this function after markNoShow/earlyTermination to sync TrespassTracker status</reason>
+      </file>
+      <file>
+        <path>app/actions/daep/placements.ts</path>
+        <kind>server-actions</kind>
+        <symbol>transitionPlacement</symbol>
+        <lines>857-974</lines>
+        <reason>Pattern for status transitions with audit logging - follow similar structure for markNoShow/earlyTermination</reason>
+      </file>
+      <file>
+        <path>app/actions/daep/placements.ts</path>
+        <kind>server-actions</kind>
+        <symbol>initiateTransition, completeTransition</symbol>
+        <lines>1603-1849</lines>
+        <reason>Story 2-9 transition actions - pattern for server actions with notification creation and TT sync</reason>
+      </file>
+      <file>
+        <path>components/daep/placements/StatusTransitionActions.tsx</path>
+        <kind>component</kind>
+        <symbol>StatusTransitionActions</symbol>
+        <lines>1-252</lines>
+        <reason>Component to modify - add No-Show and Early Termination buttons for pending/active statuses</reason>
+      </file>
+      <file>
+        <path>components/daep/placements/InitiateTransitionDialog.tsx</path>
+        <kind>component</kind>
+        <symbol>InitiateTransitionDialog</symbol>
+        <lines>1-80</lines>
+        <reason>Dialog pattern to follow - uses react-hook-form, zod validation, Dialog component</reason>
+      </file>
+      <file>
+        <path>components/daep/placements/EditPlacementForm.tsx</path>
+        <kind>component</kind>
+        <symbol>EditPlacementForm</symbol>
+        <reason>Parent form component where StatusTransitionActions is integrated - may need additional props</reason>
+      </file>
+      <file>
+        <path>lib/validation/schemas.ts</path>
+        <kind>schema</kind>
+        <symbol>PlacementTransitionSchema, InitiateTransitionSchema, CompleteTransitionSchema</symbol>
+        <lines>381-438</lines>
+        <reason>Pattern for validation schemas - add EarlyTerminationSchema following same structure</reason>
+      </file>
+      <file>
+        <path>lib/daep/placement-state-machine.ts</path>
+        <kind>utility</kind>
+        <symbol>getValidTransitions, isValidTransition</symbol>
+        <reason>State machine helpers - no-show bypasses normal flow, goes directly to complete</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <node>
+        <package>@supabase/supabase-js</package><version>^2.58.0</version>
+        <package>@supabase/ssr</package><version>^0.7.0</version>
+        <package>react-hook-form</package><version>implied</version>
+        <package>@hookform/resolvers</package><version>^3.9.0</version>
+        <package>zod</package><version>implied</version>
+        <package>@radix-ui/react-alert-dialog</package><version>^1.1.1</version>
+        <package>@radix-ui/react-dialog</package><version>^1.1.15</version>
+        <package>sonner</package><version>implied</version>
+        <package>lucide-react</package><version>implied</version>
+        <package>date-fns</package><version>^3.6.0</version>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface>
+      <name>syncTrespassTrackerExpiration</name>
+      <kind>function</kind>
+      <signature>async function syncTrespassTrackerExpiration(schoolId: string): Promise&lt;SyncTrespassTrackerResult&gt;</signature>
+      <path>app/actions/daep/placements.ts:1123</path>
+    </interface>
+    <interface>
+      <name>SyncTrespassTrackerResult</name>
+      <kind>type</kind>
+      <signature>{ synced: boolean; is_daep: boolean; expiration_date: string | null }</signature>
+      <path>app/actions/daep/placements.ts:1110</path>
+    </interface>
+    <interface>
+      <name>PlacementStatus</name>
+      <kind>type</kind>
+      <signature>type PlacementStatus = 'pending' | 'active' | 'met' | 'complete'</signature>
+      <path>lib/validation/schemas.ts:309</path>
+    </interface>
+    <interface>
+      <name>logAuditEvent</name>
+      <kind>function</kind>
+      <signature>async function logAuditEvent(params: AuditEventParams): Promise&lt;void&gt;</signature>
+      <path>lib/audit.ts</path>
+    </interface>
+    <interface>
+      <name>getTenantId</name>
+      <kind>function</kind>
+      <signature>async function getTenantId(): Promise&lt;string&gt;</signature>
+      <path>lib/tenant.ts</path>
+    </interface>
+    <interface>
+      <name>currentUser</name>
+      <kind>function</kind>
+      <signature>async function currentUser(): Promise&lt;User | null&gt;</signature>
+      <path>@clerk/nextjs</path>
+    </interface>
+    <interface>
+      <name>daep_placement_transitions</name>
+      <kind>table</kind>
+      <signature>INSERT { tenant_id, placement_id, from_status, to_status, transition_reason, transitioned_by, notes }</signature>
+      <path>supabase schema</path>
+    </interface>
+    <interface>
+      <name>daep_placements.no_show</name>
+      <kind>column</kind>
+      <signature>boolean - flag for no-show students</signature>
+      <path>supabase schema</path>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="pattern">Follow existing server action pattern: validate input with Zod schema, get tenant/user, query supabase, handle errors, log audit, revalidate paths</constraint>
+    <constraint type="pattern">Use AlertDialog for confirmation-style dialogs (NoShowDialog), Dialog for form-style dialogs (EarlyTerminationDialog)</constraint>
+    <constraint type="pattern">No-show bypasses state machine - directly sets status='complete' without going through met/transition</constraint>
+    <constraint type="security">All queries must use RLS with tenant_id = get_my_tenant_id()</constraint>
+    <constraint type="reliability">TrespassTracker sync failure should log warning but NOT block status update</constraint>
+    <constraint type="audit">All no-show/termination actions must be logged to admin_audit_log via logAuditEvent()</constraint>
+    <constraint type="data">days_remaining MUST be preserved on no-show/termination to track owed days</constraint>
+    <constraint type="validation">Early termination reason must be at least 10 characters</constraint>
+    <constraint type="ui">Use toast from sonner for success/error feedback</constraint>
+    <constraint type="ui">Follow shadcn/ui component patterns from existing dialogs</constraint>
+  </constraints>
+
+  <tests>
+    <standards>Manual testing required - no automated test framework configured. Follow test scenarios in Task 6 of story file. Verify each AC with specific test cases covering happy path and edge cases.</standards>
+    <locations>
+      <location>Manual browser testing at /daep/placements/[id]/edit</location>
+      <location>Supabase Studio for database verification</location>
+    </locations>
+    <ideas>
+      <idea ac="2.12.1">Test No-Show button appears for pending AND active placements, not for met/complete</idea>
+      <idea ac="2.12.2">Verify no_show=true, status='complete', days_remaining equals days_assigned after markNoShow</idea>
+      <idea ac="2.12.3">Test Early Termination button appears ONLY for active placements</idea>
+      <idea ac="2.12.4">Test validation rejects reasons less than 10 characters</idea>
+      <idea ac="2.12.5">Verify days_remaining = days_assigned - days_served after early termination</idea>
+      <idea ac="2.12.6">Check admin_audit_log for placement.no_show and placement.early_termination events</idea>
+      <idea ac="2.12.7">Verify trespass_records.is_daep = false after all placements complete</idea>
+    </ideas>
+  </tests>
+</story-context>

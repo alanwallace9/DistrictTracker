@@ -1,5 +1,42 @@
 # Project Instructions for Claude
 
+## CRITICAL: Follow Existing Patterns First
+
+**BEFORE writing ANY new code, you MUST:**
+
+1. **Check existing patterns in the codebase** - Read similar files in the same module to understand established patterns
+2. **Never create custom helpers/abstractions** that duplicate what RLS or existing utilities already handle
+3. **Match the security model** - This is a multi-tenant, multi-module codebase:
+   - **RLS (Row-Level Security)** handles access control at the database level
+   - **Server actions** use the simple pattern: `createServerClient()`, `getTenantId()`, `currentUser()`
+   - Do NOT create redundant server-side auth helpers that duplicate RLS
+4. **New tables MUST have role-based RLS** matching existing tables (e.g., `daep_placements`)
+   - Never use tenant-only RLS for sensitive data
+   - Check existing RLS policies with: `SELECT * FROM pg_policies WHERE tablename = 'daep_placements'`
+
+**Example - WRONG approach:**
+```typescript
+// DON'T create custom auth helpers
+async function checkRolloverViewAuth() { ... }  // WRONG
+const { userId, role } = await checkRolloverViewAuth();  // WRONG
+```
+
+**Example - CORRECT approach:**
+```typescript
+// DO follow existing pattern
+const supabase = await createServerClient();
+const tenantId = await getTenantId();
+const user = await currentUser();
+// RLS handles role-based access at DB level
+```
+
+**If you're unsure about a pattern:**
+1. Read 2-3 existing files in the same module
+2. Ask the user before creating new patterns
+3. Never assume - verify first
+
+---
+
 ## External Service IDs
 
 **IMPORTANT: Before using MCP tools, check `.env.local` or `.env` for correct project IDs:**

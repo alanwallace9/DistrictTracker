@@ -26,8 +26,80 @@ This document provides technical specifications for two related Epic 2 stories t
 - Story 2-9 extends with full transition workflow (meeting scheduling, completion)
 
 **Dependencies:**
-- Story 2-6 (State Machine) - defines valid transitions
-- Story 2-7 (Days Calculation) - recalculates on edits
+- Story 2-6 (State Machine) - defines valid transitions *(ALREADY IMPLEMENTED)*
+- Story 2-7 (Days Calculation) - recalculates on edits *(ALREADY IMPLEMENTED)*
+
+**Pre-existing Implementation (from Stories 2-6/2-7):**
+- `transitionPlacement()` in `app/actions/daep/placements.ts`
+- `getPlacementTransitions()` for history
+- `daep_placement_transitions` table with RLS
+- State machine in `lib/daep/placement-state-machine.ts`
+
+---
+
+## Scope
+
+### In Scope
+- Edit form for placement details (days, room, notes, offense code)
+- Status transition buttons driven by state machine
+- Transition workflow UI (dialogs for met → complete flow)
+- In-app notifications for home campus
+- Transition history display on student profile
+- TrespassTracker sync on completion
+
+### Out of Scope
+- Email/SMS notifications (future Epic 6)
+- Calendar integrations for meeting scheduling
+- Parent portal access to transition status
+- Automated attendance-based day counting (Epic 3)
+- Bulk editing of multiple placements
+
+---
+
+## Risks & Assumptions
+
+### Assumptions
+1. `daep_notifications` table exists with proper schema (created in Epic 1b)
+2. Room availability checks from Story 2-5 are already implemented
+3. State machine only allows: `pending → active → met → complete`
+4. `getTenantId()` from `@/lib/tenant` handles active_tenant_id switching
+
+### Risks
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| RLS mismatch on tenant_id | High - data leakage | Use `getTenantId()` from `@/lib/tenant`, not Clerk metadata |
+| Role name mismatch | Medium - permission failures | Use `super_admin` not `master_admin` in all checks |
+| State machine bypass | High - invalid transitions | Always validate via `isValidTransition()` before updating |
+| Missing audit trail | Medium - compliance gaps | Log ALL changes via `logAuditEvent()` |
+
+### Open Questions
+1. Should "met" status auto-trigger when days_remaining hits 0? (Currently manual)
+2. Do we need a "cancelled" status for abandoned placements?
+
+---
+
+## Non-Functional Requirements
+
+### Performance
+- Edit form load: < 500ms
+- Save changes: < 1s
+- Transition history query: < 200ms (indexed by placement_id)
+
+### Security
+- All queries use `tenant_id = getTenantId()` for multi-tenant isolation
+- RLS policies use `get_my_tenant_id()` function (matches DB pattern)
+- Authorized roles: `daep_admin_l1`, `daep_admin_l2`, `district_admin`, `super_admin`
+- Audit logging required for all mutations
+
+### Reliability
+- Transition log insert can fail without blocking status update (warning only)
+- TrespassTracker sync is best-effort (logged on failure)
+
+### Observability
+- All mutations logged to `admin_audit_log` via `logAuditEvent()`
+- Transition history in `daep_placement_transitions` table
+- Console warnings for non-critical failures
 
 ---
 
@@ -592,8 +664,10 @@ export async function initiateTransition(
     return { success: false, error: 'Placement not found' };
   }
 
-  if (placement.status !== 'active') {
-    return { success: false, error: 'Can only initiate transition for active placements' };
+  // Note: initiateTransition is called when status is 'met' (days complete)
+  // The 'met' status means "requirements met, pending review meeting"
+  if (placement.status !== 'met') {
+    return { success: false, error: 'Can only initiate transition for placements in met status' };
   }
 
   // Validate meeting date is in the future
@@ -602,11 +676,11 @@ export async function initiateTransition(
     return { success: false, error: 'Meeting date must be in the future' };
   }
 
-  // Update placement
+  // Update placement - set meeting date while remaining in 'met' status
+  // Status stays 'met' until completeTransition() is called
   const { error: updateError } = await supabase
     .from('daep_placements')
     .update({
-      status: 'transition',
       transition_requested_date: new Date().toISOString().split('T')[0],
       transition_meeting_date: input.transition_meeting_date,
     })
@@ -616,33 +690,48 @@ export async function initiateTransition(
     return { success: false, error: 'Failed to initiate transition' };
   }
 
-  // Create transition log
+  // Create transition log (meeting scheduled, not status change)
   await supabase
     .from('daep_placement_transitions')
     .insert({
       tenant_id: tenantId,
       placement_id: input.placement_id,
-      from_status: 'active',
-      to_status: 'transition',
+      from_status: 'met',
+      to_status: 'met', // Status unchanged, just logging meeting scheduled
       transition_reason: `Meeting scheduled for ${input.transition_meeting_date}`,
       transitioned_by: user.id,
       notes: `Contact: ${input.campus_contact_name}${input.campus_contact_email ? ` (${input.campus_contact_email})` : ''}`,
     });
 
-  // Create in-app notification
+  // Create in-app notifications for HOME CAMPUS ADMINS ONLY
+  // MVP: Hardcoded to 'campus_admin' role. Future: configurable per-campus.
+  // See: docs/sprint-artifacts/daep/architecture-notes-daep-vs-trespass.md
   const studentName = `${(placement.student as any).first_name} ${(placement.student as any).last_name}`;
-  await supabase
-    .from('daep_notifications')
-    .insert({
+
+  // Query home campus admins
+  const { data: homeCampusAdmins } = await supabase
+    .from('user_profiles')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('campus_id', placement.home_campus_id)  // CRITICAL: Only this campus
+    .eq('role', 'campus_admin')                  // MVP: hardcoded role
+    .is('deleted_at', null);
+
+  // Create notification for each home campus admin
+  if (homeCampusAdmins && homeCampusAdmins.length > 0) {
+    const notifications = homeCampusAdmins.map((admin) => ({
       tenant_id: tenantId,
+      user_id: admin.id,  // Recipient (NOT created_by)
       notification_type: 'transition_meeting',
       title: 'Student Transition Meeting Scheduled',
       message: `Transition meeting for ${studentName} scheduled for ${input.transition_meeting_date}. Contact: ${input.campus_contact_name}`,
       related_school_id: placement.school_id,
       related_placement_id: placement.id,
       action_url: `/daep/students/${placement.school_id}`,
-      created_by: user.id,
-    });
+    }));
+
+    await supabase.from('daep_notifications').insert(notifications);
+  }
 
   // Audit log
   await logAuditEvent({
@@ -703,8 +792,9 @@ export async function completeTransition(
     return { success: false, error: 'Placement not found' };
   }
 
-  if (placement.status !== 'transition') {
-    return { success: false, error: 'Can only complete transition for placements in transition status' };
+  // Must be in 'met' status with a scheduled meeting
+  if (placement.status !== 'met') {
+    return { success: false, error: 'Can only complete transition for placements in met status' };
   }
 
   if (!input.meeting_confirmed) {
@@ -727,13 +817,13 @@ export async function completeTransition(
     return { success: false, error: 'Failed to complete transition' };
   }
 
-  // Create transition log
+  // Create transition log (met → complete)
   await supabase
     .from('daep_placement_transitions')
     .insert({
       tenant_id: tenantId,
       placement_id: input.placement_id,
-      from_status: 'transition',
+      from_status: 'met',
       to_status: 'complete',
       transition_reason: 'Student returned to home campus',
       transitioned_by: user.id,
@@ -1137,28 +1227,156 @@ lib/validation/
 
 ---
 
+## Traceability Matrix
+
+### Story 2-8: Edit Placement
+
+| AC# | Component | Server Action | Test |
+|-----|-----------|---------------|------|
+| 2.8.1 | `CurrentPlacementCard` → Edit button | - | E2E: Navigate to edit form |
+| 2.8.2 | `EditPlacementForm` fields | `updatePlacement()` | Unit: Field updates correctly |
+| 2.8.3 | `EditPlacementForm` days input | `calculateExpectedEndDate()` | Unit: End date recalculates |
+| 2.8.4 | `EditPlacementForm` room select | `getAvailableRoomsForStudent()` | Unit: Separation validation |
+| 2.8.5 | `StatusTransitionActions` | `transitionPlacement()` | Unit: Valid transitions only |
+| 2.8.6 | All mutations | `logAuditEvent()` | Unit: Audit entries created |
+| 2.8.7 | `EditPlacementForm` | Zod `UpdatePlacementSchema` | Unit: Validation errors shown |
+| 2.8.8 | Cancel button | - | E2E: No changes persisted |
+
+### Story 2-9: Transition Workflow
+
+| AC# | Component | Server Action | Test |
+|-----|-----------|---------------|------|
+| 2.9.1 | `StatusTransitionActions` | - | E2E: Button visible when eligible |
+| 2.9.2 | `InitiateTransitionDialog` | `initiateTransition()` | Unit: Future date validation |
+| 2.9.3 | `InitiateTransitionDialog` | `initiateTransition()` | Unit: Contact name required |
+| 2.9.4 | - | `initiateTransition()` → insert notification | Unit: Notification record created |
+| 2.9.5 | `CompleteTransitionDialog` | `completeTransition()` | Unit: Confirmation required |
+| 2.9.6 | `CompleteTransitionDialog` | `completeTransition()` | Unit: First day back required |
+| 2.9.7 | `CompleteTransitionDialog` | `completeTransition()` → status update | E2E: Status changes to complete |
+| 2.9.8 | - | `syncTrespassTrackerStatus()` | Unit: is_daep flag cleared |
+| 2.9.9 | `TransitionHistory` | `getPlacementTransitions()` | E2E: Timeline displays |
+
+---
+
 ## Test Strategy
 
 ### Unit Tests
 
-| Test | Story | Assertion |
-|------|-------|-----------|
-| `updatePlacement` validates days range | 2-8 | Error on days < 1 or > 365 |
-| `updatePlacement` recalculates end date | 2-8 | Expected date updates correctly |
-| `updatePlacement` validates room availability | 2-8 | Error on blocked room |
-| `initiateTransition` validates active status | 2-9 | Error on non-active placement |
-| `initiateTransition` validates future date | 2-9 | Error on past meeting date |
-| `completeTransition` requires confirmation | 2-9 | Error without meeting_confirmed |
+| Test | AC | Assertion |
+|------|-----|-----------|
+| `updatePlacement` validates days range | 2.8.2 | Error on days < 1 or > 365 |
+| `updatePlacement` recalculates end date | 2.8.3 | Expected date updates via `calculateExpectedEndDate()` |
+| `updatePlacement` validates room availability | 2.8.4 | Error on blocked room (separation conflict) |
+| `updatePlacement` logs audit event | 2.8.6 | `logAuditEvent()` called with changes |
+| `UpdatePlacementSchema` validation | 2.8.7 | Zod errors returned for invalid input |
+| `transitionPlacement` validates state machine | 2.8.5 | Error on invalid transition |
+| `initiateTransition` validates active status | 2.9.1 | Error if not in 'met' status |
+| `initiateTransition` validates future date | 2.9.2 | Error on past meeting date |
+| `initiateTransition` requires contact name | 2.9.3 | Error if campus_contact_name missing |
+| `initiateTransition` creates notification | 2.9.4 | Insert into `daep_notifications` |
+| `completeTransition` requires confirmation | 2.9.5 | Error without meeting_confirmed=true |
+| `completeTransition` requires first day back | 2.9.6 | Error if first_day_back_date missing |
+| `syncTrespassTrackerStatus` clears flag | 2.9.8 | `is_daep=false` when no active placements |
 
 ### E2E Tests
 
-| Test | Story | Steps |
-|------|-------|-------|
-| Edit placement days | 2-8 | Navigate → Edit → Change days → Save → Verify end date |
-| Change room assignment | 2-8 | Edit → Select new room → Save → Verify room updated |
-| Full transition flow | 2-9 | Initiate → Verify notification → Complete → Verify status |
+| Test | ACs | Steps |
+|------|-----|-------|
+| Edit placement days | 2.8.1, 2.8.2, 2.8.3 | Navigate → Click Edit → Change days → Save → Verify new end date |
+| Edit with validation error | 2.8.7 | Enter invalid days (0) → Verify error message |
+| Cancel edit | 2.8.8 | Navigate → Edit → Change values → Cancel → Verify no changes |
+| Change room assignment | 2.8.4 | Edit → Select new room → Save → Verify room updated |
+| Status transition flow | 2.8.5 | Active → Click "Mark Met" → Verify status changes |
+| Full transition workflow | 2.9.1-2.9.7 | Met → Initiate → Enter meeting date → Complete → Verify status |
+| Transition history display | 2.9.9 | View student profile → Verify timeline shows transitions |
+
+---
+
+## Implementation Notes
+
+### Key Patterns (from Bug Fixes)
+
+**Tenant ID Resolution** (from `bug-fix-daep-rls.md`):
+```typescript
+// CORRECT - use centralized helper
+import { getTenantId } from '@/lib/tenant';
+const tenantId = await getTenantId();
+
+// WRONG - don't read from Clerk metadata
+// const tenantId = user.publicMetadata?.tenant_id; // RLS mismatch!
+```
+
+**Role Names** (from `bug-room-creation-rls-policies.md`):
+```typescript
+// CORRECT roles
+['daep_admin_l1', 'daep_admin_l2', 'district_admin', 'super_admin']
+
+// WRONG - renamed in migration 20251126200000
+// ['master_admin'] // No longer exists!
+```
+
+**State Machine Enforcement** (from Story 2-6):
+```typescript
+import { isValidTransition, getValidTransitions } from '@/lib/daep/placement-state-machine';
+
+// Always validate before updating
+if (!isValidTransition(currentStatus, newStatus)) {
+  return { error: `Invalid transition from ${currentStatus} to ${newStatus}` };
+}
+```
+
+### Existing Code to Reuse
+
+From `app/actions/daep/placements.ts`:
+- `transitionPlacement()` - already handles state machine validation
+- `getPlacementTransitions()` - already implemented
+- `syncTrespassTrackerStatus()` - already handles TrespassTracker sync
+
+From `lib/daep/placement-state-machine.ts`:
+- `isValidTransition(from, to)` - validates state changes
+- `getValidTransitions(status)` - returns valid next states
+- `getStatusDescription(status)` - human-readable status text
+
+---
+
+## Future Enhancements (Out of Scope for MVP)
+
+The following items were identified during validation review and documented for future epics:
+
+### Notification System Enhancements
+
+| Enhancement | Description |
+|-------------|-------------|
+| **Role expansion** | Add `principal`, `assistant_principal`, `counselor` roles for notification targeting |
+| **Per-campus config** | UI to configure which users at each campus receive specific notification types |
+| **`receives_daep_return_notifications` flag** | Per-user toggle on `user_profiles` for this notification type |
+| **Notification grouping** | Multiple returning students = single notification "X students returning tomorrow" |
+| **Icon differentiation** | Green checkmark for confirmed returns; exclamation for alerts |
+| **Mandatory notifications** | Some notification types cannot be opted out of |
+
+### Document Upload Feature
+
+| Requirement | Details |
+|-------------|---------|
+| Upload location | Student profile (not placement record) |
+| File types | PDF, Word documents |
+| Access | DAEP admins AND home campus admins |
+| Use case | Grade reports, transition paperwork |
+
+### Teacher Workflow (Grade Reports)
+
+| Step | Feature Needed |
+|------|----------------|
+| 1 | Notification to teachers when status = "met" |
+| 2 | Teacher uploads grade report document |
+| 3 | Notification to DAEP admin when reports ready |
+| 4 | Link documents to transition |
+
+**Reference:** `docs/sprint-artifacts/daep/architecture-notes-daep-vs-trespass.md`
 
 ---
 
 *Tech Spec generated by Bob (SM Agent)*
 *Date: 2025-11-28*
+*Updated: 2025-11-29 - Added Scope, Risks, NFRs, Traceability per validation review*
+*Updated: 2025-11-30 - Fixed notification query (home campus admins only), added future enhancements*

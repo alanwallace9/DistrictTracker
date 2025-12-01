@@ -89,7 +89,7 @@ export function GenerateCalendarDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>Generate School Year Calendar</DialogTitle>
           <DialogDescription>
@@ -99,7 +99,7 @@ export function GenerateCalendarDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <div className="p-3 bg-[rgb(var(--daep-warning))]/10 border border-[rgb(var(--daep-warning))]/30 rounded-lg text-sm text-[rgb(var(--daep-warning))]">
             <strong>Note:</strong> This will create or update entries for all
             dates in the range. Existing entries will be overwritten with
             default values.

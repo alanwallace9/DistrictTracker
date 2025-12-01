@@ -1,0 +1,249 @@
+<story-context id="story-2-11-rollover-student-handling" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>11</storyId>
+    <title>Rollover Student Handling</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-11.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator or home campus administrator</asA>
+    <iWant>identify students whose placement spans school years and capture rollover decisions</iWant>
+    <soThat>students are properly handled for the next school year with documented decisions</soThat>
+    <tasks>
+      <task id="1">Database Migration - Rollover Tables and Fields
+        <subtask>Create daep_rollover_decisions table with decision history</subtask>
+        <subtask>Add RLS policies: home campus sees their decisions, DAEP admin sees all</subtask>
+        <subtask>Add is_rollover_candidate, is_rollover_placement, original_placement_id to daep_placements</subtask>
+        <subtask>Create indexes for performance</subtask>
+      </task>
+      <task id="2">Server Actions - Calendar Guard
+        <subtask>Create checkSchoolCalendarExists() in placements.ts</subtask>
+        <subtask>Returns { exists, schoolYear, daysRemaining }</subtask>
+      </task>
+      <task id="3">Server Actions - Rollover Candidates
+        <subtask>Create getRolloverCandidates(campusFilter?)</subtask>
+        <subtask>Filter by shortfall > 0</subtask>
+        <subtask>Include review eligibility calculation</subtask>
+        <subtask>Campus filtering for home campus admin view</subtask>
+      </task>
+      <task id="4">Server Actions - Record Decision
+        <subtask>Create recordRolloverDecision(input)</subtask>
+        <subtask>Insert to decision history table (never overwrite)</subtask>
+        <subtask>If continue_daep: create pending rollover placement</subtask>
+        <subtask>Audit log the decision</subtask>
+      </task>
+      <task id="5">Server Actions - Supporting Functions
+        <subtask>Create getRolloverDecisionHistory(placementId)</subtask>
+        <subtask>Create getPendingRolloverPlacements()</subtask>
+        <subtask>Create getPendingRolloverCount()</subtask>
+      </task>
+      <task id="6">UI - Rollover Report Page (DAEP Admin)
+        <subtask>Create /daep/reports/rollover/page.tsx</subtask>
+        <subtask>DataTable with pagination</subtask>
+        <subtask>Campus filter dropdown</subtask>
+        <subtask>Calendar warning banner if not configured</subtask>
+      </task>
+      <task id="7">UI - Rollover Decision Dialog
+        <subtask>Create RolloverDecisionDialog.tsx</subtask>
+        <subtask>Radio options: Continue at DAEP / Return to Home Campus</subtask>
+        <subtask>Notes textarea</subtask>
+        <subtask>Display shortfall and review eligibility info</subtask>
+      </task>
+      <task id="8">UI - Decision History Panel
+        <subtask>Create RolloverDecisionHistory.tsx</subtask>
+        <subtask>Show all decisions chronologically</subtask>
+        <subtask>Conflict indicator if multiple different decisions</subtask>
+      </task>
+      <task id="9">UI - Approval Queue (DAEP Admin)
+        <subtask>Create approval queue view for pending rollover placements</subtask>
+        <subtask>Pre-batch-processing audit capability</subtask>
+      </task>
+      <task id="10">Dashboard Integration
+        <subtask>Add pending rollover count to dashboard KPI</subtask>
+        <subtask>Link to rollover report page</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="2.11.1">Report shows students with shortfall > 0 (days_remaining > school_days_left)</criterion>
+    <criterion id="2.11.2">Decision options: "Continue at DAEP" or "Return to Home Campus"</criterion>
+    <criterion id="2.11.3">Decision captured with timestamp, user, and campus</criterion>
+    <criterion id="2.11.4">Decision history preserved (not overwritten)</criterion>
+    <criterion id="2.11.5">Notes field for rollover decisions</criterion>
+    <criterion id="2.11.6">Dashboard indicator for pending rollover decisions</criterion>
+    <criterion id="2.11.7">DAEP admin sees district-wide report with campus filter</criterion>
+    <criterion id="2.11.8">Home campus admin sees only their students</criterion>
+    <criterion id="2.11.9">Review eligibility displayed per candidate</criterion>
+    <criterion id="2.11.10">Incident number displayed for context</criterion>
+    <criterion id="2.11.11">Guard warns if school calendar not configured</criterion>
+    <criterion id="2.11.12">"Continue at DAEP" creates pending rollover placement</criterion>
+    <criterion id="2.11.13">DAEP admin approval queue for rollover placements</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-stories-2-11-2-12-2-13.md" title="Tech Spec: Stories 2-11, 2-12, 2-13" section="Story 2-11: Rollover Student Handling">
+        Complete technical specification including data model, server actions, UI components, NFRs, and test strategy for rollover handling.
+      </doc>
+      <doc path="docs/reference/epics-part1.md" title="Epics Part 1" section="Story 2.11: Rollover Student Handling">
+        Original story definition with acceptance criteria and technical notes about school_year field.
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/backlog-school-year-infrastructure.md" title="Backlog: School Year Infrastructure">
+        Research needed for school year handling. Current workaround: derive year from start_date.
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/backlog-review-at-days-field.md" title="Backlog: review_at_days Field">
+        Missing field for review eligibility. Set during placement creation from incident report.
+      </doc>
+    </docs>
+
+    <code>
+      <file path="app/actions/daep/placements.ts" kind="server-actions" reason="Primary placement actions file - ADD new rollover functions here">
+        <symbols>
+          <symbol name="createPlacement" lines="200-350">Pattern for creating placements with validation</symbol>
+          <symbol name="transitionPlacement" lines="450-550">Pattern for placement state transitions</symbol>
+          <symbol name="checkActivePlacement" lines="600-650">Validation pattern for active placements</symbol>
+          <symbol name="markNoShow" lines="700-800">Similar pattern for no-show handling</symbol>
+        </symbols>
+      </file>
+      <file path="app/actions/daep/school-calendar.ts" kind="server-actions" reason="Calendar queries for school days remaining">
+        <symbols>
+          <symbol name="getSchoolCalendar">Query pattern for school calendar by year</symbol>
+          <symbol name="getTenantId">Tenant resolution pattern with active_tenant_id</symbol>
+        </symbols>
+      </file>
+      <file path="lib/audit-logger.ts" kind="utility" reason="Audit logging pattern for decisions">
+        <symbols>
+          <symbol name="logAuditEvent" lines="70-100">Standard audit log function signature</symbol>
+          <symbol name="AuditEventType" lines="15-49">Add 'placement.rollover_decision' event type</symbol>
+        </symbols>
+      </file>
+      <file path="lib/daep/days-remaining.ts" kind="utility" reason="Days calculation logic - reuse for shortfall calculation">
+        <symbols>
+          <symbol name="calculateDaysInfo">Calculates days_served, days_remaining</symbol>
+          <symbol name="calculateExpectedEndDate">Calculates expected end date from calendar</symbol>
+        </symbols>
+      </file>
+      <file path="lib/daep/placement-state-machine.ts" kind="utility" reason="State transitions - understand pending status handling">
+        <symbols>
+          <symbol name="isValidTransition">Validates state transitions</symbol>
+          <symbol name="PLACEMENT_STATUSES">Available statuses including 'pending'</symbol>
+        </symbols>
+      </file>
+      <file path="components/daep/placements/NoShowDialog.tsx" kind="component" reason="Similar dialog pattern for rollover decision">
+        UI pattern for confirmation dialog with notes field.
+      </file>
+      <file path="components/daep/StudentListTable.tsx" kind="component" reason="DataTable pattern with filters and pagination">
+        Table pattern with campus filtering, pagination, and action columns.
+      </file>
+      <file path="components/daep/CurrentPlacementCard.tsx" kind="component" reason="Placement display patterns">
+        Display patterns for placement status, days remaining, review eligibility.
+      </file>
+      <file path="supabase/migrations/20251124221840_create_daep_schema.sql" kind="migration" reason="Base DAEP schema - reference for new table patterns">
+        RLS policy patterns, index patterns, table structure conventions.
+      </file>
+    </code>
+
+    <dependencies>
+      <node>
+        <package name="@supabase/supabase-js" version="^2.58.0">Database client for queries</package>
+        <package name="@clerk/nextjs" version="^6.33.1">Authentication and currentUser()</package>
+        <package name="date-fns" version="^3.6.0">Date formatting and calculations</package>
+        <package name="zod" version="^3.23.8">Schema validation for inputs</package>
+        <package name="@radix-ui/react-dialog" version="^1.1.15">Dialog component base</package>
+        <package name="@radix-ui/react-radio-group" version="^1.2.0">Radio buttons for decision options</package>
+        <package name="lucide-react" version="^0.414.0">Icons (AlertTriangle, UserX, etc.)</package>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="RolloverCandidate" kind="TypeScript interface" path="app/actions/daep/placements.ts">
+      export interface RolloverCandidate {
+        placement_id: string;
+        school_id: string;
+        student_id: string;
+        student_name: string;
+        student_number: string;
+        days_assigned: number;
+        days_served: number;
+        days_remaining: number;
+        school_days_left: number;
+        shortfall: number;
+        home_campus_id: string;
+        home_campus_name: string;
+        start_date: string;
+        review_at_days: number | null;
+        review_eligible_day: number | null;
+        current_decision: 'continue_daep' | 'return_home' | null;
+        decision_count: number;
+      }
+    </interface>
+    <interface name="RolloverDecisionInput" kind="TypeScript interface" path="app/actions/daep/placements.ts">
+      export interface RolloverDecisionInput {
+        placement_id: string;
+        decision: 'continue_daep' | 'return_home';
+        notes?: string;
+      }
+    </interface>
+    <interface name="checkSchoolCalendarExists" kind="Server Action" path="app/actions/daep/placements.ts">
+      export async function checkSchoolCalendarExists(): Promise&lt;{
+        exists: boolean;
+        schoolYear: string;
+        daysRemaining: number;
+      }&gt;
+    </interface>
+    <interface name="getRolloverCandidates" kind="Server Action" path="app/actions/daep/placements.ts">
+      export async function getRolloverCandidates(
+        campusFilter?: string
+      ): Promise&lt;{ candidates: RolloverCandidate[]; calendarWarning: boolean }&gt;
+    </interface>
+    <interface name="recordRolloverDecision" kind="Server Action" path="app/actions/daep/placements.ts">
+      export async function recordRolloverDecision(
+        input: RolloverDecisionInput
+      ): Promise&lt;{ success: boolean; error?: string; rollover_placement_id?: string }&gt;
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint source="Tech Spec NFRs">Authorization: Home campus admin, DAEP admin (level 1+), District admin only</constraint>
+    <constraint source="Tech Spec NFRs">RLS Policy: Restrictive - deny by default, explicit grants</constraint>
+    <constraint source="Tech Spec NFRs">Campus Isolation: Home campus admin sees ONLY their students</constraint>
+    <constraint source="Tech Spec NFRs">Pagination required on all report views (default 25, options 50/100)</constraint>
+    <constraint source="Tech Spec NFRs">Target load time: less than 2 seconds</constraint>
+    <constraint source="Architecture">Use existing createServerClient() pattern from lib/supabase/server</constraint>
+    <constraint source="Architecture">Use getTenantId() from lib/tenant for tenant resolution</constraint>
+    <constraint source="Architecture">Follow server action pattern: 'use server' directive, return { success, error? }</constraint>
+    <constraint source="Architecture">Use logAuditEvent() for all state-changing operations</constraint>
+    <constraint source="Theme Guidelines">Never hardcode colors - use CSS variables from theme</constraint>
+    <constraint source="Known Gap">review_at_days field does not exist - display as null/TBD for now</constraint>
+    <constraint source="Known Gap">school_year field does not exist - derive from start_date</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      Testing follows existing patterns in the codebase. Server actions should have unit tests for business logic.
+      E2E tests use the established patterns for user workflows. Use Vitest for unit tests if available,
+      otherwise follow existing test framework. Mock Supabase client for unit tests.
+    </standards>
+    <locations>
+      <location>__tests__/</location>
+      <location>*.test.ts</location>
+      <location>*.test.tsx</location>
+    </locations>
+    <ideas>
+      <idea criterion="2.11.1">Test getRolloverCandidates returns only students with shortfall > 0</idea>
+      <idea criterion="2.11.3">Test recordRolloverDecision inserts to history table, not overwrites</idea>
+      <idea criterion="2.11.4">Test getRolloverDecisionHistory returns all decisions for placement</idea>
+      <idea criterion="2.11.8">Test getRolloverCandidates with campusFilter returns only that campus</idea>
+      <idea criterion="2.11.11">Test checkSchoolCalendarExists returns false when no calendar</idea>
+      <idea criterion="2.11.12">Test recordRolloverDecision with continue_daep creates pending placement</idea>
+      <idea criterion="E2E">Rollover workflow: view report, make decision, verify pending placement created</idea>
+      <idea criterion="E2E">Decision conflict: two admins decide differently, both visible in history</idea>
+    </ideas>
+  </tests>
+</story-context>

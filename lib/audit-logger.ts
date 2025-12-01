@@ -39,11 +39,15 @@ export type AuditEventType =
   | 'placement.intake_processed'
   | 'placement.transitioned'
   | 'placement.cancelled'
+  | 'placement.no_show'
+  | 'placement.rollover_decision'
   | 'student.profile_viewed'
   | 'student.quick_created'
   | 'room.assignment_changed'
   | 'student.separation_added'
-  | 'student.separation_removed';
+  | 'student.separation_removed'
+  // System Events
+  | 'system.batch_sync';
 
 interface AuditLogEntry {
   eventType: AuditEventType;

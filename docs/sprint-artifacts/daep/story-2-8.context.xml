@@ -1,0 +1,193 @@
+<story-context id="story-2-8-edit-placement" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>8</storyId>
+    <title>Edit Placement</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-8.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>to edit placement details, change room assignments, update days assigned, and trigger status transitions</iWant>
+    <soThat>I can correct errors, adjust placements as situations change, and move students through the lifecycle</soThat>
+    <tasks>
+      <task id="1" ac="2.8.2,2.8.7">Add UpdatePlacementSchema to lib/validation/schemas.ts</task>
+      <task id="2" ac="2.8.2,2.8.3,2.8.4,2.8.6">Server Actions: getPlacementForEdit, updatePlacement, getDisciplineCodesForForm</task>
+      <task id="3" ac="2.8.1">Create Edit Placement Page at app/daep/placements/[id]/edit/page.tsx</task>
+      <task id="4" ac="2.8.2,2.8.3,2.8.4,2.8.7,2.8.8">Create EditPlacementForm component</task>
+      <task id="5" ac="2.8.5">Create StatusTransitionActions component (ALREADY EXISTS - verify/extend)</task>
+      <task id="6" ac="2.8.1">Add Edit button to CurrentPlacementCard</task>
+      <task id="7" ac="supporting">Create PlacementStatusBadge (ALREADY EXISTS)</task>
+      <task id="8" ac="2.8.2-2.8.7" optional="true">Unit tests for updatePlacement</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="2.8.1">Edit form accessible from placement card/profile - Button navigates to /daep/placements/[id]/edit</ac>
+    <ac id="2.8.2">Editable fields: days_assigned, assigned_room_id, intake_notes, completion_notes, offense_code, placement_reason</ac>
+    <ac id="2.8.3">Days recalculated on days_assigned change - Expected end date updates using calculateExpectedEndDate()</ac>
+    <ac id="2.8.4">Room assignment validates separation constraints - Error shown when room contains separated student</ac>
+    <ac id="2.8.5">Status transition buttons based on current state - Only valid transitions shown per state machine</ac>
+    <ac id="2.8.6">All changes logged to audit trail - Audit entries created via logAuditEvent()</ac>
+    <ac id="2.8.7">Validation prevents invalid data - Form shows Zod schema validation errors</ac>
+    <ac id="2.8.8">Cancel returns to profile without saving - No changes persisted on cancel</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-stories-2-8-2-9.md" title="Tech Spec 2-8/2-9" section="Story 2-8: Edit Placement">
+        Full implementation specification including server actions, UI components, and validation schemas
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/story-2-7.md" title="Previous Story" section="Dev Agent Record">
+        Contains learnings: DaysProgressBar component, calculateExpectedEndDate pattern, audit logging pattern
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/bug-fix-daep-rls.md" title="RLS Bug Fix" section="Resolution">
+        CRITICAL: Use getTenantId() from @/lib/tenant, not Clerk metadata
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/bug-room-creation-rls-policies.md" title="Room RLS Bug Fix" section="Role Names">
+        Use super_admin not master_admin in role checks
+      </doc>
+      <doc path="docs/reference/epics-part1.md" title="Epic 2 Definition" section="Story 2.8">
+        Epic-level acceptance criteria and story breakdown
+      </doc>
+    </docs>
+
+    <code>
+      <file path="app/actions/daep/placements.ts" kind="server-actions" lines="1-1200">
+        <symbol>transitionPlacement</symbol>
+        <symbol>getPlacementTransitions</symbol>
+        <symbol>recalculatePlacementDays</symbol>
+        <symbol>getDisciplineCodesForForm</symbol>
+        <reason>Existing placement actions to extend with getPlacementForEdit, updatePlacement</reason>
+      </file>
+      <file path="app/actions/daep/rooms.ts" kind="server-actions" lines="502-653">
+        <symbol>getAvailableRoomsForStudent</symbol>
+        <reason>Room availability check with separation constraints - reuse for AC 2.8.4</reason>
+      </file>
+      <file path="app/actions/daep/students.ts" kind="server-actions" lines="74-116">
+        <symbol>PlacementDetail</symbol>
+        <reason>Type definition for placement data - extend or reuse for edit form</reason>
+      </file>
+      <file path="lib/daep/placement-state-machine.ts" kind="utility" lines="1-55">
+        <symbol>isValidTransition</symbol>
+        <symbol>getValidTransitions</symbol>
+        <symbol>getStatusDescription</symbol>
+        <reason>State machine utilities for AC 2.8.5 - status transition buttons</reason>
+      </file>
+      <file path="lib/daep/days-remaining.ts" kind="utility" lines="19-61">
+        <symbol>calculateExpectedEndDate</symbol>
+        <symbol>calculateDaysInfo</symbol>
+        <reason>Days calculation for AC 2.8.3 - recalculate on days_assigned change</reason>
+      </file>
+      <file path="lib/validation/schemas.ts" kind="validation" lines="307-410">
+        <symbol>PlacementTransitionSchema</symbol>
+        <symbol>PLACEMENT_STATUSES</symbol>
+        <symbol>PlacementStatus</symbol>
+        <reason>Existing schemas - add UpdatePlacementSchema here</reason>
+      </file>
+      <file path="components/daep/CurrentPlacementCard.tsx" kind="component" lines="1-50">
+        <symbol>CurrentPlacementCard</symbol>
+        <reason>Add Edit button here for AC 2.8.1</reason>
+      </file>
+      <file path="components/daep/placements/StatusTransitionActions.tsx" kind="component" exists="true">
+        <symbol>StatusTransitionActions</symbol>
+        <reason>ALREADY EXISTS - verify it meets AC 2.8.5 requirements or extend</reason>
+      </file>
+      <file path="components/daep/shared/PlacementStatusBadge.tsx" kind="component" exists="true">
+        <symbol>PlacementStatusBadge</symbol>
+        <reason>ALREADY EXISTS - use in edit form header</reason>
+      </file>
+      <file path="components/daep/shared/DaysProgressBar.tsx" kind="component" exists="true">
+        <symbol>DaysProgressBar</symbol>
+        <reason>ALREADY EXISTS (Story 2-7) - can display on edit form</reason>
+      </file>
+      <file path="lib/tenant.ts" kind="utility">
+        <symbol>getTenantId</symbol>
+        <reason>CRITICAL: Use this for tenant isolation, not Clerk metadata</reason>
+      </file>
+    </code>
+
+    <dependencies>
+      <node>
+        <package name="react-hook-form" version="^7.x">Form state management</package>
+        <package name="@hookform/resolvers" version="^3.9.0">Zod resolver for react-hook-form</package>
+        <package name="zod" version="^3.x">Schema validation</package>
+        <package name="date-fns" version="^3.6.0">Date formatting and calculation</package>
+        <package name="lucide-react" version="^0.x">Icons (Edit, Calendar, etc.)</package>
+        <package name="@supabase/supabase-js" version="^2.58.0">Database client</package>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="security" critical="true">
+      All queries MUST use tenant_id = getTenantId() for multi-tenant isolation.
+      Import from @/lib/tenant, NOT from Clerk publicMetadata.
+    </constraint>
+    <constraint type="security">
+      Authorized roles: daep_admin_l1, daep_admin_l2, district_admin, super_admin.
+      Note: master_admin was renamed to super_admin in migration 20251126200000.
+    </constraint>
+    <constraint type="state-machine">
+      Always validate transitions via isValidTransition() before updating status.
+      Valid flow: pending → active → met → complete
+    </constraint>
+    <constraint type="audit">
+      All mutations MUST be logged via logAuditEvent() with eventType, module, actorId, targetId, action, details.
+    </constraint>
+    <constraint type="performance">
+      Edit form load: less than 500ms. Save operation: less than 1s.
+    </constraint>
+    <constraint type="theme">
+      Never hardcode colors. Use theme variables (bg-primary, text-muted-foreground, etc.).
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="UpdatePlacementSchema" kind="zod-schema" path="lib/validation/schemas.ts">
+      <signature>
+z.object({
+  id: z.string().uuid(),
+  days_assigned: z.number().int().min(1).max(365).optional(),
+  assigned_room_id: z.string().uuid().nullable().optional(),
+  intake_notes: z.string().max(2000).optional(),
+  completion_notes: z.string().max(2000).optional(),
+  placement_reason: z.string().min(10).max(1000).optional(),
+  offense_code: z.string().optional(),
+})
+      </signature>
+    </interface>
+    <interface name="getPlacementForEdit" kind="server-action" path="app/actions/daep/placements.ts">
+      <signature>async function getPlacementForEdit(placementId: string): Promise&lt;PlacementDetail&gt;</signature>
+    </interface>
+    <interface name="updatePlacement" kind="server-action" path="app/actions/daep/placements.ts">
+      <signature>async function updatePlacement(input: UpdatePlacementInput): Promise&lt;{ success: boolean; error?: string }&gt;</signature>
+    </interface>
+    <interface name="getAvailableRoomsForStudent" kind="server-action" path="app/actions/daep/rooms.ts">
+      <signature>async function getAvailableRoomsForStudent(schoolId: string, placementId?: string): Promise&lt;RoomAvailability[]&gt;</signature>
+      <note>Existing function - reuse for room dropdown with separation validation</note>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing uses Jest/Vitest for unit tests. Integration tests use Supabase test database.
+      Follow patterns from existing tests. Mock Supabase client for unit tests.
+      Use logAuditEvent mock to verify audit logging.
+    </standards>
+    <locations>
+      <location>__tests__/lib/daep/</location>
+      <location>__tests__/app/actions/daep/</location>
+    </locations>
+    <ideas>
+      <test ac="2.8.2">updatePlacement validates days range (1-365), returns error on invalid</test>
+      <test ac="2.8.3">updatePlacement recalculates expected_end_date when days_assigned changes</test>
+      <test ac="2.8.4">updatePlacement returns error when room has separation conflict</test>
+      <test ac="2.8.6">updatePlacement calls logAuditEvent with changes object</test>
+      <test ac="2.8.7">UpdatePlacementSchema rejects invalid input with descriptive errors</test>
+    </ideas>
+  </tests>
+</story-context>

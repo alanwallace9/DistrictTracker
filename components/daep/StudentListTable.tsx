@@ -23,14 +23,14 @@ type SortKey = 'name' | 'school_id' | 'status' | 'home_campus' | 'days_remaining
 const STATUS_BADGE_CLASSES: Record<PlacementStatus, string> = {
   pending: 'bg-[rgb(var(--daep-warning))]/15 text-[rgb(var(--daep-warning))]',
   active: 'bg-[rgb(var(--daep-success))]/15 text-[rgb(var(--daep-success))]',
-  transition: 'bg-[rgb(var(--daep-info))]/15 text-[rgb(var(--daep-info))]',
+  met: 'bg-[rgb(var(--daep-info))]/15 text-[rgb(var(--daep-info))]',
   complete: 'bg-muted text-muted-foreground',
 };
 
 const STATUS_LABELS: Record<PlacementStatus, string> = {
   pending: 'Pending',
   active: 'Active',
-  transition: 'Transition',
+  met: 'Requirements Met',
   complete: 'Complete',
 };
 

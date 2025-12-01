@@ -172,3 +172,215 @@ export async function previewExpectedEndDate(
     schoolDaysFound: calendarDays.length,
   };
 }
+
+/**
+ * Complete days info for a placement
+ * Returns all calculated values needed for display and storage
+ */
+export interface DaysInfo {
+  daysServed: number;
+  daysRemaining: number;
+  daysAssigned: number;
+  progressPercent: number;
+  expectedEndDate: string | null;
+  isComplete: boolean;
+  isEstimate: boolean;
+}
+
+/**
+ * Calculate complete days information for a placement
+ * Used by recalculation functions and UI display
+ *
+ * @param tenantId - The tenant ID
+ * @param startDate - Placement start date (YYYY-MM-DD)
+ * @param daysAssigned - Total days assigned
+ * @param currentDaysServed - Optional override for days served (otherwise calculated)
+ * @returns Complete days info object
+ */
+export async function calculateDaysInfo(
+  tenantId: string,
+  startDate: string,
+  daysAssigned: number,
+  currentDaysServed?: number
+): Promise<DaysInfo> {
+  // Calculate days served if not provided
+  const daysServed = currentDaysServed ?? await calculateDaysServed(tenantId, startDate);
+
+  // Calculate days remaining
+  const daysRemaining = Math.max(0, daysAssigned - daysServed);
+
+  // Calculate progress percentage (0-100)
+  const progressPercent = daysAssigned > 0
+    ? Math.min(100, Math.round((daysServed / daysAssigned) * 100))
+    : 0;
+
+  // Calculate expected end date
+  const preview = await previewExpectedEndDate(tenantId, startDate, daysAssigned);
+
+  return {
+    daysServed,
+    daysRemaining,
+    daysAssigned,
+    progressPercent,
+    expectedEndDate: preview.expectedEndDate,
+    isComplete: daysRemaining === 0,
+    isEstimate: preview.isEstimate,
+  };
+}
+
+/**
+ * Business days fallback calculation (Mon-Fri)
+ * Used when no school calendar exists
+ *
+ * @param startDate - Start date (YYYY-MM-DD)
+ * @param businessDays - Number of business days to add
+ * @returns End date (YYYY-MM-DD)
+ */
+export function calculateBusinessDaysFallback(
+  startDate: string,
+  businessDays: number
+): string {
+  console.warn('[DAEP Days] No school calendar found, using business days fallback');
+
+  let date = new Date(startDate);
+  let remaining = businessDays;
+
+  while (remaining > 0) {
+    date.setDate(date.getDate() + 1);
+    const dayOfWeek = date.getDay();
+    // Skip weekends (0 = Sunday, 6 = Saturday)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      remaining--;
+    }
+  }
+
+  return date.toISOString().split('T')[0];
+}
+
+// ========== STORY 2-11: ROLLOVER CALENDAR UTILITIES ==========
+
+/**
+ * Get current school year in format YYYY-YYYY (e.g., "2024-2025")
+ * Logic: If current month is July or later (>=7), year is current-next
+ *        Otherwise, year is previous-current
+ */
+export function getCurrentSchoolYear(): string {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+
+  // School year typically starts in August/September
+  // July (7) is summer but closer to new school year
+  if (currentMonth >= 7) {
+    return `${currentYear}-${currentYear + 1}`;
+  } else {
+    return `${currentYear - 1}-${currentYear}`;
+  }
+}
+
+/**
+ * Check if current date is within the last month of the school year
+ * Used as a calendar guard for showing rollover report (AC 2.11.11)
+ *
+ * Logic: Checks if current date is within 30 days of the last school day
+ *        in the calendar for the current school year.
+ *
+ * @param tenantId - The tenant ID for RLS
+ * @returns true if within last month of school year
+ */
+export async function isLastMonthOfSchoolYear(tenantId: string): Promise<boolean> {
+  const supabase = await createServerClient();
+  const schoolYear = getCurrentSchoolYear();
+
+  // Get the last school day of the current school year
+  const { data: lastDay, error } = await supabase
+    .from('daep_school_calendar')
+    .select('date')
+    .eq('tenant_id', tenantId)
+    .eq('school_year', schoolYear)
+    .eq('is_school_day', true)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !lastDay) {
+    // No calendar configured - fallback to May 15 - June 15 window
+    // This is a reasonable default for Texas school districts
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    return month >= 5 && month <= 6;
+  }
+
+  // Check if current date is within 30 days of last school day
+  const lastSchoolDate = new Date(lastDay.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const daysUntilEnd = Math.ceil(
+    (lastSchoolDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  // Show rollover tab if within last 30 days of school year (or past it)
+  return daysUntilEnd <= 30 && daysUntilEnd >= -7; // Allow a week after EOY
+}
+
+/**
+ * Get the number of remaining school days in current school year
+ * Used for rollover candidate detection
+ *
+ * @param tenantId - The tenant ID for RLS
+ * @param fromDate - Optional start date (defaults to today)
+ * @returns Number of remaining school days, or null if no calendar
+ */
+export async function getSchoolDaysRemaining(
+  tenantId: string,
+  fromDate?: string
+): Promise<number | null> {
+  const supabase = await createServerClient();
+  const schoolYear = getCurrentSchoolYear();
+  const startDate = fromDate || new Date().toISOString().split('T')[0];
+
+  // Count school days from startDate to end of school year
+  const { data: schoolDays, error } = await supabase
+    .from('daep_school_calendar')
+    .select('date')
+    .eq('tenant_id', tenantId)
+    .eq('school_year', schoolYear)
+    .eq('is_school_day', true)
+    .gte('date', startDate)
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('[Rollover] Error fetching remaining school days:', error);
+    return null;
+  }
+
+  return schoolDays?.length ?? null;
+}
+
+/**
+ * Get the last school day date of the current school year
+ *
+ * @param tenantId - The tenant ID for RLS
+ * @returns Last school day date (YYYY-MM-DD) or null if no calendar
+ */
+export async function getLastSchoolDay(tenantId: string): Promise<string | null> {
+  const supabase = await createServerClient();
+  const schoolYear = getCurrentSchoolYear();
+
+  const { data, error } = await supabase
+    .from('daep_school_calendar')
+    .select('date')
+    .eq('tenant_id', tenantId)
+    .eq('school_year', schoolYear)
+    .eq('is_school_day', true)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.date;
+}

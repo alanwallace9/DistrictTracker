@@ -1,0 +1,219 @@
+<story-context id="story-2-9" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>9</storyId>
+    <title>Transition Workflow</title>
+    <status>ready-for-dev</status>
+    <generatedAt>2025-11-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-9.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>to process a student's transition back to home campus with notifications</iWant>
+    <soThat>the return process is documented, tracked, and home campus admins are informed</soThat>
+    <tasks>
+      <task id="1" ac="2.9.1,2.9.2,2.9.3,2.9.4">Server Actions for Transition Workflow</task>
+      <task id="2" ac="2.9.4">Home Campus Admin Notifications</task>
+      <task id="3" ac="2.9.1,2.9.2,2.9.3">Initiate Transition Dialog</task>
+      <task id="4" ac="2.9.5,2.9.6,2.9.7">Complete Transition Dialog</task>
+      <task id="5" ac="2.9.1">Status Transition Actions Component</task>
+      <task id="6" ac="2.9.9">Transition History Component</task>
+      <task id="7" ac="">Integration with Edit Placement Page</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="2.9.1">"Initiate Transition" available when status = 'met' | Button visible for eligible placements</ac>
+    <ac id="2.9.2">Transition form captures meeting date | Date picker validates future date</ac>
+    <ac id="2.9.3">Transition form captures campus contact person | Name field required</ac>
+    <ac id="2.9.4">In-app notification created for home campus admins | Notification record(s) created for each campus_admin at home campus</ac>
+    <ac id="2.9.5">"Complete Transition" requires meeting confirmation | Modal with meeting date display, checkbox required</ac>
+    <ac id="2.9.6">"Complete Transition" requires first day back date | Date field required</ac>
+    <ac id="2.9.7">Status moves to Complete after confirmation | Placement status updated to 'complete'</ac>
+    <ac id="2.9.8">TrespassTracker is_daep flag updated on completion | Flag synced via syncTrespassTrackerStatus()</ac>
+    <ac id="2.9.9">Transition history visible on student profile | Timeline shows transitions from daep_placement_transitions</ac>
+  </acceptanceCriteria>
+
+  <existingImplementation critical="true">
+    <note>IMPORTANT: Core transition functionality ALREADY EXISTS from Story 2-6. Build ON TOP of these, don't replace.</note>
+    <implemented>
+      <item path="app/actions/daep/placements.ts:857-1008">transitionPlacement() - handles state machine validation and status updates</item>
+      <item path="app/actions/daep/placements.ts:1172+">getPlacementTransitions() - fetches transition history</item>
+      <item path="app/actions/daep/placements.ts:1114-1153">syncTrespassTrackerStatus() - syncs TrespassTracker on completion</item>
+      <item path="lib/daep/placement-state-machine.ts">State machine: isValidTransition(), getValidTransitions(), getStatusDescription()</item>
+      <item path="supabase/migrations/20251129200000_create_placement_transitions.sql">daep_placement_transitions table with RLS</item>
+      <item path="components/daep/placements/EditPlacementForm.tsx">Edit form structure (from Story 2-8)</item>
+    </implemented>
+    <notImplemented>
+      <item>initiateTransition() - schedules meeting, creates notifications</item>
+      <item>completeTransition() - confirms meeting, marks complete</item>
+      <item>InitiateTransitionDialog component</item>
+      <item>CompleteTransitionDialog component</item>
+      <item>StatusTransitionActions component</item>
+      <item>TransitionHistory component</item>
+      <item>Home campus admin notification logic</item>
+    </notImplemented>
+  </existingImplementation>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-stories-2-8-2-9.md" title="Tech Spec 2-8/2-9" section="Story 2-9: Transition Workflow" snippet="Complete implementation spec for initiateTransition(), completeTransition(), UI dialogs. Includes corrected notification query for home campus admins only." />
+      <doc path="docs/sprint-artifacts/daep/architecture-notes-daep-vs-trespass.md" title="Architecture Notes" section="DAEP Transition Workflow" snippet="Actual workflow clarification: met → notify teachers → grade reports → transition ready → notify home campus. MVP notification query pattern." />
+      <doc path="docs/reference/epics-part1.md" title="Epics Part 1" section="Story 2.9" snippet="Original story definition with acceptance criteria." />
+      <doc path="docs/sprint-artifacts/daep/story-2-6.md" title="Story 2-6" section="Dev Agent Record" snippet="State machine implementation patterns, transition logging." />
+      <doc path="docs/sprint-artifacts/daep/story-2-8.md" title="Story 2-8" section="Edit Placement" snippet="Edit form patterns to follow for integration." />
+    </docs>
+
+    <code>
+      <file path="app/actions/daep/placements.ts" kind="server-action" symbol="transitionPlacement,getPlacementTransitions,syncTrespassTrackerStatus" lines="857-1200" reason="EXISTING transition functions - add initiateTransition, completeTransition alongside" />
+      <file path="lib/daep/placement-state-machine.ts" kind="utility" symbol="isValidTransition,getValidTransitions,getStatusDescription,VALID_TRANSITIONS" lines="1-55" reason="State machine validation - use in new components" />
+      <file path="components/daep/placements/EditPlacementForm.tsx" kind="component" symbol="EditPlacementForm" lines="1-200" reason="Integration point for StatusTransitionActions" />
+      <file path="lib/validation/schemas.ts" kind="schema" symbol="PlacementTransitionSchema,PLACEMENT_STATUSES" reason="May need schema for InitiateTransitionInput" />
+      <file path="lib/supabase/server.ts" kind="utility" symbol="createServerClient" reason="Database client pattern" />
+      <file path="lib/audit-logger.ts" kind="utility" symbol="logAuditEvent" reason="Audit logging pattern" />
+      <file path="lib/tenant.ts" kind="utility" symbol="getTenantId" reason="Tenant resolution pattern" />
+    </code>
+
+    <schemas>
+      <table name="daep_notifications" critical="true">
+        <column name="id" type="UUID" pk="true" />
+        <column name="tenant_id" type="TEXT" required="true" />
+        <column name="user_id" type="TEXT" required="true" note="RECIPIENT - NOT created_by!" />
+        <column name="notification_type" type="TEXT" required="true" note="Use 'transition_meeting'" />
+        <column name="title" type="TEXT" required="true" />
+        <column name="message" type="TEXT" required="true" />
+        <column name="related_school_id" type="TEXT" note="Student's school_id" />
+        <column name="related_placement_id" type="UUID" />
+        <column name="action_url" type="TEXT" note="Link to student profile" />
+        <column name="read" type="BOOLEAN" default="false" />
+        <column name="created_at" type="TIMESTAMPTZ" />
+      </table>
+      <table name="daep_placement_transitions">
+        <column name="id" type="UUID" pk="true" />
+        <column name="tenant_id" type="TEXT" required="true" />
+        <column name="placement_id" type="UUID" required="true" />
+        <column name="from_status" type="TEXT" note="nullable for initial state" />
+        <column name="to_status" type="TEXT" required="true" />
+        <column name="transition_reason" type="TEXT" />
+        <column name="transitioned_by" type="TEXT" required="true" />
+        <column name="transitioned_at" type="TIMESTAMPTZ" />
+        <column name="notes" type="TEXT" />
+      </table>
+      <table name="user_profiles" note="Query for home campus admins">
+        <column name="id" type="TEXT" pk="true" note="Clerk user_id" />
+        <column name="role" type="TEXT" required="true" note="MVP: filter by 'campus_admin'" />
+        <column name="campus_id" type="TEXT" note="Filter by home_campus_id" />
+        <column name="tenant_id" type="TEXT" />
+        <column name="notifications_enabled" type="BOOLEAN" />
+        <column name="deleted_at" type="TIMESTAMPTZ" />
+      </table>
+    </schemas>
+
+    <dependencies>
+      <node>
+        <package name="date-fns" version="^3.6.0" use="Date formatting: format()" />
+        <package name="@supabase/supabase-js" version="^2.58.0" use="Database client" />
+        <package name="zod" version="^3.25.76" use="Schema validation" />
+        <package name="react-hook-form" version="^7.53.0" use="Form handling" />
+        <package name="@hookform/resolvers" version="^3.9.0" use="Zod resolver" />
+        <package name="lucide-react" version="^0.446.0" use="Icons: ArrowRight, CheckCircle" />
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="initiateTransition" kind="server action" path="app/actions/daep/placements.ts">
+      <signature>(input: InitiateTransitionInput): Promise&lt;{ success: boolean; error?: string }&gt;</signature>
+      <input>placement_id: string, transition_meeting_date: string, campus_contact_name: string, campus_contact_email?: string, notes?: string</input>
+      <note>NEW - schedules meeting, creates notifications for home campus admins</note>
+    </interface>
+    <interface name="completeTransition" kind="server action" path="app/actions/daep/placements.ts">
+      <signature>(input: CompleteTransitionInput): Promise&lt;{ success: boolean; error?: string }&gt;</signature>
+      <input>placement_id: string, first_day_back_date: string, meeting_confirmed: boolean, completion_notes?: string</input>
+      <note>NEW - confirms meeting, marks placement complete</note>
+    </interface>
+    <interface name="InitiateTransitionDialog" kind="React component" path="components/daep/placements/InitiateTransitionDialog.tsx">
+      <signature>({ placementId, daysRemaining, onSuccess? }): JSX.Element</signature>
+      <note>NEW - dialog with meeting date picker, contact fields</note>
+    </interface>
+    <interface name="CompleteTransitionDialog" kind="React component" path="components/daep/placements/CompleteTransitionDialog.tsx">
+      <signature>({ placementId, meetingDate, onSuccess? }): JSX.Element</signature>
+      <note>NEW - dialog with meeting confirmation checkbox, first day back picker</note>
+    </interface>
+    <interface name="StatusTransitionActions" kind="React component" path="components/daep/placements/StatusTransitionActions.tsx">
+      <signature>({ placementId, currentStatus, daysRemaining, transitionMeetingDate?, onTransition }): JSX.Element</signature>
+      <note>NEW - renders appropriate transition buttons based on state</note>
+    </interface>
+    <interface name="TransitionHistory" kind="React component" path="components/daep/placements/TransitionHistory.tsx">
+      <signature>({ placementId }): JSX.Element</signature>
+      <note>NEW - displays timeline of status changes</note>
+    </interface>
+    <interface name="transitionPlacement" kind="server action" path="app/actions/daep/placements.ts">
+      <signature>(input: PlacementTransitionInput): Promise&lt;TransitionPlacementResult&gt;</signature>
+      <note>EXISTING - use for final met → complete transition if needed</note>
+    </interface>
+    <interface name="getPlacementTransitions" kind="server action" path="app/actions/daep/placements.ts">
+      <signature>(placementId: string): Promise&lt;PlacementTransition[]&gt;</signature>
+      <note>EXISTING - use for TransitionHistory component</note>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <nfr type="performance">Dialog load &lt; 500ms, transition save &lt; 1s</nfr>
+    <nfr type="security">All queries use RLS with tenant_id = get_my_tenant_id()</nfr>
+    <nfr type="reliability">Notification insert failure doesn't block status update (log warning only)</nfr>
+    <nfr type="observability">All transitions logged to daep_placement_transitions and admin_audit_log</nfr>
+    <pattern name="tenant-isolation">Use getTenantId() from lib/tenant.ts for all database queries</pattern>
+    <pattern name="audit-logging">Use logAuditEvent() for all placement modifications</pattern>
+    <pattern name="notification-recipient">Use user_id field (NOT created_by) for notification recipient</pattern>
+    <pattern name="home-campus-only">Query user_profiles WHERE campus_id = home_campus_id AND role = 'campus_admin'</pattern>
+    <pattern name="state-machine">Always validate via isValidTransition() before status updates</pattern>
+  </constraints>
+
+  <tests>
+    <standards>
+      Tests should follow existing patterns. Use Jest for unit tests, mock Supabase client for database operations.
+    </standards>
+    <locations>
+      <glob>__tests__/actions/daep/*.test.ts</glob>
+      <glob>__tests__/components/daep/*.test.tsx</glob>
+    </locations>
+    <ideas>
+      <idea ac="2.9.1">Test initiateTransition rejects non-'met' status placements</idea>
+      <idea ac="2.9.2">Test initiateTransition validates future meeting date</idea>
+      <idea ac="2.9.3">Test initiateTransition requires campus_contact_name</idea>
+      <idea ac="2.9.4">Test notifications created for each home campus admin</idea>
+      <idea ac="2.9.4">Test notifications use user_id (recipient), not created_by</idea>
+      <idea ac="2.9.5">Test completeTransition requires meeting_confirmed = true</idea>
+      <idea ac="2.9.6">Test completeTransition requires first_day_back_date</idea>
+      <idea ac="2.9.7">Test completeTransition updates status to 'complete'</idea>
+      <idea ac="2.9.8">Test syncTrespassTrackerStatus called on completion</idea>
+      <idea ac="2.9.9">Test TransitionHistory displays timeline from getPlacementTransitions</idea>
+    </ideas>
+  </tests>
+
+  <devNotes>
+    <critical>
+      The notification schema uses user_id for RECIPIENT, not created_by.
+      The tech spec was corrected on 2025-11-30 to fix this bug.
+      Always query home campus admins by: campus_id = home_campus_id AND role = 'campus_admin'
+    </critical>
+    <workflow>
+      Actual transition workflow (from architecture notes):
+      1. Status = 'met' (days complete)
+      2. Admin clicks "Initiate Transition" → schedules meeting
+      3. Notifications go to HOME CAMPUS ADMINS ONLY (not all campus admins)
+      4. Admin clicks "Complete Transition" → confirms meeting, enters first day back
+      5. Status = 'complete', TrespassTracker synced
+    </workflow>
+    <futureEnhancements>
+      See docs/sprint-artifacts/daep/architecture-notes-daep-vs-trespass.md for:
+      - Per-campus notification configuration
+      - Role expansion (principal, AP, counselor)
+      - Teacher grade report workflow
+      - Document upload feature
+    </futureEnhancements>
+  </devNotes>
+</story-context>

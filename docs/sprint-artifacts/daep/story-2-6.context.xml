@@ -1,0 +1,149 @@
+<story-context id="story-2-6" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>6</storyId>
+    <title>Placement Lifecycle State Machine</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-6.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>placements to follow a defined state machine (Pending → Active → Met → Complete)</iWant>
+    <soThat>I can track student progress through their DAEP placement with clear status transitions and audit trail</soThat>
+    <tasks>
+      <task id="1" name="Database Migration - Transitions Table">
+        <subtask>1.1 Create migration for daep_placement_transitions table</subtask>
+        <subtask>1.2 Add indexes on placement_id and tenant_id</subtask>
+        <subtask>1.3 Enable RLS with tenant policy</subtask>
+      </task>
+      <task id="2" name="Update Validation Schemas">
+        <subtask>2.1 Update PLACEMENT_STATUSES: ['pending', 'active', 'transition', 'complete'] → ['pending', 'active', 'met', 'complete']</subtask>
+        <subtask>2.2 Add PlacementTransitionSchema</subtask>
+      </task>
+      <task id="3" name="Server Actions - State Transitions">
+        <subtask>3.1 Add VALID_TRANSITIONS map</subtask>
+        <subtask>3.2 Implement getValidTransitions(currentStatus)</subtask>
+        <subtask>3.3 Implement transitionPlacement(input) server action</subtask>
+      </task>
+      <task id="4" name="Auto-Activate on Attendance">
+        <subtask>4.1 Implement autoActivatePlacementOnAttendance()</subtask>
+        <subtask>4.2 Document integration point for Epic 3</subtask>
+      </task>
+      <task id="5" name="TrespassTracker Sync">
+        <subtask>5.1 Implement syncTrespassTrackerStatus()</subtask>
+        <subtask>5.2 Call sync on placement completion</subtask>
+      </task>
+      <task id="6" name="Placement Status Badge Component">
+        <subtask>6.1 Create PlacementStatusBadge.tsx with theme CSS variables</subtask>
+      </task>
+      <task id="7" name="Status Transition Actions Component">
+        <subtask>7.1 Create StatusTransitionActions.tsx</subtask>
+        <subtask>7.2 Implement transition confirmation dialog</subtask>
+        <subtask>7.3 Handle loading and error states</subtask>
+      </task>
+      <task id="8" name="Integration Points">
+        <subtask>8.1 Add PlacementStatusBadge to CurrentPlacementCard</subtask>
+        <subtask>8.2 Add StatusTransitionActions to student profile</subtask>
+        <subtask>8.3 Update placement list with new status badge</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="2.6.1">Placement states: Pending, Active, Met, Complete - All 4 states exist</criterion>
+    <criterion id="2.6.2">Visual state indicator on placement card - Status badge with correct color</criterion>
+    <criterion id="2.6.3">State transition buttons based on current state - Only valid transitions shown</criterion>
+    <criterion id="2.6.4">Pending → Active: Auto on attendance OR manual button - Status changes, start_date set</criterion>
+    <criterion id="2.6.5">Active → Met: "Review Met" button (days complete) - review_met_date recorded</criterion>
+    <criterion id="2.6.6">Met → Complete: Requires meeting + first day back - Both fields validated</criterion>
+    <criterion id="2.6.7">All transitions logged to daep_placement_transitions - Audit trail complete</criterion>
+    <criterion id="2.6.8">Invalid transitions rejected with error - Error message shows valid options</criterion>
+    <criterion id="2.6.9">TrespassTracker sync on completion - is_daep flag updated</criterion>
+    <criterion id="2.6.10">Met status triggers notifications - Parent email, staff notifications (placeholder for Epic 7)</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-stories-2-6-2-7.md" title="Tech Spec: Stories 2-6, 2-7" section="Story 2-6" snippet="Full implementation spec with server actions, UI components, validation schemas, and migration SQL for placement lifecycle state machine." />
+      <doc path="docs/reference/epics-part1.md" title="Epic Definitions Part 1" section="Epic 2: Placement Management" snippet="Story 2.6 - Placement lifecycle state machine (Pending→Active→Transition→Complete), FR21, 5 points." />
+      <doc path="docs/reference/architecture-part2.md" title="Architecture Part 2" section="Data Architecture" snippet="daep_placements table schema with status field, FK relationships, RLS policies, and audit logging patterns." />
+      <doc path="docs/sessions/ux-design-specification.md" title="UX Design Spec" section="Design System Foundation" snippet="Shadcn/ui components, color system with theme variables, button patterns following Fitts's Law." />
+    </docs>
+
+    <code>
+      <file path="lib/validation/schemas.ts" kind="validation" symbol="PLACEMENT_STATUSES" lines="307-309" reason="MODIFY: Change from ['pending', 'active', 'transition', 'complete'] to ['pending', 'active', 'met', 'complete']. Add PlacementTransitionSchema." />
+      <file path="app/actions/daep/placements.ts" kind="server-action" symbol="createPlacement" lines="372-512" reason="MODIFY: Add transitionPlacement(), getValidTransitions(), autoActivatePlacementOnAttendance(), syncTrespassTrackerStatus() server actions." />
+      <file path="components/daep/CurrentPlacementCard.tsx" kind="component" symbol="CurrentPlacementCard" lines="45-213" reason="MODIFY: Replace hardcoded STATUS_STYLES with PlacementStatusBadge component. Add StatusTransitionActions integration." />
+      <file path="lib/daep/days-remaining.ts" kind="utility" symbol="calculateDaysInfo" lines="200-229" reason="DEPENDENCY: Uses daysRemaining to enable/disable Review Met button. Already implemented in Story 2-7." />
+      <file path="components/daep/shared/DaysProgressBar.tsx" kind="component" symbol="DaysProgressBar" lines="24-65" reason="DEPENDENCY: Already integrated in CurrentPlacementCard. No changes needed." />
+    </code>
+
+    <newFiles>
+      <file path="components/daep/shared/PlacementStatusBadge.tsx" kind="component" reason="NEW: Status badge with theme CSS variables (pending=yellow, active=green, met=blue, complete=gray)" />
+      <file path="components/daep/placements/StatusTransitionActions.tsx" kind="component" reason="NEW: Transition buttons + confirmation dialog with required fields per status" />
+      <file path="supabase/migrations/YYYYMMDD_create_placement_transitions.sql" kind="migration" reason="NEW: daep_placement_transitions table with RLS for audit trail" />
+    </newFiles>
+
+    <dependencies>
+      <package name="date-fns" version="^3.6.0" usage="Date formatting in transition dialog" />
+      <package name="zod" version="^3.25.76" usage="PlacementTransitionSchema validation" />
+      <package name="lucide-react" version="^0.446.0" usage="Icons: Play, CheckCircle, ArrowRight, RotateCcw" />
+      <package name="@radix-ui/react-dialog" version="^1.1.15" usage="Transition confirmation dialog" />
+      <package name="@radix-ui/react-toast" version="^1.2.15" usage="Success/error notifications" />
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="PlacementTransitionSchema" kind="zod-schema" path="lib/validation/schemas.ts">
+      <signature>z.object({ placement_id: z.string().uuid(), to_status: z.enum(['pending', 'active', 'met', 'complete']), transition_reason: z.string().optional(), notes: z.string().optional(), transition_meeting_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), first_day_back_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })</signature>
+    </interface>
+    <interface name="transitionPlacement" kind="server-action" path="app/actions/daep/placements.ts">
+      <signature>async function transitionPlacement(input: PlacementTransitionInput): Promise&lt;{ success: boolean; error?: string }&gt;</signature>
+    </interface>
+    <interface name="getValidTransitions" kind="function" path="app/actions/daep/placements.ts">
+      <signature>function getValidTransitions(currentStatus: PlacementStatus): PlacementStatus[]</signature>
+    </interface>
+    <interface name="autoActivatePlacementOnAttendance" kind="server-action" path="app/actions/daep/placements.ts">
+      <signature>async function autoActivatePlacementOnAttendance(tenantId: string, studentSchoolId: string, attendanceStatus: 'present' | 'tardy' | 'absent'): Promise&lt;void&gt;</signature>
+    </interface>
+    <interface name="syncTrespassTrackerStatus" kind="internal-function" path="app/actions/daep/placements.ts">
+      <signature>async function syncTrespassTrackerStatus(tenantId: string, schoolId: string): Promise&lt;void&gt;</signature>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="status-enum">Status values MUST be: 'pending', 'active', 'met', 'complete'. The value 'transition' is renamed to 'met' per PO decision 2025-11-29.</constraint>
+    <constraint type="styling">Use CSS variables for badge colors: --daep-warning (pending/yellow), --daep-success (active/green), --daep-info (met/blue), gray-100 (complete). NO hardcoded hex values.</constraint>
+    <constraint type="security">RLS policy: tenant_id = get_my_tenant_id(). All server actions use getTenantId() for tenant isolation.</constraint>
+    <constraint type="audit">All transitions MUST create audit log via logAuditEvent() AND insert into daep_placement_transitions table.</constraint>
+    <constraint type="validation">Invalid transitions return error with message listing valid options (e.g., "Cannot transition from pending to complete. Valid options: active").</constraint>
+    <constraint type="role-based">Button visibility per role: Pending (Admin, DAEP Staff), Active (Admin, DAEP Staff), Met (Admin only), Complete (Admin only for notes edit).</constraint>
+    <constraint type="dependency">Story 2-7 MUST be complete before 2-6. Uses calculateDaysInfo().daysRemaining for "Review Met" button enable/disable.</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      Testing follows project patterns: TypeScript strict mode, Zod validation at API boundaries, server action error handling returns { success: false, error: string }. No formal test runner configured yet - manual testing via dev server. Future: consider Vitest for unit tests.
+    </standards>
+    <locations>
+      - Manual testing via localhost:3000/daep/students/{school_id}
+      - Supabase SQL Editor for migration verification
+      - Network tab for server action responses
+    </locations>
+    <ideas>
+      <idea ac="2.6.1">Verify PLACEMENT_STATUSES array contains exactly ['pending', 'active', 'met', 'complete']</idea>
+      <idea ac="2.6.2">Render PlacementStatusBadge with each status, verify correct className applied</idea>
+      <idea ac="2.6.3">Call getValidTransitions() for each status, verify correct arrays returned</idea>
+      <idea ac="2.6.4">Create pending placement, record present attendance, verify status=active and start_date set</idea>
+      <idea ac="2.6.5">Set daysRemaining=0, click Review Met, verify review_met_date populated</idea>
+      <idea ac="2.6.6">From met status, try Complete without meeting_date - verify validation error</idea>
+      <idea ac="2.6.7">Transition placement, query daep_placement_transitions, verify log entry exists</idea>
+      <idea ac="2.6.8">Call transitionPlacement(pending→met), verify error with valid options</idea>
+      <idea ac="2.6.9">Complete placement, query trespass_records.is_daep, verify false</idea>
+      <idea ac="2.6.10">Transition to met, check console for notification placeholder log</idea>
+    </ideas>
+  </tests>
+</story-context>

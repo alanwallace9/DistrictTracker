@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Download } from 'lucide-react';
 
 interface CSVUploadDialogProps {
   open: boolean;
@@ -35,6 +35,25 @@ export function CSVUploadDialog({
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<CSVImportResult | null>(null);
+
+  const downloadTemplate = () => {
+    const csvContent = `date,is_school_day,day_type
+2025-08-18,true,Regular
+2025-09-01,false,Holiday
+2025-10-14,false,Teacher Workday
+2025-01-15,false,Bad Weather
+2025-12-19,true,Early Release`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'school-calendar-template.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -142,7 +161,7 @@ export function CSVUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] daep-theme">
         <DialogHeader>
           <DialogTitle>Import School Calendar</DialogTitle>
           <DialogDescription>
@@ -152,9 +171,9 @@ export function CSVUploadDialog({
 
         <div className="space-y-4 py-4">
           {/* CSV Format Info */}
-          <div className="p-4 bg-slate-50 rounded-lg text-sm">
+          <div className="p-4 bg-[rgb(var(--daep-primary))]/5 border border-[rgb(var(--daep-primary))]/20 rounded-lg text-sm">
             <p className="font-medium mb-2">CSV Format:</p>
-            <code className="text-xs bg-slate-200 p-2 rounded block">
+            <code className="text-xs bg-[rgb(var(--daep-primary))]/10 p-2 rounded block font-mono">
               date,is_school_day,day_type
               <br />
               2024-08-19,true,Regular
@@ -167,6 +186,16 @@ export function CSVUploadDialog({
               Valid day types: {DAY_TYPES.join(', ')}
             </p>
           </div>
+
+          {/* Download Template */}
+          <button
+            type="button"
+            onClick={downloadTemplate}
+            className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 hover:underline"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV Template
+          </button>
 
           {/* File Input */}
           <div className="space-y-2">
@@ -183,8 +212,8 @@ export function CSVUploadDialog({
 
           {/* Selected File */}
           {file && (
-            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-              <FileText className="w-5 h-5 text-blue-600" />
+            <div className="flex items-center gap-2 p-3 bg-[rgb(var(--daep-primary))]/10 rounded-lg">
+              <FileText className="w-5 h-5 text-primary" />
               <span className="text-sm">{file.name}</span>
               <span className="text-xs text-muted-foreground">
                 ({(file.size / 1024).toFixed(1)} KB)
@@ -197,13 +226,13 @@ export function CSVUploadDialog({
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 {result.success > 0 && (
-                  <div className="flex items-center gap-1 text-green-600">
+                  <div className="flex items-center gap-1 text-[rgb(var(--daep-success))]">
                     <CheckCircle className="w-4 h-4" />
                     <span className="text-sm">{result.success} imported</span>
                   </div>
                 )}
                 {result.failed > 0 && (
-                  <div className="flex items-center gap-1 text-red-600">
+                  <div className="flex items-center gap-1 text-destructive">
                     <AlertCircle className="w-4 h-4" />
                     <span className="text-sm">{result.failed} failed</span>
                   </div>
@@ -211,7 +240,7 @@ export function CSVUploadDialog({
               </div>
 
               {result.errors.length > 0 && (
-                <div className="max-h-32 overflow-y-auto p-2 bg-red-50 rounded text-xs text-red-700">
+                <div className="max-h-32 overflow-y-auto p-2 bg-destructive/10 rounded text-xs text-destructive">
                   {result.errors.slice(0, 10).map((err, idx) => (
                     <div key={idx}>{err}</div>
                   ))}

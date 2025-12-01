@@ -1,0 +1,164 @@
+<story-context id="story-2-7" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>7</storyId>
+    <title>Days Remaining Calculation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-29</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-7.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>the system to calculate expected end dates and days remaining based on the school calendar</iWant>
+    <soThat>I can see accurate placement timelines that account for holidays, weather days, and teacher workdays</soThat>
+    <tasks>
+      <task id="1" ac="2.7.1,2.7.2,2.7.3,2.7.4">Days Calculation Utility Functions - PARTIALLY IMPLEMENTED</task>
+      <task id="2" ac="2.7.5">Server Actions for Recalculation - NOT IMPLEMENTED</task>
+      <task id="3" ac="2.7.6,2.7.7">Days Progress Bar Component - NOT IMPLEMENTED</task>
+      <task id="4" ac="2.7.7">Expected End Date Display</task>
+      <task id="5" ac="">Integration with Placement Creation - ALREADY IMPLEMENTED</task>
+      <task id="6" ac="">Database Migration for Calendar Index</task>
+      <task id="7" ac="2.7.1,2.7.2,2.7.3,2.7.4,2.7.7">Unit Tests</task>
+      <task id="8" ac="2.7.5">Integration Tests</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="2.7.1">Calculate expected end date from start date + days assigned | Returns correct date using school calendar</ac>
+    <ac id="2.7.2">Only count school days (from daep_school_calendar) | Skips holidays, weather days</ac>
+    <ac id="2.7.3">Exclude teacher workdays and bad weather days | Non-school days not counted</ac>
+    <ac id="2.7.4">Handle missing school calendar gracefully | Falls back to Mon-Fri business days</ac>
+    <ac id="2.7.5">Recalculate when calendar is updated | Manual trigger function exists</ac>
+    <ac id="2.7.6">Display days remaining on placement cards | Text display (no color coding)</ac>
+    <ac id="2.7.7">Show expected end date on placement cards | Date formatted as "MMM d, yyyy"</ac>
+  </acceptanceCriteria>
+
+  <existingImplementation critical="true">
+    <note>IMPORTANT: Core calculation functions ALREADY EXIST. Review before implementing to avoid duplication.</note>
+    <implemented>
+      <item path="lib/daep/days-remaining.ts">calculateExpectedEndDate() - AC 2.7.1, 2.7.2, 2.7.3</item>
+      <item path="lib/daep/days-remaining.ts">calculateDaysServed() - AC 2.7.2</item>
+      <item path="lib/daep/days-remaining.ts">calculateDaysRemaining()</item>
+      <item path="lib/daep/days-remaining.ts">previewExpectedEndDate()</item>
+      <item path="lib/daep/days-remaining.ts">estimateEndDate() - AC 2.7.4 fallback</item>
+      <item path="app/actions/daep/placements.ts">createPlacement() uses calculateExpectedEndDate - AC 2.7.1</item>
+      <item path="app/actions/daep/placements.ts">getExpectedEndDatePreview()</item>
+      <item path="components/daep/CurrentPlacementCard.tsx">formatDate() with "MMM d, yyyy" - AC 2.7.7</item>
+      <item path="components/daep/CurrentPlacementCard.tsx">Days Progress display exists but needs DaysProgressBar</item>
+    </implemented>
+    <notImplemented>
+      <item>recalculatePlacementDays() - AC 2.7.5</item>
+      <item>recalculateAllActivePlacements() - AC 2.7.5</item>
+      <item>DaysProgressBar component - AC 2.7.6</item>
+      <item>Calendar index migration</item>
+      <item>Unit/integration tests</item>
+    </notImplemented>
+  </existingImplementation>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-stories-2-6-2-7.md" title="Tech Spec 2-6/2-7" section="Story 2-7: Days Remaining Calculation" snippet="Detailed utility functions, server actions, and DaysProgressBar component specifications. Includes NFRs for batch performance (30s/500 placements)." />
+      <doc path="docs/reference/data-models.md" title="Data Models" section="daep_school_calendar" snippet="School calendar table schema with tenant_id, school_year, date, is_school_day, day_type, bell_schedule_id fields." />
+      <doc path="docs/reference/epics-part1.md" title="Epics Part 1" section="Story 2.7" snippet="Days remaining calculation story definition with FR20 mapping." />
+      <doc path="docs/sessions/ux-design-specification.md" title="UX Design" section="DAEP Theme" snippet="Progress bar styling, color variables, and component patterns." />
+      <doc path="docs/sprint-artifacts/daep/story-2-5.md" title="Story 2-5" section="Dev Agent Record" snippet="Previous story patterns: audit logging, tenant isolation, role checking." />
+    </docs>
+
+    <code>
+      <file path="lib/daep/days-remaining.ts" kind="utility" symbol="calculateExpectedEndDate,calculateDaysServed,calculateDaysRemaining,previewExpectedEndDate" lines="1-175" reason="EXISTING implementation - review and enhance, don't replace" />
+      <file path="app/actions/daep/placements.ts" kind="server-action" symbol="createPlacement,getExpectedEndDatePreview" lines="370-529" reason="Uses days-remaining.ts; add recalculation actions here" />
+      <file path="app/actions/daep/school-calendar.ts" kind="server-action" symbol="upsertSchoolCalendarEntry,generateSchoolYearCalendar" lines="175-467" reason="Calendar mutations - trigger recalculation after changes" />
+      <file path="components/daep/CurrentPlacementCard.tsx" kind="component" symbol="CurrentPlacementCard,formatDate" lines="1-225" reason="Target for DaysProgressBar integration; already has days display" />
+      <file path="lib/validation/schemas.ts" kind="schema" symbol="CreatePlacementSchema,PLACEMENT_STATUSES" reason="May need schema updates for recalculation input" />
+      <file path="lib/supabase/server.ts" kind="utility" symbol="createServerClient" reason="Database client pattern" />
+      <file path="lib/audit-logger.ts" kind="utility" symbol="logAuditEvent" reason="Audit logging pattern" />
+      <file path="lib/tenant.ts" kind="utility" symbol="getTenantId" reason="Tenant resolution pattern" />
+    </code>
+
+    <dependencies>
+      <node>
+        <package name="date-fns" version="^3.6.0" use="Date calculations: format, addDays, parseISO, isWeekend" />
+        <package name="@supabase/supabase-js" version="^2.58.0" use="Database client" />
+        <package name="@supabase/ssr" version="^0.7.0" use="Server-side Supabase client" />
+        <package name="zod" version="^3.25.76" use="Schema validation" />
+        <package name="lucide-react" version="^0.446.0" use="Icons for UI components" />
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="calculateExpectedEndDate" kind="async function" path="lib/daep/days-remaining.ts">
+      <signature>(tenantId: string, startDate: string, daysAssigned: number): Promise&lt;string | null&gt;</signature>
+      <note>Already implemented - queries daep_school_calendar, returns end date or uses fallback</note>
+    </interface>
+    <interface name="calculateDaysServed" kind="async function" path="lib/daep/days-remaining.ts">
+      <signature>(tenantId: string, startDate: string, asOfDate?: string): Promise&lt;number&gt;</signature>
+      <note>Already implemented - counts school days from start to today</note>
+    </interface>
+    <interface name="calculateDaysRemaining" kind="async function" path="lib/daep/days-remaining.ts">
+      <signature>(tenantId: string, startDate: string, daysAssigned: number): Promise&lt;number&gt;</signature>
+      <note>Already implemented - returns max(0, daysAssigned - daysServed)</note>
+    </interface>
+    <interface name="recalculatePlacementDays" kind="server action" path="app/actions/daep/placements.ts">
+      <signature>(placementId: string): Promise&lt;void&gt;</signature>
+      <note>NOT YET IMPLEMENTED - Task 2.1</note>
+    </interface>
+    <interface name="recalculateAllActivePlacements" kind="server action" path="app/actions/daep/placements.ts">
+      <signature>(): Promise&lt;{ updated: number }&gt;</signature>
+      <note>NOT YET IMPLEMENTED - Task 2.2</note>
+    </interface>
+    <interface name="DaysProgressBar" kind="React component" path="components/daep/shared/DaysProgressBar.tsx">
+      <signature>({ daysServed, daysAssigned, daysRemaining, showLabels?: boolean }): JSX.Element</signature>
+      <note>NOT YET IMPLEMENTED - Task 3.1</note>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <nfr type="performance">Batch recalculation: complete within 30s for 500 active placements</nfr>
+    <nfr type="performance">Single calculation: &lt; 100ms response time</nfr>
+    <nfr type="security">All queries use RLS with tenant_id = get_my_tenant_id()</nfr>
+    <nfr type="observability">Console warnings logged for fallback scenarios</nfr>
+    <pattern name="tenant-isolation">Use getTenantId() from lib/tenant.ts for all database queries</pattern>
+    <pattern name="audit-logging">Use logAuditEvent() for all placement modifications</pattern>
+    <pattern name="date-format">Use date-fns format() with "MMM d, yyyy" for display dates</pattern>
+    <pattern name="fallback">When no school calendar exists, fall back to Mon-Fri business days with console warning</pattern>
+    <pattern name="no-color-coding">Days remaining uses standard bg-primary, no conditional colors (per PO decision)</pattern>
+  </constraints>
+
+  <tests>
+    <standards>
+      Tests should follow existing patterns. Use Jest for unit tests, mock Supabase client for database operations.
+      Integration tests should use actual database with test tenant.
+    </standards>
+    <locations>
+      <glob>__tests__/lib/daep/*.test.ts</glob>
+      <glob>__tests__/actions/daep/*.test.ts</glob>
+    </locations>
+    <ideas>
+      <idea ac="2.7.1">Test calculateExpectedEndDate with mocked school calendar returns correct Nth school day</idea>
+      <idea ac="2.7.2">Test that holidays and weather days are skipped in calculation</idea>
+      <idea ac="2.7.3">Test calculateDaysServed excludes non-school days</idea>
+      <idea ac="2.7.4">Test fallback to Mon-Fri when no calendar exists</idea>
+      <idea ac="2.7.5">Test recalculatePlacementDays updates placement record correctly</idea>
+      <idea ac="2.7.5">Test recalculateAllActivePlacements only processes non-complete placements</idea>
+      <idea ac="2.7.7">Test date format returns "MMM d, yyyy" (e.g., "Nov 29, 2025")</idea>
+    </ideas>
+  </tests>
+
+  <devNotes>
+    <critical>
+      Review lib/daep/days-remaining.ts FIRST - most calculation logic already exists.
+      Focus on:
+      1. Adding recalculation server actions (Task 2)
+      2. Creating DaysProgressBar component (Task 3)
+      3. Calendar index migration (Task 6)
+      4. Tests (Tasks 7-8)
+    </critical>
+    <integration>
+      After calendar changes (upsertSchoolCalendarEntry, generateSchoolYearCalendar in school-calendar.ts),
+      call recalculateAllActivePlacements() to update expected end dates.
+    </integration>
+  </devNotes>
+</story-context>

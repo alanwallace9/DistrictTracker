@@ -1,0 +1,143 @@
+<story-context id="2-13-trespasstracker-sync" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>13</storyId>
+    <title>TrespassTracker Sync</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/daep/story-2-13.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>DAEP administrator</asA>
+    <iWant>placement status automatically synced to TrespassTracker records</iWant>
+    <soThat>the is_daep flag and daep_expiration_date are always current across both modules</soThat>
+    <tasks>
+      <task id="1" acs="2.13.1,2.13.2,2.13.3,2.13.4">
+        Create syncTrespassTrackerExpiration(schoolId) in app/actions/daep/placements.ts
+        - Query daep_placements for status IN ('pending', 'active', 'transition')
+        - If no active: set is_daep=false, daep_expiration_date=null
+        - If active: set is_daep=true, find MAX(expected_end_date)
+        - Update trespass_records with synced values
+      </task>
+      <task id="2" acs="2.13.5,2.13.6">
+        Create batchSyncTrespassTracker() for admin-triggered bulk sync
+        - Get all unique school_id from daep_placements
+        - Loop through each calling syncTrespassTrackerExpiration()
+        - Continue-on-error, collect error array
+        - Log to audit trail: system.batch_sync event
+      </task>
+      <task id="3" acs="2.13.1,2.13.2,2.13.4">
+        Integrate sync into existing placement actions:
+        - createPlacement() after insert
+        - updatePlacement() when expected_end_date changes
+        - transitionPlacement() on complete/cancelled
+        - recalculatePlacementDays() after recalc
+        - markNoShow() and earlyTermination() (Story 2-12)
+      </task>
+      <task id="4" acs="all">
+        Unit tests for all 6 ACs
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="2.13.1">Placement creation syncs to trespass_records (is_daep = true after create)</ac>
+    <ac id="2.13.2">Expected end date syncs to daep_expiration_date (Date matches expected_end_date)</ac>
+    <ac id="2.13.3">Multiple placements use farthest date (MAX(expected_end_date) used)</ac>
+    <ac id="2.13.4">Completion clears flag if no other placements (is_daep = false when all complete)</ac>
+    <ac id="2.13.5">Manual sync action available (Admin can trigger batch sync)</ac>
+    <ac id="2.13.6">Sync logged to audit trail (Audit entries created for batch sync)</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/daep/tech-spec-stories-2-11-2-12-2-13.md" title="Tech Spec Stories 2-11, 2-12, 2-13" section="Story 2-13: TrespassTracker Sync">
+        Complete implementation spec with server actions, data model, NFRs, risks, and test cases for sync functionality.
+      </doc>
+      <doc path="docs/reference/epics-part1.md" title="Epic 2: Placement Management" section="Story 2.13">
+        Story definition: TrespassTracker sync (is_daep flag, expiration dates) - FR73, FR74, FR77 - 1pt
+      </doc>
+      <doc path="docs/reference/architecture-part1.md" title="Architecture" section="TrespassTracker Integration">
+        FR73-FR77 coverage: shared student lookup, expiration sync, cross-module display, conflict prevention.
+      </doc>
+      <doc path="docs/sprint-artifacts/daep/story-2-10.md" title="Previous Story" section="Dev Agent Record">
+        Learnings: validatePlacement() pattern, error handling format {success, error}, unique constraint exists.
+      </doc>
+    </docs>
+
+    <code>
+      <file path="app/actions/daep/placements.ts" kind="server-actions" lines="1-1800" reason="Primary file for new sync functions; contains createPlacement, updatePlacement, transitionPlacement, recalculatePlacementDays that need sync integration">
+        <functions>
+          <fn name="createPlacement" line="382" integrate="after insert, call syncTrespassTrackerExpiration(input.school_id)" />
+          <fn name="updatePlacement" line="1320" integrate="if expected_end_date changed, call sync" />
+          <fn name="transitionPlacement" line="861" integrate="on complete/cancelled status, call sync" />
+          <fn name="recalculatePlacementDays" line="667" integrate="after expected_end_date recalc, call sync" />
+          <fn name="completeTransition" line="1649" integrate="after completion, call sync" />
+        </functions>
+      </file>
+      <file path="lib/validation/schemas.ts" kind="types" lines="21,48,124" reason="Contains is_daep and daep_expiration_date field definitions in TrespassRecord schema" />
+      <file path="lib/supabase.ts" kind="types" lines="35-36,87" reason="TrespassRecord type with is_daep and daep_expiration_date fields" />
+      <file path="lib/audit-logger.ts" kind="utility" reason="logAuditEvent() for audit trail - use for batch sync logging" />
+      <file path="lib/tenant.ts" kind="utility" reason="getTenantId() for tenant isolation - required for all queries" />
+    </code>
+
+    <dependencies>
+      <node>
+        <pkg name="@supabase/supabase-js" version="^2.58.0" use="Database queries for placements and trespass_records" />
+        <pkg name="@supabase/ssr" version="^0.7.0" use="Server-side Supabase client" />
+        <pkg name="zod" version="^3.25.76" use="Schema validation (if adding new schemas)" />
+        <pkg name="next" version="^15.5.4" use="revalidatePath for cache invalidation" />
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <interfaces>
+    <interface name="syncTrespassTrackerExpiration" kind="function" new="true">
+      <signature>async function syncTrespassTrackerExpiration(schoolId: string): Promise&lt;{ synced: boolean; is_daep: boolean; expiration_date: string | null }&gt;</signature>
+      <path>app/actions/daep/placements.ts</path>
+    </interface>
+    <interface name="batchSyncTrespassTracker" kind="function" new="true">
+      <signature>async function batchSyncTrespassTracker(): Promise&lt;{ success: boolean; synced_count: number; errors: string[] }&gt;</signature>
+      <path>app/actions/daep/placements.ts</path>
+    </interface>
+    <interface name="logAuditEvent" kind="function" existing="true">
+      <signature>async function logAuditEvent(params: AuditEventParams): Promise&lt;void&gt;</signature>
+      <path>lib/audit-logger.ts</path>
+      <usage>Use eventType: 'system.batch_sync' for batch operations</usage>
+    </interface>
+    <interface name="getTenantId" kind="function" existing="true">
+      <signature>async function getTenantId(): Promise&lt;string&gt;</signature>
+      <path>lib/tenant.ts</path>
+      <usage>Required for all tenant-scoped queries</usage>
+    </interface>
+  </interfaces>
+
+  <constraints>
+    <constraint type="tenant-isolation">All queries must filter by tenant_id using getTenantId()</constraint>
+    <constraint type="audit-logging">Batch sync must log to audit trail with synced_count and error_count</constraint>
+    <constraint type="error-handling">Use continue-on-error pattern for batch operations; return error array</constraint>
+    <constraint type="performance">Sequential processing acceptable; no timeout concerns for &lt;1000 students</constraint>
+    <constraint type="concurrency">No locking required; last-write-wins acceptable for sync</constraint>
+    <constraint type="revalidation">Call revalidatePath('/daep/students') after sync operations</constraint>
+  </constraints>
+
+  <tests>
+    <standards>
+      No formal testing framework configured. Manual testing via UI and Supabase dashboard.
+      Server actions tested by exercising UI workflows. Unit test patterns from tech spec should use Jest if added.
+    </standards>
+    <locations>
+      <location>No test directory exists yet - tests defined in tech spec only</location>
+    </locations>
+    <ideas>
+      <test ac="2.13.1">Create placement, verify trespass_records.is_daep = true</test>
+      <test ac="2.13.2">Create placement, verify daep_expiration_date matches expected_end_date</test>
+      <test ac="2.13.3">Create 2 placements with different end dates, verify MAX date used</test>
+      <test ac="2.13.4">Complete all placements, verify is_daep = false</test>
+      <test ac="2.13.5">Call batchSyncTrespassTracker(), verify synced_count returned</test>
+      <test ac="2.13.6">Call batchSyncTrespassTracker(), verify audit entry created</test>
+    </ideas>
+  </tests>
+</story-context>

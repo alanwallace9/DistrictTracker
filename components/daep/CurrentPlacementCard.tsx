@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DaysProgressBar } from './shared/DaysProgressBar';
+import { PlacementStatusBadge } from './shared/PlacementStatusBadge';
+import { StatusTransitionActions } from './placements/StatusTransitionActions';
 import {
   Calendar,
   Clock,
@@ -19,6 +22,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { RoomAssignmentDialog } from './RoomAssignmentDialog';
 import type { PlacementDetail } from '@/app/actions/daep/students';
+import type { PlacementStatus } from '@/lib/validation/schemas';
 
 interface Props {
   placement: PlacementDetail;
@@ -26,31 +30,9 @@ interface Props {
   studentName: string;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  active: 'bg-green-100 text-green-800 border-green-200',
-  transition: 'bg-blue-100 text-blue-800 border-blue-200',
-  complete: 'bg-gray-100 text-gray-800 border-gray-200',
-  closed: 'bg-gray-100 text-gray-800 border-gray-200',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  active: 'Active',
-  transition: 'In Transition',
-  complete: 'Complete',
-  closed: 'Closed',
-};
-
 export function CurrentPlacementCard({ placement, schoolId, studentName }: Props) {
   const router = useRouter();
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
-
-  // Calculate progress percentage
-  const progressPercent =
-    placement.days_assigned > 0
-      ? Math.min(100, Math.round((placement.days_served / placement.days_assigned) * 100))
-      : 0;
 
   // Format dates
   const formatDate = (dateStr: string | null) =>
@@ -64,12 +46,16 @@ export function CurrentPlacementCard({ placement, schoolId, studentName }: Props
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-base font-medium">Current Placement</CardTitle>
-        <Badge
-          variant="outline"
-          className={STATUS_STYLES[placement.status] || 'bg-gray-100'}
-        >
-          {STATUS_LABELS[placement.status] || placement.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <PlacementStatusBadge status={placement.status as PlacementStatus} />
+          {/* Edit Button - Story 2-8: AC 2.8.1 */}
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/daep/placements/${placement.id}/edit`}>
+              <Edit className="w-4 h-4 mr-1" />
+              Edit
+            </Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* 90-Day Assessment Alert */}
@@ -82,20 +68,15 @@ export function CurrentPlacementCard({ placement, schoolId, studentName }: Props
           </Alert>
         )}
 
-        {/* Days Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Days Progress</span>
-            <span className="font-medium">
-              {placement.days_served} of {placement.days_assigned} days
-              {placement.days_remaining > 0 && (
-                <span className="text-muted-foreground ml-1">
-                  ({placement.days_remaining} remaining)
-                </span>
-              )}
-            </span>
-          </div>
-          <Progress value={progressPercent} className="h-2" />
+        {/* Days Progress - Story 2-7 DaysProgressBar component */}
+        <div className="space-y-1">
+          <span className="text-sm text-muted-foreground">Days Progress</span>
+          <DaysProgressBar
+            daysServed={placement.days_served}
+            daysAssigned={placement.days_assigned}
+            daysRemaining={placement.days_remaining}
+            showLabels={true}
+          />
         </div>
 
         {/* Offense Code */}
@@ -200,12 +181,14 @@ export function CurrentPlacementCard({ placement, schoolId, studentName }: Props
           </div>
         )}
 
-        {/* Action Button */}
+        {/* Status Transition Actions - Story 2-6 */}
         <div className="pt-2 border-t">
-          <Button variant="outline" size="sm" disabled title="Coming in Story 2-8">
-            <Edit className="w-4 h-4 mr-2" />
-            Edit Placement
-          </Button>
+          <StatusTransitionActions
+            placementId={placement.id}
+            currentStatus={placement.status as PlacementStatus}
+            daysRemaining={placement.days_remaining}
+            onTransitionComplete={() => router.refresh()}
+          />
         </div>
       </CardContent>
 

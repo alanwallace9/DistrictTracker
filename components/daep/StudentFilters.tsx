@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<PlacementStatus | 'all', string> = {
   all: 'All Statuses',
   pending: 'Pending',
   active: 'Active',
-  transition: 'Transition',
+  met: 'Requirements Met',
   complete: 'Complete',
 };
 
