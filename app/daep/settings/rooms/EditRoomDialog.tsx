@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DAEPRoomSchema, type CreateDAEPRoomInput } from '@/lib/validation/schemas';
 import { updateDAEPRoom, type DAEPRoom } from '@/app/actions/daep/rooms';
 import { getDAEPCampuses } from '@/app/actions/daep/settings';
+import { getRoomGroups, type DAEPRoomGroup } from '@/app/actions/daep/room-groups';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -37,6 +38,7 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [campuses, setCampuses] = useState<{ id: string; name: string }[]>([]);
+  const [roomGroups, setRoomGroups] = useState<DAEPRoomGroup[]>([]);
 
   const {
     register,
@@ -52,12 +54,14 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
   useEffect(() => {
     if (open && room) {
       fetchCampuses();
+      fetchRoomGroups();
       reset({
         room_number: room.room_number,
         room_name: room.room_name || '',
         campus_id: room.campus_id || '',
         capacity: room.capacity,
         building_section: room.building_section || '',
+        room_group_id: room.room_group_id || null,
         active: room.active,
       });
     }
@@ -69,6 +73,15 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
       setCampuses(data);
     } catch (error) {
       console.error('Failed to fetch DAEP campuses:', error);
+    }
+  };
+
+  const fetchRoomGroups = async () => {
+    try {
+      const data = await getRoomGroups();
+      setRoomGroups(data.filter((g) => g.active));
+    } catch (error) {
+      console.error('Failed to fetch room groups:', error);
     }
   };
 
@@ -104,7 +117,7 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>Edit Room</DialogTitle>
           <DialogDescription>
@@ -176,17 +189,38 @@ export function EditRoomDialog({ open, onOpenChange, room, onSuccess }: EditRoom
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="building_section">Building Section (Optional)</Label>
-            <Input
-              id="building_section"
-              placeholder="e.g., 501-505 or Wing A"
-              {...register('building_section')}
-            />
+            <Label htmlFor="room_group_id">Building Section (Optional)</Label>
+            <Select
+              value={watch('room_group_id') || 'none'}
+              onValueChange={(value) => setValue('room_group_id', value === 'none' ? null : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a group" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">No group assigned</span>
+                </SelectItem>
+                {roomGroups.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      {group.group_name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               Used for separation logic when assigning students from different incidents
             </p>
-            {errors.building_section && (
-              <p className="text-sm text-destructive">{errors.building_section.message}</p>
+            {roomGroups.length === 0 && (
+              <p className="text-xs text-amber-600">
+                No room groups configured. Add groups in the Room Groups section above.
+              </p>
             )}
           </div>
 

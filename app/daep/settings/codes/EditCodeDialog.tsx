@@ -92,7 +92,7 @@ export function EditCodeDialog({ open, onOpenChange, code, onSuccess }: EditCode
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>Edit Discipline Code</DialogTitle>
           <DialogDescription>

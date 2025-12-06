@@ -201,7 +201,7 @@ export function EditScheduleDialog({ open, onOpenChange, schedule, onSuccess }: 
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto daep-theme">
         <DialogHeader>
           <DialogTitle>Edit Bell Schedule</DialogTitle>
           <DialogDescription>

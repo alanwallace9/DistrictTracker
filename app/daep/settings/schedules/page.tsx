@@ -231,7 +231,7 @@ export default function DAEPSchedulesPage() {
           <p className="text-muted-foreground mt-4">Loading schedules...</p>
         </div>
       ) : filteredSchedules.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+        <div className="text-center py-12 border border-dashed border-border rounded-lg bg-muted">
           <Clock className="w-12 h-12 text-slate-300 mx-auto mb-4" />
           <p className="text-muted-foreground">
             {schedules.length === 0 ? 'No bell schedules configured yet' : 'No schedules match your search'}
@@ -247,10 +247,10 @@ export default function DAEPSchedulesPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-100">
+              <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-4">{renderSortableHeader('Name', 'schedule_name')}</th>
                   <th className="text-left p-4">{renderSortableHeader('Type', 'schedule_type')}</th>
@@ -261,17 +261,17 @@ export default function DAEPSchedulesPage() {
                   <th className="text-left p-4">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-border">
                 {filteredSchedules.map((schedule, index) => {
-                  const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                  const rowBg = index % 2 === 0 ? 'bg-card' : 'bg-muted/50';
                   return (
                     <tr
                       key={schedule.id}
-                      className={`${rowBg} hover:bg-slate-100 transition-colors`}
+                      className={`${rowBg} hover:bg-muted transition-colors`}
                     >
                       <td className="p-4 font-medium">{schedule.schedule_name}</td>
                       <td className="p-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))]">
                           {SCHEDULE_TYPE_LABELS[schedule.schedule_type] || schedule.schedule_type}
                         </span>
                       </td>
@@ -279,7 +279,7 @@ export default function DAEPSchedulesPage() {
                       <td className="p-4 text-slate-600">{formatPeriods(schedule.periods)}</td>
                       <td className="p-4">
                         {schedule.is_default ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[rgb(var(--daep-warning))]/10 text-[rgb(var(--daep-warning))]">
                             <Star className="w-3 h-3" />
                             Default
                           </span>
@@ -300,8 +300,8 @@ export default function DAEPSchedulesPage() {
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             schedule.active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))]'
+                              : 'bg-muted text-muted-foreground'
                           }`}
                         >
                           {schedule.active ? 'Active' : 'Inactive'}

@@ -127,6 +127,20 @@ export const CreateCampusSchema = z.object({
 export const UpdateCampusSchema = CreateCampusSchema.partial();
 
 // ============================================================================
+// DAEP ROOM GROUP SCHEMAS (Story 3-0)
+// ============================================================================
+
+export const DAEPRoomGroupSchema = z.object({
+  group_name: z.string().min(1, 'Group name is required').max(50, 'Group name too long'),
+  description: z.string().max(200, 'Description too long').optional().nullable(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color').default('#6B7280'),
+  sort_order: z.number().int().min(0).default(0),
+  active: z.boolean().default(true),
+});
+
+export type CreateDAEPRoomGroupInput = z.infer<typeof DAEPRoomGroupSchema>;
+
+// ============================================================================
 // DAEP ROOM SCHEMAS
 // ============================================================================
 
@@ -136,6 +150,7 @@ export const DAEPRoomSchema = z.object({
   campus_id: z.string().min(1, 'Campus is required'),
   capacity: z.number().int('Must be a whole number').min(1, 'Minimum 1').max(50, 'Maximum 50').default(15),
   building_section: z.string().max(50, 'Building section too long').optional().nullable(),
+  room_group_id: z.string().uuid('Invalid group ID').optional().nullable(),
   active: z.boolean().default(true),
 });
 

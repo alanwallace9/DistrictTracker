@@ -146,8 +146,11 @@ export default clerkMiddleware(async (auth, request) => {
         }
       } else {
         // Trying to access another tenant's production data - BLOCK
-        console.log('[MIDDLEWARE] Access denied - redirecting to demo-guide');
-        return NextResponse.redirect(new URL('/demo-guide', request.url));
+        console.log('[MIDDLEWARE] Access denied - wrong tenant', { subdomain, userAssignedTenant });
+        const accessDeniedUrl = new URL('/access-denied', request.url);
+        accessDeniedUrl.searchParams.set('reason', 'wrong_tenant');
+        accessDeniedUrl.searchParams.set('tenant', subdomain);
+        return NextResponse.redirect(accessDeniedUrl);
       }
 
       // Module access control (AC 1.2.5, AC 1.2.6)

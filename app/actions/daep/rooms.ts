@@ -15,9 +15,11 @@ export interface DAEPRoom {
   capacity: number;
   active: boolean;
   building_section: string | null;
+  room_group_id: string | null;
   created_at: string;
   updated_at: string;
   campus?: { id: string; name: string } | null;
+  room_group?: { id: string; group_name: string; color: string } | null;
   staff?: DAEPRoomStaff[];
   student_count?: number;
 }
@@ -122,6 +124,7 @@ export async function getDAEPRooms(): Promise<DAEPRoom[]> {
     .select(`
       *,
       campus:campuses(id, name),
+      room_group:daep_room_groups(id, group_name, color),
       staff:daep_room_staff(id, user_id, assignment_type)
     `)
     .eq('tenant_id', tenantId)
@@ -144,6 +147,7 @@ export async function getDAEPRoom(roomId: string): Promise<DAEPRoom | null> {
     .select(`
       *,
       campus:campuses(id, name),
+      room_group:daep_room_groups(id, group_name, color),
       staff:daep_room_staff(id, user_id, assignment_type)
     `)
     .eq('id', roomId)
@@ -471,6 +475,8 @@ export interface RoomAvailability {
   room_number: string;
   room_name: string | null;
   building_section: string | null;
+  room_group_id: string | null;
+  room_group?: { id: string; group_name: string; color: string } | null;
   capacity: number;
   current_count: number;
   available_spots: number;
@@ -506,10 +512,13 @@ export async function getAvailableRoomsForStudent(
   const tenantId = await getTenantId();
   const supabase = await createServerClient();
 
-  // 1. Get all active rooms
+  // 1. Get all active rooms with room_group info
   const { data: rooms, error: roomsError } = await supabase
     .from('daep_rooms')
-    .select('id, room_number, room_name, building_section, capacity')
+    .select(`
+      id, room_number, room_name, building_section, room_group_id, capacity,
+      room_group:daep_room_groups(id, group_name, color)
+    `)
     .eq('tenant_id', tenantId)
     .eq('active', true)
     .order('room_number');
@@ -539,18 +548,18 @@ export async function getAvailableRoomsForStudent(
   });
 
   // 3. Get active separations for this student (filter expired)
-  const now = new Date().toISOString();
   const { data: separations } = await supabase
     .from('daep_student_separations')
-    .select('student_a_id, student_b_id, reason')
+    .select('student_a_id, student_b_id, reason, expires_at')
     .eq('tenant_id', tenantId)
     .eq('active', true)
     .or(`student_a_id.eq.${school_id},student_b_id.eq.${school_id}`);
 
-  // Filter out expired separations in JS (Supabase OR with null check is tricky)
+  // Filter out expired separations
+  const now = new Date();
   const activeSeparations = (separations || []).filter((sep) => {
-    // Keep if no expiration or not expired
-    return true; // expires_at check would need to be fetched - simplified here
+    if (!sep.expires_at) return true;
+    return new Date(sep.expires_at) > now;
   });
 
   // Extract separated student IDs
@@ -563,23 +572,33 @@ export async function getAvailableRoomsForStudent(
     separationReasons.set(otherId, sep.reason);
   });
 
-  // 4. Find which building sections are blocked
-  const blockedSections = new Map<string, { studentIds: string[]; reason: string }>();
+  // 4. Find which room GROUPS are blocked (primary) with building_section fallback
+  // Uses room_group_id if available, otherwise falls back to building_section string
+  const blockedGroups = new Map<string, { studentIds: string[]; reason: string; groupName?: string }>();
 
   (occupancy || []).forEach((p) => {
     if (separatedStudentIds.has(p.school_id) && p.assigned_room_id) {
       const room = rooms.find((r) => r.id === p.assigned_room_id);
-      if (room?.building_section) {
-        const existing = blockedSections.get(room.building_section) || { studentIds: [], reason: '' };
-        existing.studentIds.push(p.school_id);
-        existing.reason = separationReasons.get(p.school_id) || 'Student separation required';
-        blockedSections.set(room.building_section, existing);
+      if (room) {
+        // Prefer room_group_id, fall back to building_section
+        const groupKey = room.room_group_id || room.building_section;
+        if (groupKey) {
+          const existing = blockedGroups.get(groupKey) || { studentIds: [], reason: '' };
+          existing.studentIds.push(p.school_id);
+          existing.reason = separationReasons.get(p.school_id) || 'Student separation required';
+          // Extract group name for display
+          const roomGroup = Array.isArray(room.room_group) ? room.room_group[0] : room.room_group;
+          if (roomGroup) {
+            existing.groupName = roomGroup.group_name;
+          }
+          blockedGroups.set(groupKey, existing);
+        }
       }
     }
   });
 
   // 5. Get student names for blocked students
-  const allBlockedIds = Array.from(blockedSections.values()).flatMap((b) => b.studentIds);
+  const allBlockedIds = Array.from(blockedGroups.values()).flatMap((b) => b.studentIds);
   let nameMap = new Map<string, string>();
 
   if (allBlockedIds.length > 0) {
@@ -594,13 +613,20 @@ export async function getAvailableRoomsForStudent(
     );
   }
 
+  // Helper to extract single relation from Supabase array result
+  const extractRelation = <T>(rel: T | T[] | null): T | null => {
+    if (Array.isArray(rel)) return rel[0] || null;
+    return rel;
+  };
+
   // 6. Build availability response
   return rooms.map((room) => {
     const currentCount = roomCounts.get(room.id) || 0;
     const availableSpots = room.capacity - currentCount;
 
-    // Check if blocked by separation
-    const blockInfo = room.building_section ? blockedSections.get(room.building_section) : null;
+    // Check if blocked by separation (using room_group_id first, then building_section)
+    const groupKey = room.room_group_id || room.building_section;
+    const blockInfo = groupKey ? blockedGroups.get(groupKey) : null;
     const isBlocked = !!blockInfo;
 
     let blockedReason: string | undefined;
@@ -608,16 +634,21 @@ export async function getAvailableRoomsForStudent(
 
     if (isBlocked && blockInfo) {
       blockedStudents = blockInfo.studentIds.map((id) => nameMap.get(id) || id);
-      blockedReason = `Separation: ${blockedStudents.join(', ')} in this section`;
+      const groupLabel = blockInfo.groupName || room.building_section || 'this section';
+      blockedReason = `Separation: ${blockedStudents.join(', ')} in ${groupLabel}`;
     } else if (availableSpots <= 0) {
       blockedReason = 'Room at capacity';
     }
+
+    const roomGroup = extractRelation(room.room_group);
 
     return {
       id: room.id,
       room_number: room.room_number,
       room_name: room.room_name,
       building_section: room.building_section,
+      room_group_id: room.room_group_id,
+      room_group: roomGroup as RoomAvailability['room_group'],
       capacity: room.capacity,
       current_count: currentCount,
       available_spots: availableSpots,

@@ -39,7 +39,7 @@ development_status:
   # Epic 0: Foundation (Design System)
   # Theme provider, layout shell, UX infrastructure
   # ============================================
-  0-x-theme-foundation: drafted  # Tech spec: docs/sprint-artifacts/daep/0-x-theme-foundation.md
+  0-x-theme-foundation: done  # Tech spec: docs/sprint-artifacts/daep/0-x-theme-foundation.md
 
   # ============================================
   # Epic 1a: Core Schema & Security (5 stories, 21 pts)
@@ -70,7 +70,7 @@ development_status:
   # Epic 2: Placement Management (13 stories, 34 pts)
   # FRs: FR9-FR26, FR73-FR77
   # ============================================
-  epic-2: contexted
+  epic-2: done
   2-1-student-search-list-view: done
   2-2-student-profile-page: done
   2-3-trespasstracker-status-display: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-stories-2-2-2-3-2-10.md
@@ -90,9 +90,17 @@ development_status:
   # ============================================
   # Epic 3: Daily Operations - Points & Attendance (12 stories, 29 pts)
   # FRs: FR27-FR44
+  # Tech Spec Batching:
+  #   Batch 0: 3-0 (Room Groups) - prerequisite for separation logic
+  #   Batch 1: 3-1 (Room Roster) - tech-spec-epic-3-batch-1.md
+  #   Batch 2: 3-2, 3-3, 3-4 (Point Entry cluster)
+  #   Batch 3: 3-5, 3-6 (Approval workflow)
+  #   Batch 4: 3-7, 3-8 (Points aggregation + audit)
+  #   Batch 5: 3-9, 3-10, 3-11, 3-12 (Attendance track)
   # ============================================
-  epic-3: backlog
-  3-1-room-roster-view: backlog
+  epic-3: contexted  # Batch 1 tech spec: docs/sprint-artifacts/daep/tech-spec-epic-3-batch-1.md
+  3-0-room-groups: done  # Prerequisite: story-3-0.md - Room groups for separation logic
+  3-1-room-roster-view: backlog  # Tech spec ready, needs story draft
   3-2-point-entry-grid: backlog
   3-3-bulk-point-entry: backlog
   3-4-point-notes-comments: backlog

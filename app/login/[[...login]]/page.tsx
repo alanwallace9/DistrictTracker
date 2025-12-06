@@ -36,11 +36,13 @@ export default function LoginPage() {
         // Wait briefly to ensure session cookie is fully written to browser
         await new Promise(resolve => setTimeout(resolve, 50));
 
-        // Check if logging in from app.districttracker.com
+        // Check if logging in from app.districttracker.com (production only)
         const hostname = window.location.hostname;
+        const isLocalhost = hostname.includes('localhost') || hostname.includes('127.0.0.1');
         const isAppSubdomain = hostname.startsWith('app.');
 
-        if (isAppSubdomain) {
+        // Only do tenant subdomain redirect on production app.* subdomain
+        if (isAppSubdomain && !isLocalhost) {
           // Fetch user's tenant_id to redirect to their subdomain
           try {
             const response = await fetch('/api/auth/user-tenant');
@@ -79,14 +81,23 @@ export default function LoginPage() {
       const errorCode = err.errors?.[0]?.code || '';
 
       if (errorMessage.includes('session') || errorCode === 'session_exists') {
-        // User already has an active session, redirect them to their tenant
+        // User already has an active session
+        const hostname = window.location.hostname;
+        const isLocalhost = hostname.includes('localhost') || hostname.includes('127.0.0.1');
+
+        // On localhost, just redirect to /modules (use staging tenant via middleware)
+        if (isLocalhost) {
+          window.location.href = '/modules';
+          return;
+        }
+
+        // On production, redirect to their tenant subdomain
         try {
           const response = await fetch('/api/auth/user-tenant');
           const data = await response.json();
 
           if (data.tenant_id) {
             const protocol = window.location.protocol;
-            const hostname = window.location.hostname;
 
             // Extract base domain (e.g., districttracker.com from any subdomain)
             const parts = hostname.split('.');
@@ -189,7 +200,7 @@ export default function LoginPage() {
           <p className="text-xs text-slate-600">
             powered by{' '}
             <a
-              href="https://districttracker.com"
+              href="https://www.districttracker.com"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline font-medium"

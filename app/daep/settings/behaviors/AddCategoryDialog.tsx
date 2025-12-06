@@ -95,7 +95,7 @@ export function AddCategoryDialog({ open, onOpenChange, onSuccess }: AddCategory
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>Add Behavior Category</DialogTitle>
           <DialogDescription>

@@ -30,15 +30,15 @@ import { GenerateCalendarDialog } from './GenerateCalendarDialog';
 import { DAY_TYPES, type DayType } from '@/lib/validation/schemas';
 
 const DAY_TYPE_COLORS: Record<DayType, string> = {
-  Regular: 'bg-green-100 text-green-800 border-green-200',
-  Holiday: 'bg-red-100 text-red-800 border-red-200',
-  'Teacher Workday': 'bg-purple-100 text-purple-800 border-purple-200',
-  'Bad Weather': 'bg-blue-100 text-blue-800 border-blue-200',
-  'Early Release': 'bg-amber-100 text-amber-800 border-amber-200',
+  Regular: 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))] border-[rgb(var(--daep-success))]/20',
+  Holiday: 'bg-destructive/10 text-destructive border-destructive/20',
+  'Teacher Workday': 'bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))] border-[rgb(var(--daep-info))]/20',
+  'Bad Weather': 'bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))] border-[rgb(var(--daep-info))]/20',
+  'Early Release': 'bg-[rgb(var(--daep-warning))]/10 text-[rgb(var(--daep-warning))] border-[rgb(var(--daep-warning))]/20',
 };
 
-const NON_SCHOOL_DAY_STYLE = 'bg-slate-100 text-slate-500 border-slate-200';
-const WEEKEND_STYLE = 'bg-slate-50 text-slate-400';
+const NON_SCHOOL_DAY_STYLE = 'bg-muted text-muted-foreground border-border';
+const WEEKEND_STYLE = 'bg-muted/50 text-muted-foreground';
 
 const MONTHS = [
   'January',
@@ -215,7 +215,7 @@ export default function SchoolCalendarPage() {
     }
 
     // No entry, weekday - show as unconfigured
-    return 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50';
+    return 'bg-card border-border text-foreground hover:bg-muted';
   };
 
   // Generate school year options
@@ -317,13 +317,13 @@ export default function SchoolCalendarPage() {
           <p className="text-muted-foreground mt-4">Loading calendar...</p>
         </div>
       ) : (
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="border border-border rounded-lg overflow-hidden">
           {/* Weekday Headers */}
-          <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-200">
+          <div className="grid grid-cols-7 bg-muted border-b border-border">
             {WEEKDAYS.map((day) => (
               <div
                 key={day}
-                className="p-2 text-center text-sm font-semibold text-slate-600"
+                className="p-2 text-center text-sm font-semibold text-muted-foreground"
               >
                 {day}
               </div>
@@ -335,8 +335,8 @@ export default function SchoolCalendarPage() {
             {calendarDays.map((day, idx) => (
               <div
                 key={idx}
-                className={`min-h-[80px] border-b border-r border-slate-200 p-1 ${
-                  day ? 'cursor-pointer hover:ring-2 hover:ring-primary hover:ring-inset' : 'bg-slate-50'
+                className={`min-h-[80px] border-b border-r border-border p-1 ${
+                  day ? 'cursor-pointer hover:ring-2 hover:ring-primary hover:ring-inset' : 'bg-muted/50'
                 }`}
                 onClick={() => day && handleDayClick(day.date)}
               >
@@ -350,12 +350,12 @@ export default function SchoolCalendarPage() {
                     {entriesByDate[day.date] && (
                       <div className="text-xs space-y-0.5 overflow-hidden">
                         {entriesByDate[day.date].day_type && (
-                          <div className="truncate text-slate-500">
+                          <div className="truncate text-muted-foreground">
                             {entriesByDate[day.date].day_type}
                           </div>
                         )}
                         {entriesByDate[day.date].bell_schedule && (
-                          <div className="truncate text-slate-400 flex items-center gap-0.5">
+                          <div className="truncate text-muted-foreground/70 flex items-center gap-0.5">
                             <CalendarIcon className="w-3 h-3" />
                             {entriesByDate[day.date].bell_schedule?.schedule_name}
                           </div>

@@ -105,7 +105,7 @@ export function EditCategoryDialog({ open, onOpenChange, category, onSuccess }: 
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>Edit Behavior Category</DialogTitle>
           <DialogDescription>

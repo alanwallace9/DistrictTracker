@@ -32,9 +32,9 @@ import type { BehaviorCategoryType } from '@/lib/validation/schemas';
 type SortKey = 'name' | 'category_type' | 'display_order' | 'is_active';
 
 const CATEGORY_TYPE_LABELS: Record<BehaviorCategoryType, { label: string; color: string }> = {
-  positive: { label: 'Positive', color: 'bg-green-100 text-green-800' },
-  negative: { label: 'Negative', color: 'bg-red-100 text-red-800' },
-  neutral: { label: 'Neutral', color: 'bg-slate-100 text-slate-800' },
+  positive: { label: 'Positive', color: 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))]' },
+  negative: { label: 'Negative', color: 'bg-destructive/10 text-destructive' },
+  neutral: { label: 'Neutral', color: 'bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))]' },
 };
 
 export default function BehaviorCategoriesPage() {
@@ -263,7 +263,7 @@ export default function BehaviorCategoriesPage() {
           <p className="text-muted-foreground mt-4">Loading behavior categories...</p>
         </div>
       ) : filteredCategories.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+        <div className="text-center py-12 border border-dashed border-border rounded-lg bg-muted">
           <p className="text-muted-foreground">
             {categories.length === 0 ? 'No behavior categories configured yet' : 'No categories match your search'}
           </p>
@@ -281,10 +281,10 @@ export default function BehaviorCategoriesPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-100">
+              <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-4">{renderSortableHeader('Order', 'display_order')}</th>
                   <th className="text-left p-4">{renderSortableHeader('Name', 'name')}</th>
@@ -293,9 +293,9 @@ export default function BehaviorCategoriesPage() {
                   <th className="text-left p-4">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-border">
                 {filteredCategories.map((category, index) => {
-                  const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                  const rowBg = index % 2 === 0 ? 'bg-card' : 'bg-muted/50';
                   const typeInfo = CATEGORY_TYPE_LABELS[category.category_type];
                   const isFirst = index === 0;
                   const isLast = index === filteredCategories.length - 1;
@@ -303,7 +303,7 @@ export default function BehaviorCategoriesPage() {
                   return (
                     <tr
                       key={category.id}
-                      className={`${rowBg} hover:bg-slate-100 transition-colors`}
+                      className={`${rowBg} hover:bg-muted transition-colors`}
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-1">
@@ -315,7 +315,7 @@ export default function BehaviorCategoriesPage() {
                               type="button"
                               onClick={() => handleMoveUp(category)}
                               disabled={isFirst}
-                              className="p-0.5 hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="p-0.5 hover:bg-muted rounded disabled:opacity-30 disabled:cursor-not-allowed"
                               title="Move up"
                             >
                               <ChevronUp className="w-4 h-4" />
@@ -324,7 +324,7 @@ export default function BehaviorCategoriesPage() {
                               type="button"
                               onClick={() => handleMoveDown(category)}
                               disabled={isLast}
-                              className="p-0.5 hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="p-0.5 hover:bg-muted rounded disabled:opacity-30 disabled:cursor-not-allowed"
                               title="Move down"
                             >
                               <ChevronDown className="w-4 h-4" />
@@ -351,8 +351,8 @@ export default function BehaviorCategoriesPage() {
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             category.is_active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))]'
+                              : 'bg-muted text-muted-foreground'
                           }`}
                         >
                           {category.is_active ? 'Active' : 'Inactive'}

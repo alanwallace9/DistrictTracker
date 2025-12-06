@@ -46,6 +46,58 @@ const user = await currentUser();
 
 **Never hardcode or assume project IDs - always verify from environment files first.**
 
+## Playwright MCP for UI/UX Verification
+
+**Playwright MCP is active.** Use it to view pages during UI/UX development:
+
+- **When to use:** Any story involving visible UI changes
+- **How:** Use `mcp__playwright__browser_navigate` to open pages, `mcp__playwright__browser_snapshot` to capture state
+- **Purpose:** Verify UI renders correctly, check responsive behavior, validate user flows
+- **Workflow:** Navigate → Snapshot → Verify → Iterate
+
+This provides shared visibility between Claude and the user during development.
+
+## Pre-Implementation Planning (Required)
+
+**BEFORE writing any code for a story, present an execution plan:**
+
+1. **Order of operations** - Which files/components to create/modify and in what sequence
+2. **Key architectural decisions** - Patterns to use, components to reuse, potential pitfalls
+3. **Refactor prevention** - Identify dependencies and integration points upfront
+4. **Database considerations** - Any schema changes, RLS policies, or migrations needed
+
+**Format:**
+```
+## Execution Plan for Story X-Y
+
+### Order of Operations
+1. [First task] - why this order
+2. [Second task] - dependencies on #1
+...
+
+### Key Decisions
+- [Decision 1]: [Rationale]
+- [Decision 2]: [Rationale]
+
+### Watch Out For
+- [Potential issue 1]
+- [Potential issue 2]
+
+### Recommendations (Quick Wins)
+Proactively identify UX improvements or edge case handling that:
+- Add meaningful value without major scope creep
+- Address user pain points not explicitly in requirements
+- Improve error recovery or user feedback
+- Can be implemented in <30 min additional effort
+
+Format: "[Recommendation] - [Why it helps] - [Effort: Low/Medium]"
+
+If a recommendation is valuable but exceeds scope, note it as:
+"BACKLOG: [Idea] - add to story X-Y backlog for future consideration"
+```
+
+**Get user approval on the plan before proceeding with implementation.**
+
 ## Documentation Folder Structure
 
 ```
@@ -166,7 +218,7 @@ Load the specific epic's tech spec, not the full architecture.
 
 ## Current Project State
 
-**Current Version:** `0.3.0`
+**Current Version:** `0.3.1`
 
 **Epic 1a: Core Schema & Security** - COMPLETE
 - All stories (1-0 through 1-4): `done`
@@ -181,12 +233,14 @@ Load the specific epic's tech spec, not the full architecture.
 - FRs: FR9-FR26, FR73-FR77
 - Backlog item: Story 2-8b (UX improvement) - `drafted`
 
-**Epic 3: Daily Operations** - NEXT
-- Status: `backlog`
+**Epic 3: Daily Operations** - IN PROGRESS (v0.3.1+)
+- Story 3-0: Room Groups - `done`
+- Stories 3-1 through 3-12: `backlog`
 - 12 stories, 29 points
 - FRs: FR27-FR44
 
 **Tech Specs Available:**
+- `docs/sprint-artifacts/daep/tech-spec-epic-3-batch-1.md` (Story 3-1: Room Roster)
 - `docs/sprint-artifacts/daep/tech-spec-epic-2-part1.md` (Stories 2.1-2.6)
 - `docs/sprint-artifacts/daep/tech-spec-epic-2-part2.md` (Stories 2.7-2.13)
 - `docs/sprint-artifacts/daep/tech-spec-stories-2-2-2-3-2-10.md` (Profile batch)
@@ -236,6 +290,35 @@ These files are large and should only be loaded via their sharded parts:
 ## Commit & Changelog Conventions
 
 **IMPORTANT:** After completing a story, prompt the user: "Story complete - ready to commit?"
+
+### Commit Workflow
+
+When user accepts the commit prompt, follow this workflow:
+
+1. **Use Tech Writer Agent** - Invoke `/bmad:bmm:agents:tech-writer` to draft:
+   - Commit message with conventional format
+   - Changelog entry content for feedback page
+   - Appropriate version bump recommendation
+
+2. **Update package.json** - Bump version according to:
+   - Patch (`0.x.Y`) for stories/fixes
+   - Minor (`0.X.0`) for epic completion
+
+3. **Stage and Commit** - Use the drafted message:
+   ```bash
+   git add -A
+   git commit -m "$(cat <<'EOF'
+   [drafted commit message here]
+   EOF
+   )"
+   ```
+
+4. **Push to staging** - Always push to staging branch:
+   ```bash
+   git push origin staging
+   ```
+
+5. **Remind about Changelog** - Tell user to create feedback entry at `/admin/feedback`
 
 ### Versioning (Semantic Versioning)
 

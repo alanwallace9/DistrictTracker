@@ -198,7 +198,7 @@ export default function DisciplineCodesPage() {
           <p className="text-muted-foreground mt-4">Loading discipline codes...</p>
         </div>
       ) : filteredCodes.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+        <div className="text-center py-12 border border-dashed border-border rounded-lg bg-muted">
           <p className="text-muted-foreground">
             {codes.length === 0 ? 'No discipline codes configured yet' : 'No codes match your search'}
           </p>
@@ -213,10 +213,10 @@ export default function DisciplineCodesPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-100">
+              <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-4">{renderSortableHeader('Code', 'code')}</th>
                   <th className="text-left p-4">{renderSortableHeader('Label', 'label')}</th>
@@ -226,24 +226,24 @@ export default function DisciplineCodesPage() {
                   <th className="text-left p-4">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-border">
                 {filteredCodes.map((code, index) => {
-                  const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                  const rowBg = index % 2 === 0 ? 'bg-card' : 'bg-muted/50';
                   return (
                     <tr
                       key={code.id}
-                      className={`${rowBg} hover:bg-slate-100 transition-colors`}
+                      className={`${rowBg} hover:bg-muted transition-colors`}
                     >
                       <td className="p-4 font-mono font-medium">{code.code}</td>
                       <td className="p-4 text-slate-600">{code.label}</td>
                       <td className="p-4">
                         {code.mandatory_placement ? (
-                          <span className="inline-flex items-center gap-1 text-amber-700">
+                          <span className="inline-flex items-center gap-1 text-[rgb(var(--daep-warning))]">
                             <CheckCircle className="w-4 h-4" />
                             Required
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-slate-500">
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <XCircle className="w-4 h-4" />
                             Discretionary
                           </span>
@@ -258,8 +258,8 @@ export default function DisciplineCodesPage() {
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             code.active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))]'
+                              : 'bg-muted text-muted-foreground'
                           }`}
                         >
                           {code.active ? 'Active' : 'Inactive'}

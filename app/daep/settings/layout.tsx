@@ -149,7 +149,7 @@ function DAEPSettingsLayoutInner({
               {/* Mobile: Hamburger Menu Button */}
               <button
                 onClick={toggleSidebar}
-                className="nav:hidden h-10 w-10 flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50"
+                className="nav:hidden h-10 w-10 flex items-center justify-center rounded-lg border border-border bg-card hover:bg-muted"
                 aria-label="Menu"
               >
                 {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -166,7 +166,7 @@ function DAEPSettingsLayoutInner({
                 <div className="flex items-center gap-2">
                   <h1 className="text-base sm:text-xl font-bold text-foreground">DAEP Settings</h1>
                   {selectedTenantId === 'demo' && effectiveRole && (
-                    <span className="px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-700 whitespace-nowrap">
+                    <span className="px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))] rounded border border-[rgb(var(--daep-info))]/20 whitespace-nowrap">
                       {effectiveRole.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                     </span>
                   )}
@@ -205,7 +205,7 @@ function DAEPSettingsLayoutInner({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-white border border-slate-300 text-slate-700 shadow-sm hover:bg-slate-100 hover:text-slate-900 hover:border-slate-300"
+                  className="bg-card border border-border text-foreground shadow-sm hover:bg-muted"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to DAEP
@@ -236,11 +236,11 @@ function DAEPSettingsLayoutInner({
             ${isClosing ? 'animate-out slide-out-to-left duration-200' : ''}
           `}>
             {/* Mobile: Close button */}
-            <div className="nav:hidden flex justify-between items-center mb-4 pb-4 border-b border-slate-200">
-              <h2 className="font-semibold text-slate-900">Settings Menu</h2>
+            <div className="nav:hidden flex justify-between items-center mb-4 pb-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Settings Menu</h2>
               <button
                 onClick={closeSidebar}
-                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-slate-100"
+                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-muted"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -262,7 +262,7 @@ function DAEPSettingsLayoutInner({
                       className={`w-full justify-start rounded-xl ${
                         active
                           ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-slate-700 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200'
+                          : 'text-foreground hover:bg-card hover:text-foreground border border-transparent hover:border-border'
                       }`}
                     >
                       <Icon className="w-4 h-4 mr-3" />
@@ -274,16 +274,16 @@ function DAEPSettingsLayoutInner({
             </nav>
 
             {/* Mobile: Controls at bottom */}
-            <div className="nav:hidden mt-6 pt-6 border-t border-slate-200 space-y-3">
+            <div className="nav:hidden mt-6 pt-6 border-t border-border space-y-3">
               {/* Dev Role Switcher - only visible for whitelisted users */}
               <DevRoleSwitcher />
 
               {/* Tenant Selector - Only for super_admin with multiple tenants */}
               {showTenantSelector && tenants.length > 1 && !tenantsLoading && selectedTenantId && (
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-600">District</label>
+                  <label className="text-xs font-medium text-muted-foreground">District</label>
                   <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
-                    <SelectTrigger className="w-full bg-white border border-slate-300">
+                    <SelectTrigger className="w-full bg-card border border-border">
                       <SelectValue placeholder="Select District" />
                     </SelectTrigger>
                     <SelectContent>
@@ -301,7 +301,7 @@ function DAEPSettingsLayoutInner({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full justify-start gap-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                  className="w-full justify-start gap-2 bg-card border border-border text-foreground hover:bg-muted"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to DAEP

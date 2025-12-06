@@ -206,7 +206,7 @@ export function AddScheduleDialog({ open, onOpenChange, onSuccess }: AddSchedule
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto daep-theme">
         <DialogHeader>
           <DialogTitle>Add Bell Schedule</DialogTitle>
           <DialogDescription>

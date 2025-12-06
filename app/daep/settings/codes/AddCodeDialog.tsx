@@ -85,7 +85,7 @@ export function AddCodeDialog({ open, onOpenChange, onSuccess }: AddCodeDialogPr
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] daep-theme">
         <DialogHeader>
           <DialogTitle>Add Discipline Code</DialogTitle>
           <DialogDescription>
