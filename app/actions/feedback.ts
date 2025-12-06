@@ -220,10 +220,16 @@ export async function createFeedback(input: {
       return { success: false, error: 'You must be logged in to submit feedback' };
     }
 
-    // Rate limiting check (per user)
-    const rateLimitResult = await checkRateLimit(feedbackRateLimit, userId);
-    if (rateLimitResult) {
-      return { success: false, error: 'Rate limit exceeded. Please wait before submitting more feedback.' };
+    // Rate limiting check (per user) - wrapped in try/catch for graceful degradation
+    // If rate limiting service is down, we allow the request through rather than blocking users
+    try {
+      const rateLimitResult = await checkRateLimit(feedbackRateLimit, userId);
+      if (rateLimitResult) {
+        return { success: false, error: 'Rate limit exceeded. Please wait before submitting more feedback.' };
+      }
+    } catch (rateLimitError) {
+      // Log the error but allow submission to proceed
+      console.warn('Rate limit check failed, allowing request:', rateLimitError);
     }
 
     // Validate input data with Zod
@@ -271,7 +277,11 @@ export async function createFeedback(input: {
     return { success: true, data, error: null };
   } catch (error: any) {
     console.error('Error creating feedback:', error);
-    return { success: false, error: error.message };
+    // Provide user-friendly error message while logging full details
+    const userMessage = error.message?.includes('fetch')
+      ? 'Unable to connect to the server. Please check your connection and try again.'
+      : error.message || 'An unexpected error occurred. Please try again.';
+    return { success: false, error: userMessage };
   }
 }
 
@@ -1183,10 +1193,14 @@ export async function createFeedbackComment(data: {
       return { success: false, error: 'You must be logged in to comment' };
     }
 
-    // Rate limiting check (per user)
-    const rateLimitResult = await checkRateLimit(commentRateLimit, userId);
-    if (rateLimitResult) {
-      return { success: false, error: 'Rate limit exceeded. Please wait before posting more comments.' };
+    // Rate limiting check (per user) - wrapped in try/catch for graceful degradation
+    try {
+      const rateLimitResult = await checkRateLimit(commentRateLimit, userId);
+      if (rateLimitResult) {
+        return { success: false, error: 'Rate limit exceeded. Please wait before posting more comments.' };
+      }
+    } catch (rateLimitError) {
+      console.warn('Rate limit check failed for comment, allowing request:', rateLimitError);
     }
 
     // Validate input data with Zod
@@ -1219,7 +1233,10 @@ export async function createFeedbackComment(data: {
     return { success: true, data: comment, error: null };
   } catch (error: any) {
     console.error('Error creating comment:', error);
-    return { success: false, error: error.message };
+    const userMessage = error.message?.includes('fetch')
+      ? 'Unable to connect to the server. Please check your connection and try again.'
+      : error.message || 'An unexpected error occurred. Please try again.';
+    return { success: false, error: userMessage };
   }
 }
 
