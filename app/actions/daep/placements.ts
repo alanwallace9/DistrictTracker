@@ -245,7 +245,7 @@ export async function checkDuplicatePlacement(
     .eq('tenant_id', tenantId)
     .eq('school_id', school_id)
     .eq('incident_number', incident_number)
-    .single();
+    .maybeSingle();
 
   return {
     exists: !!existing,
@@ -441,8 +441,7 @@ export async function createPlacement(
       .select('first_name, last_name')
       .eq('tenant_id', tenantId)
       .eq('school_id', data.school_id)
-      .limit(1)
-      .single();
+      .maybeSingle();
 
     const studentName = student
       ? `${student.first_name} ${student.last_name}`
@@ -572,7 +571,7 @@ export async function createQuickStudent(
       .select('school_id')
       .eq('tenant_id', tenantId)
       .eq('school_id', data.school_id)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return {
@@ -1389,7 +1388,7 @@ export async function getPlacementForEdit(
     .select('first_name, last_name')
     .eq('school_id', data.school_id)
     .eq('tenant_id', tenantId)
-    .single();
+    .maybeSingle();
 
   const studentName = studentData
     ? `${studentData.first_name} ${studentData.last_name}`
@@ -1652,7 +1651,7 @@ export async function initiateTransition(
       .select('first_name, last_name')
       .eq('school_id', placement.school_id)
       .eq('tenant_id', tenantId)
-      .single();
+      .maybeSingle();
 
     const studentName = student
       ? `${student.first_name} ${student.last_name}`
@@ -1811,7 +1810,7 @@ export async function completeTransition(
       .select('first_name, last_name')
       .eq('school_id', placement.school_id)
       .eq('tenant_id', tenantId)
-      .single();
+      .maybeSingle();
 
     const studentName = student
       ? `${student.first_name} ${student.last_name}`
@@ -1976,7 +1975,7 @@ export async function markNoShow(
       .select('first_name, last_name')
       .eq('school_id', placement.school_id)
       .eq('tenant_id', tenantId)
-      .single();
+      .maybeSingle();
 
     const studentName = student
       ? `${student.first_name} ${student.last_name}`

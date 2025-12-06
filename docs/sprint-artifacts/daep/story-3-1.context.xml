@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 3-1 Room Roster View
+  Generated: 2025-12-06
+  Purpose: Pre-assembled context for Story 3-1 implementation
+-->
+<story-context story="3-1" title="Room Roster View">
+
+  <summary>
+    Build the foundational Room Roster page at /daep/rooms/[roomId] that displays students
+    assigned to a room with period/date selectors. This page is the foundation for all
+    Epic 3 daily operations - Stories 3-2 (Point Entry), 3-3 (Bulk Points), 3-4 (Point Notes),
+    and 3-9 (Attendance) will add columns and functionality.
+  </summary>
+
+  <acceptance-criteria>
+    <ac id="3.1.1">Room roster page at /daep/rooms/[roomId]</ac>
+    <ac id="3.1.2">Shows all students with active placements assigned to this room</ac>
+    <ac id="3.1.3">Columns: student name, student ID, days remaining, today's points total, attendance status</ac>
+    <ac id="3.1.4">Room selector dropdown to switch between rooms (for staff assigned to multiple)</ac>
+    <ac id="3.1.5">Period selector (defaults to current period based on bell schedule)</ac>
+    <ac id="3.1.6">Date picker (defaults to today)</ac>
+    <ac id="3.1.7">All DAEP staff can see all rooms (Birdville model; daep_room_staff table preserved for future tenant setting)</ac>
+    <ac id="3.1.8">District/DAEP admins can see all rooms</ac>
+  </acceptance-criteria>
+
+  <files-to-create>
+    <file path="lib/daep/bell-schedule.ts" purpose="Period calculation utilities">
+      - getCurrentPeriod(tenantId) - returns current period based on time and bell schedule
+      - getPeriodsForDate(tenantId, date) - returns periods array for date picker
+      - getScheduleForDate(tenantId, date) - checks calendar for schedule overrides
+    </file>
+    <file path="app/actions/daep/roster.ts" purpose="Server actions for roster data">
+      - getUserAccessibleRooms() - returns rooms user can access (all rooms for DAEP roles)
+      - getRoomRoster(roomId, date, period) - main data fetch with students, points, attendance
+      - canAccessRoom(roomId) - authorization check
+    </file>
+    <file path="components/daep/roster/RoomRosterContext.tsx" purpose="Context provider for roster state"/>
+    <file path="components/daep/roster/RoomSelector.tsx" purpose="Room dropdown"/>
+    <file path="components/daep/roster/DateSelector.tsx" purpose="Date picker, defaults to today"/>
+    <file path="components/daep/roster/PeriodSelector.tsx" purpose="Period dropdown from bell schedule"/>
+    <file path="components/daep/roster/RoomRosterTable.tsx" purpose="Main table with sortable columns"/>
+    <file path="components/daep/roster/RosterStudentRow.tsx" purpose="Student row (extensible for points/attendance)"/>
+    <file path="components/daep/roster/DaysRemainingBadge.tsx" purpose="Color-coded badge (green >10, yellow 5-10, red less than 5)"/>
+    <file path="app/daep/(main)/rooms/page.tsx" purpose="Room selection landing page"/>
+    <file path="app/daep/(main)/rooms/[roomId]/page.tsx" purpose="Room roster page"/>
+  </files-to-create>
+
+  <database-tables>
+    <table name="daep_rooms">
+      <description>Room definitions with room_group_id for separation logic</description>
+      <key-columns>id, tenant_id, room_number, room_name, capacity, active, room_group_id</key-columns>
+    </table>
+    <table name="daep_room_groups">
+      <description>Room groups for separation logic (Story 3-0)</description>
+      <key-columns>id, tenant_id, group_name, color, sort_order, active</key-columns>
+    </table>
+    <table name="daep_room_staff">
+      <description>Staff-room assignments (not used in Birdville model but preserved)</description>
+      <key-columns>id, tenant_id, room_id, user_id, assignment_type</key-columns>
+    </table>
+    <table name="daep_bell_schedules">
+      <description>Bell schedule definitions with periods JSONB</description>
+      <key-columns>id, tenant_id, schedule_name, periods, is_default, active</key-columns>
+      <note>periods is JSONB array: [{period_number, period_name, start_time, end_time}]</note>
+    </table>
+    <table name="daep_school_calendar">
+      <description>Calendar with day types and schedule overrides</description>
+      <key-columns>id, tenant_id, date, is_school_day, day_type, bell_schedule_id, notes</key-columns>
+    </table>
+    <table name="daep_placements">
+      <description>Student placements with room assignments</description>
+      <key-columns>id, tenant_id, school_id, assigned_room_id, status, days_remaining</key-columns>
+      <status-values>pending, active, transition, met, complete</status-values>
+    </table>
+    <table name="daep_daily_points">
+      <description>Point entries per student/date/period (Stories 3-2+)</description>
+      <key-columns>id, tenant_id, placement_id, date, period, points_earned</key-columns>
+      <note>Empty table - will be populated by Story 3-2</note>
+    </table>
+    <table name="daep_attendance">
+      <description>Attendance entries per student/date/period (Story 3-9)</description>
+      <key-columns>id, tenant_id, placement_id, date, period, status</key-columns>
+      <note>Empty table - will be populated by Story 3-9</note>
+    </table>
+  </database-tables>
+
+  <roster-query-pattern>
+    <![CDATA[
+SELECT
+  p.id as placement_id,
+  p.school_id,
+  p.days_remaining,
+  p.status,
+  t.first_name,
+  t.last_name,
+  t.grade_level,
+  COALESCE(
+    (SELECT SUM(points_earned) FROM daep_daily_points dp
+     WHERE dp.placement_id = p.id AND dp.date = $date),
+    0
+  ) as today_points_total,
+  (SELECT status FROM daep_attendance da
+   WHERE da.placement_id = p.id AND da.date = $date AND da.period = $period)
+  as attendance_status
+FROM daep_placements p
+JOIN trespass_records t ON t.school_id = p.school_id AND t.tenant_id = p.tenant_id
+WHERE p.tenant_id = $tenantId
+  AND p.assigned_room_id = $roomId
+  AND p.status IN ('pending', 'active', 'transition')
+ORDER BY t.last_name, t.first_name;
+    ]]>
+  </roster-query-pattern>
+
+  <role-access-model>
+    <note>Birdville Model: All DAEP staff see ALL rooms (teachers rotate, students stay in one room)</note>
+    <role name="daep_staff">All rooms in tenant</role>
+    <role name="daep_admin_l2">All rooms in tenant</role>
+    <role name="daep_admin_l1">All rooms in tenant</role>
+    <role name="district_admin">All rooms in tenant</role>
+    <role name="super_admin">All rooms in active tenant</role>
+    <future-setting>room_access_mode: 'all' | 'assigned' - tenant-level toggle for assigned-room-only mode</future-setting>
+  </role-access-model>
+
+  <existing-patterns>
+    <pattern name="Server Action Structure" file="app/actions/daep/rooms.ts">
+      <![CDATA[
+// Helper to get effective tenant_id (supports super_admin tenant switching)
+async function getTenantId(): Promise<string> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) throw new Error('User profile not found');
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) throw new Error('No tenant assigned');
+  return effectiveTenantId;
+}
+
+// Helper to check DAEP admin role
+async function checkDAEPAdminRole(): Promise<{ userId: string; role: string; tenantId: string }> {
+  // ... validates role is in ['super_admin', 'district_admin', 'daep_admin_l1']
+}
+
+// Audit logging pattern
+async function logDAEPAuditEvent(supabase, eventType, actorId, targetId, action, tenantId, details) {
+  // ... logs to admin_audit_log with module: 'daep_management'
+}
+      ]]>
+    </pattern>
+
+    <pattern name="Select Dropdown" file="components/daep/StudentFilters.tsx">
+      <![CDATA[
+<Select value={roomFilter} onValueChange={onRoomChange}>
+  <SelectTrigger>
+    <SelectValue placeholder="All Rooms" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">All Rooms</SelectItem>
+    {rooms.map((room) => (
+      <SelectItem key={room.id} value={room.id}>
+        {room.room_number}
+        {room.room_name ? ` - ${room.room_name}` : ''}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+      ]]>
+    </pattern>
+
+    <pattern name="Page Structure with Filters" file="app/daep/(main)/students/page.tsx">
+      <![CDATA[
+'use client';
+import { useEffect, useState, useCallback } from 'react';
+// ... state for data, filters, loading
+// ... useCallback for fetch functions
+// ... debounced search pattern
+
+return (
+  <div className="space-y-6">
+    {/* Header */}
+    <div className="flex justify-between items-center">
+      <div>
+        <h2 className="text-xl font-semibold">...</h2>
+        <p className="text-sm text-muted-foreground">...</p>
+      </div>
+      <div className="flex gap-2">
+        {/* Action buttons */}
+      </div>
+    </div>
+
+    {/* Filters */}
+    <FilterComponent ... />
+
+    {/* Data Table */}
+    <TableComponent ... />
+  </div>
+);
+      ]]>
+    </pattern>
+
+    <pattern name="Date Input" file="components/daep/StudentFilters.tsx">
+      <![CDATA[
+<div className="flex items-center gap-2">
+  <span className="text-sm text-muted-foreground">From:</span>
+  <Input
+    type="date"
+    value={dateFrom}
+    onChange={(e) => onDateFromChange(e.target.value)}
+    className="w-36"
+  />
+</div>
+      ]]>
+    </pattern>
+  </existing-patterns>
+
+  <extensibility-requirements>
+    <requirement name="Render Props Pattern">
+      RosterStudentRow should accept optional render props for points and attendance cells.
+      In Story 3-1, render placeholder text. In Stories 3-2/3-9, pass interactive components.
+      <![CDATA[
+interface RosterStudentRowProps {
+  student: RosterStudent;
+  date: string;
+  period: number | null;
+  renderPointsCell?: (student: RosterStudent) => React.ReactNode;
+  renderAttendanceCell?: (student: RosterStudent) => React.ReactNode;
+}
+      ]]>
+    </requirement>
+    <requirement name="RoomRosterContext">
+      Create context that stores: current room, date, period, student list, refresh function.
+      Allows child components (added in future stories) to access and modify roster state without prop drilling.
+    </requirement>
+    <requirement name="Optimistic Updates Pattern">
+      Establish updateStudentData pattern for instant UI feedback (used heavily in Story 3-2).
+      <![CDATA[
+const updateStudentData = (placementId: string, updates: Partial<RosterStudent>) => {
+  setStudents(prev => prev.map(s =>
+    s.placement_id === placementId ? { ...s, ...updates } : s
+  ));
+};
+      ]]>
+    </requirement>
+    <requirement name="Column Visibility">
+      Store column visibility in state to support future stories adding columns.
+    </requirement>
+  </extensibility-requirements>
+
+  <edge-cases>
+    <case name="Bell schedule edge cases">
+      - Before first period: show period 1
+      - After last period: show last period
+      - Weekends/holidays: show "No school today"
+      - No default schedule configured: show warning with link to settings
+    </case>
+    <case name="Room assignment gaps">
+      - Student assigned to placement but no room yet
+      - Room deactivated while students assigned
+    </case>
+    <case name="Timezone">
+      - Bell schedule times respect tenant timezone (America/Chicago default)
+      - Date picker uses local date, not UTC
+    </case>
+    <case name="Performance">
+      - Large rosters (30+ students) need efficient rendering
+    </case>
+  </edge-cases>
+
+  <ui-imports>
+    <![CDATA[
+// shadcn/ui components commonly used
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Lucide icons commonly used
+import { RefreshCw, Calendar, Clock, Users, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Hooks
+import { useToast } from '@/hooks/use-toast';
+
+// Server actions pattern
+import { createServerClient } from '@/lib/supabase/server';
+import { currentUser } from '@clerk/nextjs/server';
+import { revalidatePath } from 'next/cache';
+    ]]>
+  </ui-imports>
+
+  <quick-wins>
+    <win id="1" effort="low">
+      <title>Keyboard navigation for period selector</title>
+      <description>Arrow keys to move between periods for fast entry during point recording</description>
+      <implementation>Add onKeyDown handler to PeriodSelector with ArrowLeft/ArrowRight support</implementation>
+    </win>
+    <win id="2" effort="low">
+      <title>Copy link button</title>
+      <description>One-click copy of current room/date/period URL for sharing with colleagues</description>
+      <implementation>Add copy button next to selectors using navigator.clipboard.writeText()</implementation>
+    </win>
+    <win id="3" effort="low">
+      <title>Student count badge in room selector</title>
+      <description>Show student count next to room number so staff can see load at a glance</description>
+      <implementation>Include student_count in getUserAccessibleRooms() query, display as badge</implementation>
+    </win>
+  </quick-wins>
+
+  <backlog>
+    <item target-story="3-2">
+      <title>Period auto-advance</title>
+      <description>Auto-select next period when current period ends (requires timer/interval)</description>
+    </item>
+  </backlog>
+
+  <references>
+    <ref type="tech-spec">docs/sprint-artifacts/daep/tech-spec-epic-3-batch-1.md</ref>
+    <ref type="previous-story">docs/sprint-artifacts/daep/story-3-0.md</ref>
+    <ref type="pattern-room-actions">app/actions/daep/rooms.ts</ref>
+    <ref type="pattern-placement-actions">app/actions/daep/placements.ts</ref>
+    <ref type="pattern-filters">components/daep/StudentFilters.tsx</ref>
+    <ref type="pattern-table">components/daep/StudentListTable.tsx</ref>
+    <ref type="pattern-page">app/daep/(main)/students/page.tsx</ref>
+  </references>
+
+</story-context>

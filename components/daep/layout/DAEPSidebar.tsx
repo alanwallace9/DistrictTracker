@@ -16,11 +16,13 @@ import {
   ChevronRight,
   AlertTriangle,
   BarChart3,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const NAV_ITEMS = [
   { href: '/daep', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/daep/rooms', label: 'Room Rosters', icon: Building2 },
   { href: '/daep/students', label: 'Students', icon: Users },
   { href: '/daep/placements', label: 'Placements', icon: ClipboardList },
   { href: '/daep/attendance', label: 'Attendance', icon: Calendar },

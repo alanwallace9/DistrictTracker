@@ -525,6 +525,53 @@ export const ApproveRolloverPlacementSchema = z.object({
 export type ApproveRolloverPlacementInput = z.infer<typeof ApproveRolloverPlacementSchema>;
 
 // ============================================================================
+// DAEP POINT ENTRY SCHEMAS (Story 3-2)
+// ============================================================================
+
+export const POINT_ADJUSTMENT_VALUES = [10, 5, 0, -5, -10, -15] as const;
+export type PointAdjustmentValue = (typeof POINT_ADJUSTMENT_VALUES)[number];
+
+export const PointAdjustmentSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  period: z.string().min(1, 'Period is required'),
+  adjustment_value: z.number().refine(
+    (val) => POINT_ADJUSTMENT_VALUES.includes(val as PointAdjustmentValue),
+    { message: 'Adjustment must be +10, +5, 0, -5, -10, or -15' }
+  ),
+  student_action: z.string().max(100).nullable().optional(),
+  teacher_action: z.string().max(100).nullable().optional(),
+  notes: z.string().max(500, 'Notes too long').nullable().optional(),
+});
+
+export type PointAdjustmentInput = z.infer<typeof PointAdjustmentSchema>;
+
+// Response types for point summaries
+export interface DailyPointEntry {
+  id: string;
+  placement_id: string;
+  period: string;
+  points_earned: number;
+  is_base_points: boolean;
+  student_action: string | null;
+  teacher_action: string | null;
+  notes: string | null;
+  entered_by: string;
+  created_at: string;
+}
+
+export interface DailyPointsSummary {
+  placement_id: string;
+  base_points: number;       // Sum of base points (10 per present period)
+  adjustments: number;       // Sum of adjustment values
+  day_total: number;         // base_points + adjustments
+  periods_present: number;   // Count of periods marked present
+  expected_points: number;   // periods_present * 10
+  percentage: number;        // (day_total / expected_points) * 100, or 0 if no expected
+  entries: DailyPointEntry[]; // All entries for the day
+}
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

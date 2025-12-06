@@ -57,18 +57,49 @@ const user = await currentUser();
 
 This provides shared visibility between Claude and the user during development.
 
+## Pre-Story Research (Required)
+
+**BEFORE drafting or implementing ANY story, check these sources for context:**
+
+1. **Session documents** (`docs/sessions/`)
+   - `brainstorming-*.md` - Product philosophy, workflow decisions, "seamless UX" principles
+   - `ux-*.md` - User journeys, experience patterns, UI decisions
+   - `product-brief-*.md` - Core product vision and constraints
+
+2. **Previous conversation context** about this feature area
+   - What did we decide in earlier discussions?
+   - What's the intended user experience?
+
+3. **Design philosophy check**: Does this implementation support "How did they ever do their job without this?"
+   - Minimize manual data entry
+   - Fit natural workflow of the day
+   - Free up teacher time for students
+
+**Reference key decisions in the story's Dev Notes section.**
+
+---
+
 ## Pre-Implementation Planning (Required)
 
 **BEFORE writing any code for a story, present an execution plan:**
 
-1. **Order of operations** - Which files/components to create/modify and in what sequence
-2. **Key architectural decisions** - Patterns to use, components to reuse, potential pitfalls
-3. **Refactor prevention** - Identify dependencies and integration points upfront
-4. **Database considerations** - Any schema changes, RLS policies, or migrations needed
+1. **Overview** - Brief summary of what we're building and why it matters
+2. **Order of operations** - Which files/components to create/modify and in what sequence
+3. **Key architectural decisions** - Patterns to use, components to reuse, potential pitfalls
+4. **Refactor prevention** - Identify dependencies and integration points upfront
+5. **Database considerations** - Any schema changes, RLS policies, or migrations needed
 
 **Format:**
 ```
 ## Execution Plan for Story X-Y
+
+### Overview
+[2-3 sentence summary of what we're building, why it matters to users, and any key constraint]
+
+Example: "Building the Room Roster page that displays students assigned to a room with
+period/date selectors. This is the foundational UI for all Epic 3 daily operations -
+points entry, attendance, and behavior notes will build on this view. Must be designed
+for extensibility since future stories add interactive columns."
 
 ### Order of Operations
 1. [First task] - why this order
@@ -218,7 +249,7 @@ Load the specific epic's tech spec, not the full architecture.
 
 ## Current Project State
 
-**Current Version:** `0.3.1`
+**Current Version:** `0.3.3`
 
 **Epic 1a: Core Schema & Security** - COMPLETE
 - All stories (1-0 through 1-4): `done`
@@ -233,9 +264,11 @@ Load the specific epic's tech spec, not the full architecture.
 - FRs: FR9-FR26, FR73-FR77
 - Backlog item: Story 2-8b (UX improvement) - `drafted`
 
-**Epic 3: Daily Operations** - IN PROGRESS (v0.3.1+)
+**Epic 3: Daily Operations** - IN PROGRESS (v0.3.3)
 - Story 3-0: Room Groups - `done`
-- Stories 3-1 through 3-12: `backlog`
+- Story 3-1: Room Roster View - `done`
+- Story 3-2: Point Entry Grid - `done`
+- Stories 3-3 through 3-12: `backlog`
 - 12 stories, 29 points
 - FRs: FR27-FR44
 
@@ -278,13 +311,14 @@ These files are large and should only be loaded via their sharded parts:
 
 ```
 1. sprint-status.yaml → find story key
-2. {story-key}.md → read story details
-3. {story-key}.context.xml → load if exists (skip step 4 if it does)
-4. tech-spec-epic-{N}.md → load only if needed
-5. Implement tasks sequentially
-6. Update checkboxes as you go
-7. Mark story done in sprint-status.yaml when complete
-8. Suggest commit when story is complete (see Commit Conventions below)
+2. docs/sessions/ → check brainstorming/UX docs for product philosophy
+3. {story-key}.md → read story details
+4. {story-key}.context.xml → load if exists (skip step 5 if it does)
+5. tech-spec-epic-{N}.md → load only if needed
+6. Implement tasks sequentially
+7. Update checkboxes as you go
+8. Mark story done in sprint-status.yaml when complete
+9. Suggest commit when story is complete (see Commit Conventions below)
 ```
 
 ## Commit & Changelog Conventions

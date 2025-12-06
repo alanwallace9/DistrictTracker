@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 3-2 Point Entry Grid
+  Generated: 2025-12-06
+  Updated: 2025-12-06 (Clarified points model based on user feedback)
+  Purpose: Pre-assembled context for Story 3-2 implementation
+-->
+<story-context story="3-2" title="Point Entry Grid">
+
+  <design-philosophy>
+    "How did they ever do their job without this?"
+
+    Points entry should be seamless and fit the natural workflow of the day.
+    Base points are auto-granted when attendance is marked present - staff only
+    need to intervene for adjustments (bonus or deductions). This frees up
+    teacher time to spend with students rather than on data entry.
+  </design-philosophy>
+
+  <summary>
+    Add point tracking to the Room Roster page. Base 10 points are auto-granted
+    per period when a student is marked present (attendance-driven). Teachers can
+    add adjustments (+10, +5, 0, -5, -10, -15) with student_action, teacher_action
+    dropdowns and notes. Today's Total column shows running day total with color
+    coding based on % of expected by current period.
+  </summary>
+
+  <acceptance-criteria>
+    <ac id="3.2.1">Room roster shows Today's Total column with running point total per student</ac>
+    <ac id="3.2.2">Base 10 points auto-granted per period when student is marked present</ac>
+    <ac id="3.2.3">Quick adjust dropdown for point adjustments (+10, +5, 0, -5, -10, -15)</ac>
+    <ac id="3.2.4">Student action dropdown (from tenant's behavior categories)</ac>
+    <ac id="3.2.5">Teacher action dropdown (from tenant's configured actions)</ac>
+    <ac id="3.2.6">Notes field for free-text explanation</ac>
+    <ac id="3.2.7">Adjustments saved to daep_daily_points table with all metadata</ac>
+    <ac id="3.2.8">Room header shows capacity: "8/12 present (15 max)"</ac>
+    <ac id="3.2.9">Color coding for Today's Total based on % of expected by current period</ac>
+    <ac id="3.2.10">Auto-save on selection/blur with optimistic UI updates</ac>
+  </acceptance-criteria>
+
+  <points-model>
+    <base-points>
+      <description>Auto-granted when student is marked PRESENT for a period</description>
+      <value>10</value>
+      <trigger>Attendance marked present</trigger>
+      <manual-entry>NOT required - seamless workflow</manual-entry>
+    </base-points>
+
+    <adjustment-points>
+      <description>Teacher adds/subtracts for behavior</description>
+      <values>+10, +5, 0, -5, -10, -15</values>
+      <multiple-per-period>TRUE - can have multiple entries per period</multiple-per-period>
+      <example>
+        - Halfway through: +5 "Finished assignment early, started next without prompting"
+        - End of period: 0 "Got bored, head down, off-task, had to redirect"
+      </example>
+      <required-fields>
+        <field name="adjustment_value">The +/- amount</field>
+        <field name="student_action">From behavior categories (optional)</field>
+        <field name="teacher_action">From tenant settings (optional)</field>
+        <field name="notes">Free text explanation (optional)</field>
+      </required-fields>
+    </adjustment-points>
+
+    <entry-log>
+      <description>Visible to student/parent on student page</description>
+      <fields>timestamp, period, teacher name, adjustment, student_action, notes</fields>
+      <purpose>Accountability and transparency</purpose>
+    </entry-log>
+
+    <day-total-calculation>
+      <![CDATA[
+Day Total = SUM(base_points for present periods) + SUM(adjustments)
+
+Example at 5th period:
+- 5 periods present = 50 base points
+- 1 adjustment of -5 (off task in period 3)
+- Day Total = 50 + (-5) = 45 points
+- Expected = 50, so 45/50 = 90% (green/blue)
+      ]]>
+    </day-total-calculation>
+  </points-model>
+
+  <files-to-create>
+    <file path="app/actions/daep/points.ts" purpose="Server actions for points">
+      - createBasePoints(placementId, date, period) - Called when attendance marked present
+      - createPointAdjustment(input) - Teacher adjustment with dropdowns
+      - getDailyPointsSummary(roomId, date) - Totals for roster view
+    </file>
+    <file path="components/daep/roster/PointAdjustmentCell.tsx" purpose="Compact trigger for adjustment">
+      - Button/icon to open adjustment dialog
+      - Shows current period adjustment if exists
+    </file>
+    <file path="components/daep/roster/PointAdjustmentDialog.tsx" purpose="Full adjustment entry">
+      - Adjustment dropdown: +10, +5, 0, -5, -10, -15
+      - Student action dropdown (from daep_behavior_categories)
+      - Teacher action dropdown (from tenant settings)
+      - Notes textarea
+      - Save/Cancel with optimistic updates
+    </file>
+    <file path="components/daep/roster/TodaysTotalCell.tsx" purpose="Running day total display">
+      - Shows current/expected format: "47/50"
+      - Color coding by percentage
+    </file>
+  </files-to-create>
+
+  <files-to-modify>
+    <file path="components/daep/roster/RoomRosterTable.tsx" reason="Add Today's Total and Quick Adjust columns"/>
+    <file path="components/daep/roster/RoomRosterContext.tsx" reason="Add dailyPoints state and addAdjustment action"/>
+    <file path="app/actions/daep/roster.ts" reason="Include points summary in getRoomRoster"/>
+    <file path="app/daep/(main)/rooms/[roomId]/RoomRosterView.tsx" reason="Update header with capacity display"/>
+    <file path="lib/validation/schemas.ts" reason="Add PointAdjustmentSchema"/>
+  </files-to-modify>
+
+  <database-considerations>
+    <current-schema table="daep_daily_points">
+      <![CDATA[
+CREATE TABLE daep_daily_points (
+  id UUID PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  placement_id UUID NOT NULL,
+  date DATE NOT NULL,
+  period TEXT NOT NULL,
+  points_earned INT NOT NULL CHECK (points_earned >= 0 AND points_earned <= 10),
+  student_action TEXT,
+  teacher_action TEXT,
+  notes TEXT,
+  entered_by TEXT NOT NULL,
+  approved_by TEXT,
+  approval_status TEXT DEFAULT 'approved',
+  public BOOLEAN DEFAULT TRUE,
+  UNIQUE(tenant_id, placement_id, date, period)
+);
+      ]]>
+    </current-schema>
+
+    <required-migration>
+      <![CDATA[
+-- Remove unique constraint to allow multiple entries per period
+ALTER TABLE daep_daily_points
+DROP CONSTRAINT IF EXISTS daep_daily_points_tenant_id_placement_id_date_period_key;
+
+-- Add is_base_points column to distinguish auto vs manual entries
+ALTER TABLE daep_daily_points
+ADD COLUMN IF NOT EXISTS is_base_points BOOLEAN DEFAULT false;
+
+-- Add index for efficient querying
+CREATE INDEX IF NOT EXISTS idx_daep_daily_points_lookup
+ON daep_daily_points(tenant_id, placement_id, date);
+      ]]>
+    </required-migration>
+
+    <entry-types>
+      <base-entry>points_earned = 10, is_base_points = true (one per period when present)</base-entry>
+      <adjustment-entry>points_earned = +/-value, is_base_points = false (multiple allowed per period)</adjustment-entry>
+    </entry-types>
+  </database-considerations>
+
+  <dropdown-data-sources>
+    <source name="Student Action" table="daep_behavior_categories">
+      <description>Configured per tenant in settings (Story 1.10)</description>
+      <examples>On Task, Off Task, Helped Peer, Not Following Directions, Disruptive</examples>
+      <fetch-pattern>SELECT * FROM daep_behavior_categories WHERE tenant_id = $tenantId AND active = true</fetch-pattern>
+    </source>
+
+    <source name="Teacher Action" table="TBD - may need new table or extend behavior_categories">
+      <description>What the teacher did in response</description>
+      <examples>Redirected, Conference, Called Home, Sent to Office, None</examples>
+      <note>May need to add teacher_actions table or category_type field to behavior_categories</note>
+    </source>
+  </dropdown-data-sources>
+
+  <room-header-display>
+    <![CDATA[
+Room 501 - A Wing
+8/12 present (15 max)
+└─ 8 = students marked present this period
+   └─ 12 = students assigned to this room
+      └─ 15 = room capacity (Texas law max)
+    ]]>
+  </room-header-display>
+
+  <color-coding>
+    <description>Based on % of EXPECTED points by current period, not raw number</description>
+    <calculation>percentage = (current_total / expected_by_this_period) * 100</calculation>
+    <thresholds>
+      <threshold min="90" color="green/blue" meaning="On target"/>
+      <threshold min="80" max="89" color="yellow" meaning="Falling behind"/>
+      <threshold max="79" color="red" meaning="Needs attention"/>
+    </thresholds>
+    <note>Consider adding toggle to enable/disable and color key/legend</note>
+  </color-coding>
+
+  <validation-schema>
+    <![CDATA[
+// Add to lib/validation/schemas.ts
+
+export const PointAdjustmentSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  period: z.string().min(1, 'Period is required'),
+  adjustment_value: z.enum(['+10', '+5', '0', '-5', '-10', '-15']),
+  student_action: z.string().optional(),
+  teacher_action: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+
+export type PointAdjustmentInput = z.infer<typeof PointAdjustmentSchema>;
+
+// Response types
+export interface DailyPointsSummary {
+  placement_id: string;
+  base_points: number;      // Sum of base points (10 per present period)
+  adjustments: number;      // Sum of adjustment values
+  day_total: number;        // base_points + adjustments
+  periods_present: number;  // Count of periods marked present
+  expected_points: number;  // periods_present * 10
+  percentage: number;       // (day_total / expected_points) * 100
+}
+    ]]>
+  </validation-schema>
+
+  <server-action-patterns>
+    <pattern name="createBasePoints">
+      <![CDATA[
+// Called when attendance is marked present
+// Idempotent - won't duplicate if already exists
+export async function createBasePoints(
+  placementId: string,
+  date: string,
+  period: string
+): Promise<void> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+  const user = await currentUser();
+
+  // Check if base points already exist for this period
+  const { data: existing } = await supabase
+    .from('daep_daily_points')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .eq('date', date)
+    .eq('period', period)
+    .eq('is_base_points', true)
+    .single();
+
+  if (existing) return; // Already exists, skip
+
+  await supabase.from('daep_daily_points').insert({
+    tenant_id: tenantId,
+    placement_id: placementId,
+    date,
+    period,
+    points_earned: 10,
+    is_base_points: true,
+    entered_by: user.id,
+    approval_status: 'approved',
+    public: true,
+  });
+}
+      ]]>
+    </pattern>
+
+    <pattern name="createPointAdjustment">
+      <![CDATA[
+export async function createPointAdjustment(
+  input: PointAdjustmentInput
+): Promise<{ success: boolean; error?: string }> {
+  const validated = PointAdjustmentSchema.parse(input);
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+  const user = await currentUser();
+
+  // Convert adjustment string to number
+  const adjustmentValue = parseInt(validated.adjustment_value);
+
+  const { error } = await supabase.from('daep_daily_points').insert({
+    tenant_id: tenantId,
+    placement_id: validated.placement_id,
+    date: validated.date,
+    period: validated.period,
+    points_earned: adjustmentValue,
+    is_base_points: false,
+    student_action: validated.student_action,
+    teacher_action: validated.teacher_action,
+    notes: validated.notes,
+    entered_by: user.id,
+    approval_status: 'approved',
+    public: true,
+  });
+
+  if (error) {
+    return { success: false, error: 'Failed to save adjustment. Please try again.' };
+  }
+
+  // Audit log
+  await logDAEPAuditEvent(supabase, 'points.adjustment_added', user.id,
+    validated.placement_id, 'Added point adjustment', tenantId, {
+      date: validated.date,
+      period: validated.period,
+      adjustment: adjustmentValue,
+      student_action: validated.student_action,
+      teacher_action: validated.teacher_action,
+    });
+
+  return { success: true };
+}
+      ]]>
+    </pattern>
+  </server-action-patterns>
+
+  <error-handling>
+    <philosophy>Errors should be customer-facing and useful</philosophy>
+    <first-failure>Toast with clear message, retry suggestion</first-failure>
+    <multiple-failures>Suggest going to feedback page</multiple-failures>
+    <never>Show raw error codes to users</never>
+  </error-handling>
+
+  <attendance-integration>
+    <note>Base points require attendance to be marked first</note>
+    <flow>
+      <step>1. Student marked PRESENT for period</step>
+      <step>2. System calls createBasePoints() automatically</step>
+      <step>3. Base 10 points recorded for that period</step>
+    </flow>
+    <edge-case name="attendance-changed">
+      If attendance changes from present to absent mid-day,
+      need to decide: remove base points or leave them?
+    </edge-case>
+    <dependency>Story 3-9 (Attendance Entry) - may need to implement together</dependency>
+  </attendance-integration>
+
+  <existing-patterns>
+    <pattern name="RosterStudentRow Extensibility" file="components/daep/roster/RosterStudentRow.tsx">
+      Use renderExtraCells prop to inject PointAdjustmentCell and TodaysTotalCell
+    </pattern>
+
+    <pattern name="Optimistic Update" file="components/daep/roster/RoomRosterContext.tsx">
+      Use updateStudentData() for instant UI feedback, revert on error
+    </pattern>
+
+    <pattern name="Behavior Categories Fetch" file="app/actions/daep/behavior-categories.ts">
+      Pattern for fetching tenant-specific dropdown options
+    </pattern>
+  </existing-patterns>
+
+  <ui-layout>
+    <![CDATA[
+| Student        | Grade | Campus | Status | Days      | Today's Total | Adjust | Notes |
+|----------------|-------|--------|--------|-----------|---------------|--------|-------|
+| Smith, John    | 9     | Main   | Active | 5/20 left | 47/50 (94%)   | [+/-]  | [📝]  |
+| Jones, Mary    | 10    | Main   | Active | 12/15 left| 30/50 (60%)   | [+/-]  | [📝]  |
+
+Room Header: "Room 501 - A Wing | 8/12 present (15 max)"
+    ]]>
+  </ui-layout>
+
+  <quick-wins>
+    <win effort="low">Default "present" - Most students are present; override for absent</win>
+    <win effort="low">Most recent adjustment indicator - Subtle highlight on last-modified</win>
+    <win effort="medium">Bulk "all present" button - Mark entire roster present with one click</win>
+  </quick-wins>
+
+  <backlog>
+    <item story="future">Keyboard shortcuts (Ctrl+Z undo)</item>
+    <item story="3-3">Multi-period view - See all periods in grid</item>
+    <item story="3-7">Cumulative tracking - Days to completion at current rate</item>
+  </backlog>
+
+  <dependencies>
+    <story id="3-1" status="done">Room Roster View - provides extensible table structure</story>
+    <story id="1-10" status="done">Behavior Categories Configuration - provides student_action options</story>
+    <story id="3-9" status="backlog">Attendance Entry - triggers base point creation</story>
+  </dependencies>
+
+  <session-references>
+    <note>Before implementation, review session docs for product philosophy:</note>
+    <ref>docs/sessions/brainstorming-*.md - Seamless workflow decisions</ref>
+    <ref>docs/sessions/ux-*.md - User journey patterns</ref>
+  </session-references>
+
+  <references>
+    <ref type="epic">docs/reference/epics-part2.md#Story-3.2</ref>
+    <ref type="previous-story">docs/sprint-artifacts/daep/story-3-1.md</ref>
+    <ref type="roster-context">components/daep/roster/RoomRosterContext.tsx</ref>
+    <ref type="roster-row">components/daep/roster/RosterStudentRow.tsx</ref>
+    <ref type="behavior-categories">app/actions/daep/behavior-categories.ts</ref>
+    <ref type="schema">supabase/migrations/20251124221840_create_daep_schema.sql</ref>
+  </references>
+
+</story-context>

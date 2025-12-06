@@ -100,9 +100,9 @@ development_status:
   # ============================================
   epic-3: contexted  # Batch 1 tech spec: docs/sprint-artifacts/daep/tech-spec-epic-3-batch-1.md
   3-0-room-groups: done  # Prerequisite: story-3-0.md - Room groups for separation logic
-  3-1-room-roster-view: backlog  # Tech spec ready, needs story draft
-  3-2-point-entry-grid: backlog
-  3-3-bulk-point-entry: backlog
+  3-1-room-roster-view: done  # Story: docs/sprint-artifacts/daep/story-3-1.md | Context: docs/sprint-artifacts/daep/story-3-1.context.xml
+  3-2-point-entry-grid: done  # Story: docs/sprint-artifacts/daep/story-3-2.md | Context: docs/sprint-artifacts/daep/story-3-2.context.xml
+  3-3-bulk-point-entry: backlog  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-3.md
   3-4-point-notes-comments: backlog
   3-5-approved-teacher-auto-finalize: backlog
   3-6-pending-approval-workflow: backlog
