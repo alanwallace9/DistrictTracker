@@ -42,14 +42,14 @@ const SCHEDULE_TYPES = [
 ] as const;
 
 const DEFAULT_PERIODS: BellSchedulePeriod[] = [
-  { period_name: '1st Period', start_time: '08:00', end_time: '08:50' },
-  { period_name: '2nd Period', start_time: '08:55', end_time: '09:45' },
-  { period_name: '3rd Period', start_time: '09:50', end_time: '10:40' },
-  { period_name: '4th Period', start_time: '10:45', end_time: '11:35' },
-  { period_name: '5th Period', start_time: '11:40', end_time: '12:30' },
-  { period_name: '6th Period', start_time: '13:00', end_time: '13:50' },
-  { period_name: '7th Period', start_time: '13:55', end_time: '14:45' },
-  { period_name: '8th Period', start_time: '14:50', end_time: '15:40' },
+  { period_name: '1st Period', start_time: '08:00', end_time: '08:50', requires_attendance: true, grants_points: true },
+  { period_name: '2nd Period', start_time: '08:55', end_time: '09:45', requires_attendance: true, grants_points: true },
+  { period_name: '3rd Period', start_time: '09:50', end_time: '10:40', requires_attendance: true, grants_points: true },
+  { period_name: '4th Period', start_time: '10:45', end_time: '11:35', requires_attendance: true, grants_points: true },
+  { period_name: '5th Period', start_time: '11:40', end_time: '12:30', requires_attendance: true, grants_points: true },
+  { period_name: '6th Period', start_time: '13:00', end_time: '13:50', requires_attendance: true, grants_points: true },
+  { period_name: '7th Period', start_time: '13:55', end_time: '14:45', requires_attendance: true, grants_points: true },
+  { period_name: '8th Period', start_time: '14:50', end_time: '15:40', requires_attendance: true, grants_points: true },
 ];
 
 export function AddScheduleDialog({ open, onOpenChange, onSuccess }: AddScheduleDialogProps) {
@@ -72,7 +72,7 @@ export function AddScheduleDialog({ open, onOpenChange, onSuccess }: AddSchedule
       schedule_name: '',
       schedule_type: 'regular',
       campus_id: '',
-      periods: [{ period_name: '1st Period', start_time: '08:00', end_time: '08:50' }],
+      periods: [{ period_name: '1st Period', start_time: '08:00', end_time: '08:50', requires_attendance: true, grants_points: true }],
       is_default: false,
       active: true,
     },
@@ -155,6 +155,8 @@ export function AddScheduleDialog({ open, onOpenChange, onSuccess }: AddSchedule
       period_name: `${periodNum}${suffix} Period`,
       start_time: newStartTime,
       end_time: newEndTime,
+      requires_attendance: true,
+      grants_points: true,
     });
   };
 

@@ -17,10 +17,11 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { BellSchedulePeriod, DailyPointsSummary } from '@/lib/validation/schemas';
+import type { BellSchedulePeriod, DailyPointsSummary, AttendanceEntry } from '@/lib/validation/schemas';
 import type { RosterStudent, RoomWithCount, RoomRosterResult } from '@/app/actions/daep/roster';
 import type { CurrentPeriodResult } from '@/lib/daep/bell-schedule';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
+import type { AttendanceStatusType } from '@/app/actions/daep/attendance';
 
 // ========== TYPES ==========
 
@@ -44,6 +45,10 @@ interface RoomRosterContextValue {
   dailyPoints: Map<string, DailyPointsSummary>;
   behaviorCategories: BehaviorCategory[];
 
+  // Story 3-9: Attendance Data
+  attendance: Map<string, AttendanceEntry>;
+  attendanceStatusTypes: AttendanceStatusType[];
+
   // State
   isLoading: boolean;
   error: string | null;
@@ -59,6 +64,10 @@ interface RoomRosterContextValue {
   refreshDailyPoints: () => Promise<void>;
   updatePointsSummary: (placementId: string, summary: DailyPointsSummary) => void;
 
+  // Story 3-9: Attendance Actions
+  refreshAttendance: () => Promise<void>;
+  updateAttendance: (placementId: string, entry: AttendanceEntry) => void;
+
   // Story 3-3: Selection State for Bulk Actions
   selectedPlacements: Set<string>;
   toggleSelection: (placementId: string) => void;
@@ -68,7 +77,14 @@ interface RoomRosterContextValue {
   isSomeSelected: boolean;
 
   // Initialization
-  initializeFromData: (data: RoomRosterResult, rooms: RoomWithCount[], categories?: BehaviorCategory[], points?: Map<string, DailyPointsSummary>) => void;
+  initializeFromData: (
+    data: RoomRosterResult,
+    rooms: RoomWithCount[],
+    categories?: BehaviorCategory[],
+    points?: Map<string, DailyPointsSummary>,
+    attendanceData?: Map<string, AttendanceEntry>,
+    statusTypes?: AttendanceStatusType[]
+  ) => void;
 }
 
 // ========== CONTEXT ==========
@@ -94,6 +110,7 @@ interface RoomRosterProviderProps {
   initialPeriodIndex: number;
   onRosterChange?: (roomId: string, date: string, periodIndex: number) => Promise<RoomRosterResult>;
   onPointsRefresh?: (roomId: string, date: string) => Promise<Map<string, DailyPointsSummary>>;
+  onAttendanceRefresh?: (roomId: string, date: string, period: string) => Promise<Map<string, AttendanceEntry>>;
 }
 
 export function RoomRosterProvider({
@@ -103,6 +120,7 @@ export function RoomRosterProvider({
   initialPeriodIndex,
   onRosterChange,
   onPointsRefresh,
+  onAttendanceRefresh,
 }: RoomRosterProviderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -125,6 +143,10 @@ export function RoomRosterProvider({
   // Story 3-2: Points Data
   const [dailyPoints, setDailyPoints] = useState<Map<string, DailyPointsSummary>>(new Map());
   const [behaviorCategories, setBehaviorCategories] = useState<BehaviorCategory[]>([]);
+
+  // Story 3-9: Attendance Data
+  const [attendance, setAttendance] = useState<Map<string, AttendanceEntry>>(new Map());
+  const [attendanceStatusTypes, setAttendanceStatusTypes] = useState<AttendanceStatusType[]>([]);
 
   // Story 3-3: Selection State for Bulk Actions
   const [selectedPlacements, setSelectedPlacements] = useState<Set<string>>(new Set());
@@ -235,6 +257,30 @@ export function RoomRosterProvider({
     );
   }, []);
 
+  // Story 3-9: Refresh attendance for current period
+  const refreshAttendance = useCallback(async () => {
+    if (!roomId || !onAttendanceRefresh || periods.length === 0) return;
+
+    try {
+      const currentPeriod = periods[periodIndex];
+      if (!currentPeriod) return;
+
+      const newAttendance = await onAttendanceRefresh(roomId, date, currentPeriod.period_name);
+      setAttendance(newAttendance);
+    } catch (err) {
+      console.error('Failed to refresh attendance:', err);
+    }
+  }, [roomId, date, periodIndex, periods, onAttendanceRefresh]);
+
+  // Story 3-9: Update single student's attendance (optimistic)
+  const updateAttendance = useCallback((placementId: string, entry: AttendanceEntry) => {
+    setAttendance((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(placementId, entry);
+      return newMap;
+    });
+  }, []);
+
   // Story 3-3: Selection actions for bulk operations
   const toggleSelection = useCallback((placementId: string) => {
     setSelectedPlacements((prev) => {
@@ -270,7 +316,9 @@ export function RoomRosterProvider({
     data: RoomRosterResult,
     rooms: RoomWithCount[],
     categories?: BehaviorCategory[],
-    points?: Map<string, DailyPointsSummary>
+    points?: Map<string, DailyPointsSummary>,
+    attendanceData?: Map<string, AttendanceEntry>,
+    statusTypes?: AttendanceStatusType[]
   ) => {
     setRoom(data.room);
     setStudents(data.students);
@@ -291,6 +339,14 @@ export function RoomRosterProvider({
     if (points) {
       setDailyPoints(points);
     }
+
+    // Story 3-9: Initialize attendance data
+    if (attendanceData) {
+      setAttendance(attendanceData);
+    }
+    if (statusTypes) {
+      setAttendanceStatusTypes(statusTypes);
+    }
   }, []);
 
   const value: RoomRosterContextValue = {
@@ -308,6 +364,9 @@ export function RoomRosterProvider({
     // Story 3-2: Points Data
     dailyPoints,
     behaviorCategories,
+    // Story 3-9: Attendance Data
+    attendance,
+    attendanceStatusTypes,
     // State
     isLoading,
     error,
@@ -320,6 +379,9 @@ export function RoomRosterProvider({
     // Story 3-2: Points Actions
     refreshDailyPoints,
     updatePointsSummary,
+    // Story 3-9: Attendance Actions
+    refreshAttendance,
+    updateAttendance,
     // Story 3-3: Selection State for Bulk Actions
     selectedPlacements,
     toggleSelection,

@@ -45,6 +45,11 @@ export interface RoomRosterTableProps {
   selectedStudentId?: string | null;
   onStudentSelect?: (placementId: string) => void;
 
+  // Story 3-9: Attendance column (appears after Status, before Days Left)
+  showAttendanceColumn?: boolean;
+  attendanceColumnHeader?: ReactNode;
+  renderAttendanceCell?: (context: StudentRowContext) => ReactNode;
+
   // Extensibility props for future stories
   extraColumns?: ExtraColumn[];
   renderExtraCells?: (context: StudentRowContext) => ReactNode;
@@ -170,6 +175,9 @@ export function RoomRosterTable({
   isLoading = false,
   selectedStudentId,
   onStudentSelect,
+  showAttendanceColumn = false,
+  attendanceColumnHeader,
+  renderAttendanceCell,
   extraColumns = [],
   renderExtraCells,
 }: RoomRosterTableProps) {
@@ -241,6 +249,12 @@ export function RoomRosterTable({
                 onSort={handleSort}
               />
             </TableHead>
+            {/* Story 3-9: Attendance column */}
+            {showAttendanceColumn && (
+              <TableHead className="w-[100px]">
+                {attendanceColumnHeader || 'Attendance'}
+              </TableHead>
+            )}
             <TableHead className="w-[120px] text-center">
               <SortButton
                 label="Days Left"
@@ -265,6 +279,7 @@ export function RoomRosterTable({
               student={student}
               isSelected={selectedStudentId === student.placement_id}
               onSelect={onStudentSelect}
+              renderAttendanceCell={showAttendanceColumn ? renderAttendanceCell : undefined}
               renderExtraCells={renderExtraCells}
             />
           ))}

@@ -171,6 +171,8 @@ export const BellSchedulePeriodSchema = z.object({
   period_name: z.string().min(1, 'Period name is required').max(20, 'Period name too long'),
   start_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
   end_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
+  requires_attendance: z.boolean().default(true),  // Story 3-9: Should staff take attendance this period?
+  grants_points: z.boolean().default(true),        // Story 3-9: Does this period grant base points?
 });
 
 export const BellScheduleSchema = z.object({
@@ -569,6 +571,89 @@ export interface DailyPointsSummary {
   expected_points: number;   // periods_present * 10
   percentage: number;        // (day_total / expected_points) * 100, or 0 if no expected
   entries: DailyPointEntry[]; // All entries for the day
+}
+
+// ============================================================================
+// DAEP ATTENDANCE SCHEMAS (Story 3-9)
+// ============================================================================
+
+// Attendance status codes
+export const ATTENDANCE_STATUS_CODES = ['P', 'A', 'T', 'ED', 'FT'] as const;
+export type AttendanceStatusCode = (typeof ATTENDANCE_STATUS_CODES)[number];
+
+// Points type for attendance status
+export const ATTENDANCE_POINTS_TYPES = ['full', 'partial', 'none'] as const;
+export type AttendancePointsType = (typeof ATTENDANCE_POINTS_TYPES)[number];
+
+// Attendance status type (for settings)
+export const AttendanceStatusTypeSchema = z.object({
+  status_code: z.string().min(1, 'Status code is required').max(10, 'Status code too long'),
+  label: z.string().min(1, 'Label is required').max(50, 'Label too long'),
+  points_type: z.enum(ATTENDANCE_POINTS_TYPES).default('full'),
+  requires_time: z.boolean().default(false),
+  sort_order: z.number().int().min(0).default(0),
+  is_default: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+export type AttendanceStatusTypeInput = z.infer<typeof AttendanceStatusTypeSchema>;
+
+// Mark attendance input
+export const MarkAttendanceSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  period: z.string().min(1, 'Period is required'),
+  status: z.string().min(1, 'Status is required').max(10, 'Status code too long'),
+  tardy_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Time must be HH:MM').nullable().optional(),
+  early_dismiss_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Time must be HH:MM').nullable().optional(),
+}).refine(
+  (data) => {
+    // Tardy requires tardy_time
+    if (data.status === 'T' && !data.tardy_time) return false;
+    // Early Dismissal requires early_dismiss_time
+    if (data.status === 'ED' && !data.early_dismiss_time) return false;
+    return true;
+  },
+  { message: 'Time is required for Tardy and Early Dismissal statuses' }
+);
+
+export type MarkAttendanceInput = z.infer<typeof MarkAttendanceSchema>;
+
+// Bulk mark attendance input
+export const BulkMarkAttendanceSchema = z.object({
+  placement_ids: z.array(z.string().uuid()).min(1, 'At least one student required'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  period: z.string().min(1, 'Period is required'),
+  status: z.string().min(1, 'Status is required').max(10, 'Status code too long'),
+});
+
+export type BulkMarkAttendanceInput = z.infer<typeof BulkMarkAttendanceSchema>;
+
+// Attendance entry response type
+export interface AttendanceEntry {
+  id: string;
+  placement_id: string;
+  date: string;
+  period: string;
+  status: string;
+  tardy_time: string | null;
+  early_dismiss_time: string | null;
+  excused: boolean;
+  excuse_reason: string | null;
+  counts_toward_days_served: boolean;
+  notes: string | null;
+  entered_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Room attendance status (for room cards)
+export interface RoomAttendanceStatus {
+  room_id: string;
+  taken: boolean;       // All students marked for this period?
+  count: number;        // Number of students with attendance
+  total: number;        // Total students in room
+  present_count: number; // Students marked present/tardy/ED (not absent)
 }
 
 // ============================================================================

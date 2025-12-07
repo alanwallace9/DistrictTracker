@@ -17,7 +17,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { TableCell } from '@/components/ui/table';
 import {
   ArrowLeft,
   Copy,
@@ -38,16 +37,21 @@ import {
   PointsColorLegend,
   BulkActionsToolbar,
   BulkApplyDialog,
+  AttendanceSummaryBanner,
   type StudentRowContext,
 } from '@/components/daep/roster';
+import { AttendanceCell } from '@/components/daep/roster/AttendanceCell';
+import { TableCell } from '@/components/ui/table';
+import { ClipboardCheck } from 'lucide-react';
 import {
   getRoomRoster,
   type RoomRosterResult,
   type RoomWithCount,
 } from '@/app/actions/daep/roster';
 import { getDailyPointsSummary, bulkAddPoints } from '@/app/actions/daep/points';
+import { getRoomAttendance, type AttendanceStatusType } from '@/app/actions/daep/attendance';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
-import type { DailyPointsSummary } from '@/lib/validation/schemas';
+import type { DailyPointsSummary, AttendanceEntry } from '@/lib/validation/schemas';
 
 // ========== COPY LINK BUTTON (Quick Win #2) ==========
 
@@ -119,12 +123,15 @@ function RosterContent() {
     accessibleRooms,
     dailyPoints,
     behaviorCategories,
+    attendance,
+    attendanceStatusTypes,
     isLoading,
     error,
     setRoom,
     setDate,
     setPeriod,
     refreshDailyPoints,
+    refreshAttendance,
     selectedPlacements,
     clearSelection,
   } = useRoomRoster();
@@ -292,10 +299,54 @@ function RosterContent() {
         </div>
       )}
 
-      {/* Student Table with Story 3-2 columns */}
+      {/* Story 3-9: Attendance Summary Banner with Mark All Present */}
+      {students.length > 0 && attendanceStatusTypes.length > 0 && (
+        <AttendanceSummaryBanner
+          date={date}
+          period={currentPeriodName}
+          placementIds={students.map((s) => s.placement_id)}
+          attendance={attendance}
+          onAttendanceUpdated={() => {
+            refreshAttendance();
+            refreshDailyPoints();
+          }}
+        />
+      )}
+
+      {/* Student Table with Story 3-2 and 3-9 columns */}
       <RoomRosterTable
         students={students}
         isLoading={isLoading}
+        showAttendanceColumn={attendanceStatusTypes.length > 0}
+        attendanceColumnHeader={
+          <div className="flex items-center gap-1">
+            <ClipboardCheck className="h-4 w-4" />
+            Attendance
+          </div>
+        }
+        renderAttendanceCell={(context: StudentRowContext) => {
+          const { student } = context;
+          const entry = attendance.get(student.placement_id);
+
+          return (
+            <TableCell className="px-2">
+              <AttendanceCell
+                placementId={student.placement_id}
+                date={date}
+                period={currentPeriodName}
+                currentStatus={entry?.status || null}
+                tardyTime={entry?.tardy_time}
+                earlyDismissTime={entry?.early_dismiss_time}
+                statusTypes={attendanceStatusTypes}
+                onStatusChange={() => {
+                  // Refresh both attendance and points (P grants points)
+                  refreshAttendance();
+                  refreshDailyPoints();
+                }}
+              />
+            </TableCell>
+          );
+        }}
         extraColumns={[
           { id: 'today_total', header: "Today's Total", width: '100px' },
           { id: 'adjust', header: 'Adjust', width: '80px' },
@@ -339,6 +390,8 @@ interface RoomRosterViewProps {
   accessibleRooms: RoomWithCount[];
   behaviorCategories: BehaviorCategory[];
   initialDailyPoints: Map<string, DailyPointsSummary>;
+  initialAttendance: Map<string, AttendanceEntry>;
+  attendanceStatusTypes: AttendanceStatusType[];
 }
 
 export function RoomRosterView({
@@ -346,6 +399,8 @@ export function RoomRosterView({
   accessibleRooms,
   behaviorCategories,
   initialDailyPoints,
+  initialAttendance,
+  attendanceStatusTypes,
 }: RoomRosterViewProps) {
   const { toast } = useToast();
 
@@ -374,6 +429,14 @@ export function RoomRosterView({
     []
   );
 
+  // Story 3-9: Handler for refreshing attendance
+  const handleAttendanceRefresh = useCallback(
+    async (roomId: string, date: string, period: string) => {
+      return await getRoomAttendance(roomId, date, period);
+    },
+    []
+  );
+
   return (
     <RoomRosterProvider
       initialRoomId={initialData.room.id}
@@ -381,12 +444,15 @@ export function RoomRosterView({
       initialPeriodIndex={initialData.periodIndex}
       onRosterChange={handleRosterChange}
       onPointsRefresh={handlePointsRefresh}
+      onAttendanceRefresh={handleAttendanceRefresh}
     >
       <RosterInitializer
         initialData={initialData}
         accessibleRooms={accessibleRooms}
         behaviorCategories={behaviorCategories}
         initialDailyPoints={initialDailyPoints}
+        initialAttendance={initialAttendance}
+        attendanceStatusTypes={attendanceStatusTypes}
       />
       <RosterContent />
     </RoomRosterProvider>
@@ -399,17 +465,28 @@ function RosterInitializer({
   accessibleRooms,
   behaviorCategories,
   initialDailyPoints,
+  initialAttendance,
+  attendanceStatusTypes,
 }: {
   initialData: RoomRosterResult;
   accessibleRooms: RoomWithCount[];
   behaviorCategories: BehaviorCategory[];
   initialDailyPoints: Map<string, DailyPointsSummary>;
+  initialAttendance: Map<string, AttendanceEntry>;
+  attendanceStatusTypes: AttendanceStatusType[];
 }) {
   const { initializeFromData } = useRoomRoster();
 
   useEffect(() => {
-    initializeFromData(initialData, accessibleRooms, behaviorCategories, initialDailyPoints);
-  }, [initialData, accessibleRooms, behaviorCategories, initialDailyPoints, initializeFromData]);
+    initializeFromData(
+      initialData,
+      accessibleRooms,
+      behaviorCategories,
+      initialDailyPoints,
+      initialAttendance,
+      attendanceStatusTypes
+    );
+  }, [initialData, accessibleRooms, behaviorCategories, initialDailyPoints, initialAttendance, attendanceStatusTypes, initializeFromData]);
 
   return null;
 }

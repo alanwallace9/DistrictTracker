@@ -108,7 +108,7 @@ development_status:
   3-6-pending-approval-workflow: done  # Story: docs/sprint-artifacts/daep/story-3-6.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-6.md
   3-7-cumulative-points-milestones: done  # Story: docs/sprint-artifacts/daep/story-3-7.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-7.md | Note: Consecutive perfect days milestone to be added as enhancement
   3-8-point-audit-trail: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-8.md | Context: docs/sprint-artifacts/daep/story-3-8.context.xml
-  3-9-attendance-entry: backlog
+  3-9-attendance-entry: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-9.md | Story: docs/sprint-artifacts/daep/story-3-9.md
   3-10-excused-unexcused-absences: backlog
   3-11-attendance-rate-calculations: backlog
   3-12-attendance-override-audit: backlog

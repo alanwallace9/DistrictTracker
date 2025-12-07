@@ -17,6 +17,7 @@ import {
 } from '@/app/actions/daep/roster';
 import { getActiveBehaviorCategories } from '@/app/actions/daep/behavior-categories';
 import { getDailyPointsSummary } from '@/app/actions/daep/points';
+import { getRoomAttendance, getAttendanceStatusTypes } from '@/app/actions/daep/attendance';
 import { RoomRosterView } from './RoomRosterView';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -86,15 +87,20 @@ export default async function RoomRosterPage({ params, searchParams }: PageProps
   // Parse period number from search params
   const periodNumber = period !== undefined ? parseInt(period, 10) : undefined;
 
-  // Fetch room roster, accessible rooms, behavior categories, and daily points in parallel
-  const [rosterData, accessibleRooms, behaviorCategories] = await Promise.all([
+  // Fetch room roster, accessible rooms, behavior categories, and attendance status types in parallel
+  const [rosterData, accessibleRooms, behaviorCategories, attendanceStatusTypes] = await Promise.all([
     getRoomRoster(roomId, date, periodNumber),
     getUserAccessibleRooms(),
     getActiveBehaviorCategories(),
+    getAttendanceStatusTypes(),
   ]);
 
-  // Fetch daily points summary (after we have the date from roster)
-  const dailyPoints = await getDailyPointsSummary(roomId, rosterData.date);
+  // Fetch daily points summary and attendance (after we have the date/period from roster)
+  const currentPeriodName = rosterData.periods[rosterData.periodIndex]?.period_name || '';
+  const [dailyPoints, attendanceData] = await Promise.all([
+    getDailyPointsSummary(roomId, rosterData.date),
+    currentPeriodName ? getRoomAttendance(roomId, rosterData.date, currentPeriodName) : Promise.resolve(new Map()),
+  ]);
 
   return (
     <Suspense fallback={<RosterLoadingSkeleton />}>
@@ -103,6 +109,8 @@ export default async function RoomRosterPage({ params, searchParams }: PageProps
         accessibleRooms={accessibleRooms}
         behaviorCategories={behaviorCategories}
         initialDailyPoints={dailyPoints}
+        initialAttendance={attendanceData}
+        attendanceStatusTypes={attendanceStatusTypes}
       />
     </Suspense>
   );

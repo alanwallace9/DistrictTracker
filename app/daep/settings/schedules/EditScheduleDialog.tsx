@@ -155,6 +155,8 @@ export function EditScheduleDialog({ open, onOpenChange, schedule, onSuccess }: 
       period_name: `${periodNum}${suffix} Period`,
       start_time: newStartTime,
       end_time: newEndTime,
+      requires_attendance: true,
+      grants_points: true,
     });
   };
 
