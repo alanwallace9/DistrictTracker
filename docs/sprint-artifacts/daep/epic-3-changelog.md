@@ -1,8 +1,54 @@
 # Epic 3: Daily Operations - Changelog
 
-**Epic Status:** In Progress (9 of 12 stories complete)
-**Version Range:** v0.3.1 - v0.3.8
+**Epic Status:** In Progress (11 of 12 stories complete)
+**Version Range:** v0.3.1 - v0.3.9
 **FRs Covered:** FR27-FR44
+
+---
+
+## v0.3.9 - ADA Attendance Rate Calculations
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | ADA Attendance Rate Calculations |
+| **Story** | 3-11 |
+| **FRs** | FR43 |
+
+**Description:**
+Attendance rates are now calculated based on days present (not periods) using a configurable ADA attendance period. Districts can select which period determines daily attendance for ADA reporting purposes. Other periods are used for points tracking only. Rate badges appear in the room roster and student profile with color-coded thresholds.
+
+**Key Features:**
+- ADA Attendance Period selector in District Settings
+- Rate calculation: Days Present / Total School Days in Placement
+- Only the designated ADA period determines if a day is "present"
+- Rate column in room roster with color-coded badges
+- AttendanceRateBadge component (green >90%, yellow 85-90%, red <85%)
+- AttendanceRateProgress component on student profile
+- Threshold alerts for students below 85% attendance
+- Consecutive absent days tracking for notifications (Epic 7 prep)
+
+---
+
+## v0.3.8a - Excused/Unexcused Absences
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Excused/Unexcused Absences |
+| **Story** | 3-10 |
+| **FRs** | FR41 |
+
+**Description:**
+Absences can now be marked as excused or unexcused with specific reason codes. Excused absences with "counts toward days served" (like court appearances) still credit the student's placement progress. Staff can click on an attendance status to open the Excuse Modal and set the excuse status and reason.
+
+**Key Features:**
+- Excuse Modal for marking absences excused/unexcused
+- Reason codes: Medical, Parent Request, School Activity, Court/Legal, Government
+- "Counts toward days served" flag for qualifying absences (Court/Legal, Government)
+- Visual indicators on attendance badges (E suffix for excused)
+- Admin-only override for counts_toward_days_served
+- Excuse reason displayed in attendance cell tooltip
 
 ---
 
@@ -186,6 +232,8 @@ Room Groups allow administrators to define building sections (e.g., "Up", "Down"
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.3.9 | Feature | ADA Attendance Rate Calculations | 3-11 |
+| v0.3.8a | Feature | Excused/Unexcused Absences | 3-10 |
 | v0.3.8 | Feature | Attendance Entry | 3-9 |
 | v0.3.7 | Feature | Point Audit Trail | 3-8 |
 | v0.3.6 | Feature | Cumulative Points & Milestones | 3-7 |
@@ -201,6 +249,4 @@ Room Groups allow administrators to define building sections (e.g., "Up", "Down"
 
 | Story | Title | Points |
 |-------|-------|--------|
-| 3-10 | Excused/Unexcused Absences | 2 |
-| 3-11 | Attendance Rate Calculations | 2 |
 | 3-12 | Attendance Override Audit | 2 |
