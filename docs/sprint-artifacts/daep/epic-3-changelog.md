@@ -1,8 +1,33 @@
 # Epic 3: Daily Operations - Changelog
 
-**Epic Status:** In Progress (8 of 12 stories complete)
-**Version Range:** v0.3.1 - v0.3.7
+**Epic Status:** In Progress (9 of 12 stories complete)
+**Version Range:** v0.3.1 - v0.3.8
 **FRs Covered:** FR27-FR44
+
+---
+
+## v0.3.8 - Attendance Entry
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Attendance Entry |
+| **Story** | 3-9 |
+| **FRs** | FR38, FR39, FR40, FR41 |
+
+**Description:**
+DAEP staff can now record attendance directly in the room roster with an iPad-friendly inline dropdown. Status options include Present, Absent, Tardy, and Early Dismissal. Tardy and Early Dismissal prompt for time entry. Attendance is tied to the point system: Present grants base points, Absent removes them.
+
+**Key Features:**
+- Attendance column in room roster with inline status dropdown
+- Status options: Present (P), Absent (A), Tardy (T), Early Dismissal (ED)
+- Time entry modal for Tardy/Early Dismissal
+- Auto-save on selection with optimistic UI updates
+- Color-coded status badges (green/red/yellow/orange)
+- Attendance summary banner showing period counts (e.g., "Period 3: 14/15 present")
+- Points integration: Present grants base points, Absent removes them
+- Configurable attendance status types in Settings
+- Bell schedule periods can specify `requires_attendance` flag
 
 ---
 
@@ -161,6 +186,7 @@ Room Groups allow administrators to define building sections (e.g., "Up", "Down"
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.3.8 | Feature | Attendance Entry | 3-9 |
 | v0.3.7 | Feature | Point Audit Trail | 3-8 |
 | v0.3.6 | Feature | Cumulative Points & Milestones | 3-7 |
 | v0.3.5 | Feature | Point Approval Workflow | 3-5, 3-6 |
@@ -175,7 +201,6 @@ Room Groups allow administrators to define building sections (e.g., "Up", "Down"
 
 | Story | Title | Points |
 |-------|-------|--------|
-| 3-9 | Attendance Entry | 3 |
 | 3-10 | Excused/Unexcused Absences | 2 |
 | 3-11 | Attendance Rate Calculations | 2 |
 | 3-12 | Attendance Override Audit | 2 |
