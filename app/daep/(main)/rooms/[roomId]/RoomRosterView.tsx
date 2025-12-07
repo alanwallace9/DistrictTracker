@@ -5,6 +5,7 @@
  *
  * Story 3-1: Room Roster View
  * Story 3-2: Point Entry Grid
+ * Story 3-3: Bulk Point Entry
  *
  * Client-side component that manages the roster view state and interactions.
  * Uses RoomRosterContext for shared state management.
@@ -35,6 +36,8 @@ import {
   TodaysTotalCell,
   PointAdjustmentCell,
   PointsColorLegend,
+  BulkActionsToolbar,
+  BulkApplyDialog,
   type StudentRowContext,
 } from '@/components/daep/roster';
 import {
@@ -42,7 +45,7 @@ import {
   type RoomRosterResult,
   type RoomWithCount,
 } from '@/app/actions/daep/roster';
-import { getDailyPointsSummary } from '@/app/actions/daep/points';
+import { getDailyPointsSummary, bulkAddPoints } from '@/app/actions/daep/points';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
 import type { DailyPointsSummary } from '@/lib/validation/schemas';
 
@@ -103,6 +106,7 @@ function NonSchoolDayAlert({ dayType }: { dayType: string | null }) {
 
 function RosterContent() {
   const router = useRouter();
+  const { toast } = useToast();
   const {
     room,
     students,
@@ -121,10 +125,49 @@ function RosterContent() {
     setDate,
     setPeriod,
     refreshDailyPoints,
+    selectedPlacements,
+    clearSelection,
   } = useRoomRoster();
+
+  // Story 3-3: Bulk action dialog state
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkAdjustment, setBulkAdjustment] = useState<number>(0);
 
   // Get current period name for adjustment dialog
   const currentPeriodName = periods[periodIndex]?.period_name || '';
+
+  // Story 3-3: Handle bulk action selection from toolbar
+  const handleBulkAction = useCallback((adjustment: number) => {
+    setBulkAdjustment(adjustment);
+    setBulkDialogOpen(true);
+  }, []);
+
+  // Story 3-3: Handle bulk action confirmation
+  const handleBulkConfirm = useCallback(
+    async (adjustment: number, notes: string) => {
+      const placementIds = Array.from(selectedPlacements);
+
+      const result = await bulkAddPoints({
+        placementIds,
+        date,
+        period: currentPeriodName,
+        adjustment,
+        notes,
+      });
+
+      if (result.success) {
+        toast({
+          title: 'Points Applied',
+          description: `Added ${adjustment > 0 ? '+' : ''}${adjustment} points to ${result.count} student${result.count !== 1 ? 's' : ''}`,
+        });
+        // Refresh points data
+        await refreshDailyPoints();
+      }
+
+      return result;
+    },
+    [selectedPlacements, date, currentPeriodName, toast, refreshDailyPoints]
+  );
 
   // Handle room change - navigate to new room
   const handleRoomChange = useCallback((newRoomId: string) => {
@@ -233,9 +276,10 @@ function RosterContent() {
         </Alert>
       )}
 
-      {/* Story 3-2: Points Color Legend */}
+      {/* Story 3-2: Points Color Legend + Story 3-3: Bulk Actions Toolbar */}
       {students.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <BulkActionsToolbar onApplyAction={handleBulkAction} />
           <PointsColorLegend />
         </div>
       )}
@@ -267,6 +311,14 @@ function RosterContent() {
             </>
           );
         }}
+      />
+
+      {/* Story 3-3: Bulk Apply Dialog */}
+      <BulkApplyDialog
+        open={bulkDialogOpen}
+        onOpenChange={setBulkDialogOpen}
+        adjustment={bulkAdjustment}
+        onConfirm={handleBulkConfirm}
       />
     </div>
   );

@@ -4,6 +4,7 @@
  * Room Roster Table Component
  *
  * Story 3-1: Room Roster View
+ * Story 3-3: Bulk Point Entry (selection checkboxes)
  *
  * Displays students in a sortable table with color-coded days remaining.
  * Uses render props pattern for extensibility - future stories (3-2, 3-9)
@@ -22,7 +23,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react';
 import { RosterStudentRow, type StudentRowContext } from './RosterStudentRow';
+import { SelectAllCheckbox, RowSelectionCheckbox } from './SelectionCheckbox';
+import { useRoomRoster } from './RoomRosterContext';
 import type { RosterStudent } from '@/app/actions/daep/roster';
+import { cn } from '@/lib/utils';
 
 // ========== TYPES ==========
 
@@ -206,6 +210,10 @@ export function RoomRosterTable({
       <Table>
         <TableHeader>
           <TableRow>
+            {/* Story 3-3: Selection checkbox column */}
+            <TableHead className="w-[40px] px-2">
+              <SelectAllCheckbox />
+            </TableHead>
             <TableHead className="w-[250px]">
               <SortButton
                 label="Student"

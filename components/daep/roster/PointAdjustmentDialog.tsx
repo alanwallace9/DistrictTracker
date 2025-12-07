@@ -38,13 +38,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Trash2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createPointAdjustment, deletePointAdjustment } from '@/app/actions/daep/points';
+import { createPointAdjustment, deletePointAdjustment, updatePointAdjustment } from '@/app/actions/daep/points';
 import {
   POINT_ADJUSTMENT_VALUES,
   type PointAdjustmentValue,
   type DailyPointEntry,
 } from '@/lib/validation/schemas';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
+
+interface EditModeConfig {
+  entryId: string;
+  initialValues: {
+    adjustment_value: number;
+    student_action: string | null;
+    teacher_action: string | null;
+    notes: string | null;
+  };
+}
 
 interface PointAdjustmentDialogProps {
   open: boolean;
@@ -57,6 +67,8 @@ interface PointAdjustmentDialogProps {
   existingAdjustments?: DailyPointEntry[];
   currentUserId?: string;
   onSuccess?: () => void;
+  /** Edit mode configuration - when provided, dialog edits existing entry */
+  editMode?: EditModeConfig;
 }
 
 // Adjustment value display
@@ -84,15 +96,25 @@ export function PointAdjustmentDialog({
   existingAdjustments = [],
   currentUserId,
   onSuccess,
+  editMode,
 }: PointAdjustmentDialogProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
-  // Form state
-  const [adjustmentValue, setAdjustmentValue] = useState<PointAdjustmentValue | null>(null);
-  const [studentAction, setStudentAction] = useState<string>('');
-  const [teacherAction, setTeacherAction] = useState<string>('');
-  const [notes, setNotes] = useState('');
+  // Determine if we're in edit mode
+  const isEditMode = !!editMode;
+
+  // Form state - initialize from editMode if provided
+  const [adjustmentValue, setAdjustmentValue] = useState<PointAdjustmentValue | null>(
+    editMode ? (editMode.initialValues.adjustment_value as PointAdjustmentValue) : null
+  );
+  const [studentAction, setStudentAction] = useState<string>(
+    editMode?.initialValues.student_action || ''
+  );
+  const [teacherAction, setTeacherAction] = useState<string>(
+    editMode?.initialValues.teacher_action || ''
+  );
+  const [notes, setNotes] = useState(editMode?.initialValues.notes || '');
 
   // Separate categories by type
   const studentActions = behaviorCategories.filter(
@@ -122,30 +144,57 @@ export function PointAdjustmentDialog({
     }
 
     startTransition(async () => {
-      const result = await createPointAdjustment({
-        placement_id: placementId,
-        date,
-        period,
-        adjustment_value: adjustmentValue,
-        student_action: studentAction || null,
-        teacher_action: teacherAction || null,
-        notes: notes.trim() || null,
-      });
+      if (isEditMode && editMode) {
+        // Update existing entry
+        const result = await updatePointAdjustment({
+          entryId: editMode.entryId,
+          adjustment_value: adjustmentValue,
+          student_action: studentAction || null,
+          teacher_action: teacherAction || null,
+          notes: notes.trim() || null,
+        });
 
-      if (result.success) {
-        toast({
-          title: 'Adjustment Saved',
-          description: `${formatAdjustment(adjustmentValue)} points recorded.`,
-        });
-        resetForm();
-        onSuccess?.();
-        onOpenChange(false);
+        if (result.success) {
+          toast({
+            title: 'Changes Saved',
+            description: 'Point adjustment updated successfully.',
+          });
+          onSuccess?.();
+          onOpenChange(false);
+        } else {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to save changes. Please try again.',
+            variant: 'destructive',
+          });
+        }
       } else {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to save adjustment. Please try again.',
-          variant: 'destructive',
+        // Create new entry
+        const result = await createPointAdjustment({
+          placement_id: placementId,
+          date,
+          period,
+          adjustment_value: adjustmentValue,
+          student_action: studentAction || null,
+          teacher_action: teacherAction || null,
+          notes: notes.trim() || null,
         });
+
+        if (result.success) {
+          toast({
+            title: 'Adjustment Saved',
+            description: `${formatAdjustment(adjustmentValue)} points recorded.`,
+          });
+          resetForm();
+          onSuccess?.();
+          onOpenChange(false);
+        } else {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to save adjustment. Please try again.',
+            variant: 'destructive',
+          });
+        }
       }
     });
   };
@@ -189,7 +238,7 @@ export function PointAdjustmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DAEPDialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Point Adjustment</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Point Adjustment' : 'Point Adjustment'}</DialogTitle>
           <DialogDescription>
             {studentName} &bull; {period}
           </DialogDescription>
@@ -283,8 +332,8 @@ export function PointAdjustmentDialog({
             />
           </div>
 
-          {/* Existing Adjustments for this Period */}
-          {existingAdjustments.length > 0 && (
+          {/* Existing Adjustments for this Period - hidden in edit mode */}
+          {!isEditMode && existingAdjustments.length > 0 && (
             <>
               <Separator className="my-2" />
               <div className="space-y-1 overflow-hidden">
@@ -346,7 +395,7 @@ export function PointAdjustmentDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={isPending || adjustmentValue === null}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Adjustment
+            {isEditMode ? 'Save Changes' : 'Save Adjustment'}
           </Button>
         </DialogFooter>
       </DAEPDialogContent>

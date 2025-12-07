@@ -4,6 +4,7 @@
  * Roster Student Row Component
  *
  * Story 3-1: Room Roster View
+ * Story 3-3: Bulk Point Entry (selection checkbox)
  *
  * Displays a single student in the roster table.
  * Uses render props pattern for extensibility - future stories (3-2, 3-9)
@@ -14,6 +15,9 @@ import { type ReactNode } from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DaysRemainingBadge } from './DaysRemainingBadge';
+import { RowSelectionCheckbox } from './SelectionCheckbox';
+import { useRoomRoster } from './RoomRosterContext';
+import { cn } from '@/lib/utils';
 import type { RosterStudent } from '@/app/actions/daep/roster';
 import type { PlacementStatus } from '@/lib/validation/schemas';
 
@@ -61,15 +65,29 @@ export function RosterStudentRow({
   onSelect,
   renderExtraCells,
 }: RosterStudentRowProps) {
+  const { selectedPlacements } = useRoomRoster();
   const context: StudentRowContext = { student, isSelected };
+
+  // Story 3-3: Check if this student is selected for bulk action
+  const isChecked = selectedPlacements.has(student.placement_id);
+  const studentName = `${student.last_name}, ${student.first_name}`;
 
   return (
     <TableRow
-      className={isSelected ? 'bg-muted/50' : undefined}
+      className={cn(
+        isSelected && 'bg-muted/50',
+        // Story 3-3: Highlight selected rows for bulk action
+        isChecked && 'bg-primary/5 hover:bg-primary/10'
+      )}
       onClick={() => onSelect?.(student.placement_id)}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
     >
+      {/* Story 3-3: Selection Checkbox */}
+      <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
+        <RowSelectionCheckbox placementId={student.placement_id} studentName={studentName} />
+      </TableCell>
+
       {/* Student Name */}
       <TableCell className="font-medium">
         <div className="flex flex-col">

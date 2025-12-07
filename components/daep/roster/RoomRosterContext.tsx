@@ -5,6 +5,7 @@
  *
  * Story 3-1: Room Roster View
  * Story 3-2: Point Entry Grid (dailyPoints, behaviorCategories)
+ * Story 3-3: Bulk Point Entry (selection state)
  *
  * Provides shared state for the room roster view, allowing child components
  * to access and modify roster state without prop drilling.
@@ -14,7 +15,7 @@
  * - Stories 3-9 will add attendance state
  */
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { BellSchedulePeriod, DailyPointsSummary } from '@/lib/validation/schemas';
 import type { RosterStudent, RoomWithCount, RoomRosterResult } from '@/app/actions/daep/roster';
@@ -57,6 +58,14 @@ interface RoomRosterContextValue {
   // Story 3-2: Points Actions
   refreshDailyPoints: () => Promise<void>;
   updatePointsSummary: (placementId: string, summary: DailyPointsSummary) => void;
+
+  // Story 3-3: Selection State for Bulk Actions
+  selectedPlacements: Set<string>;
+  toggleSelection: (placementId: string) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
+  isAllSelected: boolean;
+  isSomeSelected: boolean;
 
   // Initialization
   initializeFromData: (data: RoomRosterResult, rooms: RoomWithCount[], categories?: BehaviorCategory[], points?: Map<string, DailyPointsSummary>) => void;
@@ -116,6 +125,9 @@ export function RoomRosterProvider({
   // Story 3-2: Points Data
   const [dailyPoints, setDailyPoints] = useState<Map<string, DailyPointsSummary>>(new Map());
   const [behaviorCategories, setBehaviorCategories] = useState<BehaviorCategory[]>([]);
+
+  // Story 3-3: Selection State for Bulk Actions
+  const [selectedPlacements, setSelectedPlacements] = useState<Set<string>>(new Set());
 
   // State
   const [isLoading, setIsLoading] = useState(false);
@@ -223,6 +235,36 @@ export function RoomRosterProvider({
     );
   }, []);
 
+  // Story 3-3: Selection actions for bulk operations
+  const toggleSelection = useCallback((placementId: string) => {
+    setSelectedPlacements((prev) => {
+      const next = new Set(prev);
+      if (next.has(placementId)) {
+        next.delete(placementId);
+      } else {
+        next.add(placementId);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedPlacements(new Set(students.map((s) => s.placement_id)));
+  }, [students]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedPlacements(new Set());
+  }, []);
+
+  // Computed selection state
+  const isAllSelected = students.length > 0 && selectedPlacements.size === students.length;
+  const isSomeSelected = selectedPlacements.size > 0 && selectedPlacements.size < students.length;
+
+  // Clear selection when room/date/period changes
+  useEffect(() => {
+    setSelectedPlacements(new Set());
+  }, [roomId, date, periodIndex]);
+
   // Initialize from server-fetched data
   const initializeFromData = useCallback((
     data: RoomRosterResult,
@@ -278,6 +320,13 @@ export function RoomRosterProvider({
     // Story 3-2: Points Actions
     refreshDailyPoints,
     updatePointsSummary,
+    // Story 3-3: Selection State for Bulk Actions
+    selectedPlacements,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    isAllSelected,
+    isSomeSelected,
     // Initialization
     initializeFromData,
   };

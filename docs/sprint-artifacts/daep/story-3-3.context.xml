@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 3-3 Bulk Point Entry
+  Generated: 2025-12-06
+  Purpose: Pre-assembled context for Story 3-3 implementation
+-->
+<story-context story="3-3" title="Bulk Point Entry">
+
+  <design-philosophy>
+    "How did they ever do their job without this?"
+
+    Bulk actions should be 3 clicks + 1 confirm - not a chore. When a teacher
+    says "Everyone who finishes early gets +5 bonus points," the system should
+    make that happen in seconds. This frees up teacher time to focus on students,
+    not data entry.
+  </design-philosophy>
+
+  <summary>
+    Add multi-select checkboxes and a bulk actions toolbar to the Room Roster table.
+    Staff can select multiple students, choose an adjustment (+10, +5, -5, -10, -15),
+    confirm the action, and apply it to all selected students at once. Uses the same
+    adjustment model as individual point entry from Story 3-2.
+  </summary>
+
+  <use-cases>
+    <case name="Motivational Reset">
+      "Class had a rough morning. If everyone gets back on track this afternoon,
+      I'll add +5 to everyone."
+    </case>
+    <case name="Reward Day">
+      "Great behavior during the assembly - everyone gets +10 bonus."
+    </case>
+    <case name="Rough Period">
+      "Period 3 was chaos. 8 students need a -5 deduction."
+    </case>
+  </use-cases>
+
+  <acceptance-criteria>
+    <ac id="3.3.1">Checkbox column for multi-select students</ac>
+    <ac id="3.3.2">"Select All" checkbox in header</ac>
+    <ac id="3.3.3">Bulk actions dropdown: +10, +5, -5, -10, -15</ac>
+    <ac id="3.3.4" status="out-of-scope">Custom bulk entry - preset values cover use cases</ac>
+    <ac id="3.3.5">Confirmation dialog before bulk action</ac>
+    <ac id="3.3.6">Success toast with count of updated students</ac>
+    <ac id="3.3.7">Audit trail records bulk action</ac>
+  </acceptance-criteria>
+
+  <key-decisions>
+    <decision name="Additive Adjustments">
+      Use additive adjustments (+5, -5) NOT final totals (Set to 8).
+      Matches Story 3-2 mental model. Teachers think "give +5", not "calculate adjustment to reach 8".
+    </decision>
+    <decision name="Preset Values Only">
+      5 preset values (+10, +5, -5, -10, -15) - no custom input.
+      Hick's Law: fewer choices = faster decisions.
+    </decision>
+    <decision name="INSERT not Upsert">
+      Story 3-2 removed unique constraint to allow multiple entries per period.
+      Bulk action creates new rows, doesn't replace existing.
+    </decision>
+    <decision name="Individual DB Rows">
+      Each student gets their own daep_daily_points row.
+      Maintains full audit trail, consistent with single-entry pattern.
+    </decision>
+  </key-decisions>
+
+  <files-to-create>
+    <file path="components/daep/roster/SelectionCheckbox.tsx" purpose="Header + row checkboxes">
+      - Header checkbox: Select All / Deselect All toggle
+      - Indeterminate state when some (but not all) selected
+      - Row checkbox calls context.toggleSelection(placementId)
+    </file>
+    <file path="components/daep/roster/BulkActionsToolbar.tsx" purpose="Toolbar with dropdown">
+      - Only visible when selectedPlacements.size > 0
+      - Shows count: "8 selected"
+      - Dropdown: +10 Exceptional, +5 Bonus, -5 Deduction, -10 Major, -15 Critical
+      - "Clear Selection" button
+      - Animate in/out with Tailwind transitions
+    </file>
+    <file path="components/daep/roster/BulkApplyDialog.tsx" purpose="Confirmation dialog">
+      - Title: "Apply +5 Points"
+      - Body: "Add +5 points to 8 students for Period 4?"
+      - Student list (first 5 names + "and N more...")
+      - Optional note input (defaults to "Bulk: +5 points")
+      - "Apply to N Students" primary button
+    </file>
+  </files-to-create>
+
+  <files-to-modify>
+    <file path="components/daep/roster/RoomRosterContext.tsx" reason="Add selection state">
+      <![CDATA[
+// Add to RoomRosterContextValue interface:
+selectedPlacements: Set<string>;
+toggleSelection: (placementId: string) => void;
+selectAll: () => void;
+clearSelection: () => void;
+isAllSelected: boolean;
+      ]]>
+    </file>
+    <file path="components/daep/roster/RoomRosterTable.tsx" reason="Add checkbox column">
+      - Add checkbox as first column (before Student name)
+      - Add row highlight when selected (bg-primary/5)
+      - Add hover highlight for visual affordance
+    </file>
+    <file path="app/actions/daep/points.ts" reason="Add bulkAddPoints server action"/>
+    <file path="app/daep/(main)/rooms/[roomId]/RoomRosterView.tsx" reason="Add BulkActionsToolbar"/>
+  </files-to-modify>
+
+  <context-state-pattern>
+    <![CDATA[
+// Add to RoomRosterProvider state:
+const [selectedPlacements, setSelectedPlacements] = useState<Set<string>>(new Set());
+
+// Selection actions
+const toggleSelection = useCallback((placementId: string) => {
+  setSelectedPlacements(prev => {
+    const next = new Set(prev);
+    if (next.has(placementId)) {
+      next.delete(placementId);
+    } else {
+      next.add(placementId);
+    }
+    return next;
+  });
+}, []);
+
+const selectAll = useCallback(() => {
+  setSelectedPlacements(new Set(students.map(s => s.placement_id)));
+}, [students]);
+
+const clearSelection = useCallback(() => {
+  setSelectedPlacements(new Set());
+}, []);
+
+const isAllSelected = students.length > 0 && selectedPlacements.size === students.length;
+
+// Clear selection when room/date/period changes
+useEffect(() => {
+  clearSelection();
+}, [roomId, date, periodIndex, clearSelection]);
+    ]]>
+  </context-state-pattern>
+
+  <server-action-pattern>
+    <![CDATA[
+// app/actions/daep/points.ts
+
+interface BulkAddPointsInput {
+  placementIds: string[];
+  date: string;
+  period: string;  // string, not number
+  adjustment: number;  // +10, +5, -5, -10, -15
+  notes?: string;
+}
+
+export async function bulkAddPoints(
+  input: BulkAddPointsInput
+): Promise<{ success: boolean; count: number; error?: string }> {
+  const { userId, tenantId, displayName } = await checkDAEPStaffRole();
+  const supabase = await createServerClient();
+
+  const { placementIds, date, period, adjustment, notes } = input;
+
+  // Validate adjustment is one of the allowed values
+  const allowedAdjustments = [10, 5, -5, -10, -15];
+  if (!allowedAdjustments.includes(adjustment)) {
+    return { success: false, count: 0, error: 'Invalid adjustment value' };
+  }
+
+  // Build insert records (matching existing createPointAdjustment pattern)
+  const entries = placementIds.map(placementId => ({
+    tenant_id: tenantId,
+    placement_id: placementId,
+    date,
+    period,
+    points_earned: adjustment,  // column is 'points_earned', not 'adjustment'
+    is_base_points: false,      // required: bulk actions are adjustments
+    notes: notes || `Bulk: ${adjustment > 0 ? '+' : ''}${adjustment} points`,
+    entered_by: userId,
+    approval_status: 'approved',
+    public: true,
+  }));
+
+  // INSERT (not upsert - multiple entries per period are allowed)
+  const { error } = await supabase
+    .from('daep_daily_points')
+    .insert(entries);
+
+  if (error) {
+    console.error('Error creating bulk points:', error);
+    return { success: false, count: 0, error: 'Failed to save bulk points' };
+  }
+
+  // Audit log for bulk action
+  await logPointsAuditEvent(
+    supabase,
+    'points.bulk_adjustment',
+    userId,
+    placementIds[0], // Primary target
+    `Bulk ${adjustment >= 0 ? '+' : ''}${adjustment} to ${placementIds.length} students`,
+    tenantId,
+    {
+      date,
+      period,
+      adjustment,
+      notes,
+      affected_count: placementIds.length,
+      placement_ids: placementIds,
+      entered_by_name: displayName,
+    }
+  );
+
+  revalidatePath('/daep/rooms');
+  return { success: true, count: placementIds.length };
+}
+    ]]>
+  </server-action-pattern>
+
+  <database-info>
+    <table name="daep_daily_points">
+      <note>No schema changes needed - uses existing table from Story 3-2</note>
+      <note>Unique constraint was REMOVED in Story 3-2 to allow multiple entries per period</note>
+      <note>Use INSERT, not upsert</note>
+    </table>
+    <insert-pattern>
+      <![CDATA[
+-- Bulk +5 action for 3 students creates 3 individual rows:
+INSERT INTO daep_daily_points
+  (tenant_id, placement_id, date, period, points_earned, is_base_points, notes, entered_by, approval_status, public)
+VALUES
+  ('tenant-1', 'placement-a', '2025-01-15', 'Period 4', 5, false, 'Bulk: +5 points', 'user-123', 'approved', true),
+  ('tenant-1', 'placement-b', '2025-01-15', 'Period 4', 5, false, 'Bulk: +5 points', 'user-123', 'approved', true),
+  ('tenant-1', 'placement-c', '2025-01-15', 'Period 4', 5, false, 'Bulk: +5 points', 'user-123', 'approved', true);
+      ]]>
+    </insert-pattern>
+  </database-info>
+
+  <existing-patterns>
+    <pattern name="Checkbox Component" file="components/ui/checkbox.tsx">
+      Use shadcn/ui Checkbox with onCheckedChange handler
+    </pattern>
+    <pattern name="Dialog Component" file="components/daep/roster/PointAdjustmentDialog.tsx">
+      Reference for dialog structure, form layout, submit handling
+    </pattern>
+    <pattern name="Dropdown Menu" file="components/ui/dropdown-menu.tsx">
+      Use for bulk actions dropdown with trigger button
+    </pattern>
+    <pattern name="Toast" file="hooks/use-toast.ts">
+      Use toast() for success/error messages
+    </pattern>
+    <pattern name="Context State" file="components/daep/roster/RoomRosterContext.tsx">
+      Follow existing useState + useCallback pattern for selection state
+    </pattern>
+    <pattern name="Server Action" file="app/actions/daep/points.ts">
+      Follow createPointAdjustment pattern - same helpers, same columns
+    </pattern>
+  </existing-patterns>
+
+  <existing-code-snippets>
+    <snippet name="checkDAEPStaffRole helper" file="app/actions/daep/points.ts" lines="58-96">
+      <![CDATA[
+async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('role, tenant_id, active_tenant_id, display_name')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) {
+    throw new Error('User profile not found');
+  }
+
+  const daepRoles = [
+    'super_admin',
+    'district_admin',
+    'daep_admin_l1',
+    'daep_admin_l2',
+    'daep_staff',
+  ];
+
+  if (!daepRoles.includes(profile.role)) {
+    throw new Error('Insufficient permissions. Only DAEP staff can manage points.');
+  }
+
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) {
+    throw new Error('No tenant assigned');
+  }
+
+  return {
+    userId: user.id,
+    role: profile.role,
+    tenantId: effectiveTenantId,
+    displayName: profile.display_name || user.firstName || 'Staff',
+  };
+}
+      ]]>
+    </snippet>
+
+    <snippet name="logPointsAuditEvent helper" file="app/actions/daep/points.ts" lines="100-122">
+      <![CDATA[
+async function logPointsAuditEvent(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  eventType: string,
+  actorId: string,
+  targetId: string,
+  action: string,
+  tenantId: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await supabase.from('admin_audit_log').insert({
+      event_type: eventType,
+      actor_id: actorId,
+      target_id: targetId,
+      action,
+      tenant_id: tenantId,
+      module: 'daep_management',
+      details,
+    });
+  } catch (error) {
+    console.error('Failed to log points audit event:', error);
+  }
+}
+      ]]>
+    </snippet>
+
+    <snippet name="Period name from index" file="app/daep/(main)/rooms/[roomId]/RoomRosterView.tsx" line="127">
+      <![CDATA[
+// Get current period name for server actions
+const currentPeriodName = periods[periodIndex]?.period_name || '';
+      ]]>
+    </snippet>
+  </existing-code-snippets>
+
+  <ui-layout>
+    <![CDATA[
+BEFORE (no selection):
+| Student        | Grade | Campus | Status | Days      | Today's Total | Adjust |
+|----------------|-------|--------|--------|-----------|---------------|--------|
+
+AFTER (with selection):
+|   | Student        | Grade | Campus | Status | Days      | Today's Total | Adjust |
+|---|----------------|-------|--------|--------|-----------|---------------|--------|
+| ☐ | Smith, John    | 9     | Main   | Active | 5/20 left | 47/50 (94%)   | [+/-]  |
+| ☑ | Jones, Mary    | 10    | Main   | Active | 12/15 left| 30/50 (60%)   | [+/-]  |
+| ☑ | Garcia, Luis   | 9     | North  | Active | 8/10 left | 45/50 (90%)   | [+/-]  |
+
+TOOLBAR (appears when selection > 0):
+┌─────────────────────────────────────────────────────────────────┐
+│ ☑ 2 selected    [Bulk Actions ▼]    [Clear Selection]          │
+└─────────────────────────────────────────────────────────────────┘
+
+CONFIRMATION DIALOG:
+┌─────────────────────────────────────────────────────────────────┐
+│  Apply +5 Points                                                │
+├─────────────────────────────────────────────────────────────────┤
+│  Add +5 points to 2 students for Period 4?                      │
+│                                                                 │
+│  Students affected:                                             │
+│  • Jones, Mary                                                  │
+│  • Garcia, Luis                                                 │
+│                                                                 │
+│  Optional note:                                                 │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ Good afternoon behavior                                     │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│                              [Cancel]    [Apply to 2 Students]  │
+└─────────────────────────────────────────────────────────────────┘
+    ]]>
+  </ui-layout>
+
+  <quick-wins>
+    <win effort="low" task="2.2">Row hover highlight - visual affordance that rows are selectable</win>
+    <win effort="low" task="1.3">Keyboard shortcut (Ctrl/Cmd+A) - quick select all for power users</win>
+  </quick-wins>
+
+  <backlog>
+    <item story="3-3b">Shift+click range select - power users can select range</item>
+    <item story="epic-3">Undo bulk action via toast - quick recovery from accidents</item>
+    <item story="3-9">Bulk attendance marking - apply same status to multiple students</item>
+  </backlog>
+
+  <edge-cases>
+    <case scenario="Select All with 0 students">Button disabled</case>
+    <case scenario="Bulk action with no selection">Toolbar hidden</case>
+    <case scenario="User deselects all after opening dropdown">Toolbar hides</case>
+    <case scenario="Page navigation with selection">Selection clears</case>
+    <case scenario="Student marked absent">Can still select (teacher discretion)</case>
+    <case scenario="Network error">Toast error, preserve selection, allow retry</case>
+    <case scenario="Large selection (20+ students)">Dialog has scrollable student list</case>
+  </edge-cases>
+
+  <watch-out-for>
+    <item>Period name vs index - use periods[periodIndex]?.period_name</item>
+    <item>Large selections - dialog needs max-height with scroll</item>
+    <item>Concurrent edits - last write wins (same as individual)</item>
+    <item>Selection persistence - must clear on room/date/period change</item>
+    <item>Checkbox column width - 40px narrow column</item>
+    <item>Toolbar positioning - no layout shift on appear/disappear</item>
+    <item>Mobile/iPad touch targets - 44px minimum for checkboxes</item>
+  </watch-out-for>
+
+  <dependencies>
+    <story id="3-1" status="done">Room Roster View - provides table structure</story>
+    <story id="3-2" status="done">Point Entry Grid - provides points model, server actions pattern</story>
+  </dependencies>
+
+  <references>
+    <ref type="story">docs/sprint-artifacts/daep/story-3-3.md</ref>
+    <ref type="tech-spec">docs/sprint-artifacts/daep/tech-spec-story-3-3.md</ref>
+    <ref type="epic">docs/reference/epics-part2.md#Story-3.3</ref>
+    <ref type="previous-story">docs/sprint-artifacts/daep/story-3-2.md</ref>
+    <ref type="roster-context">components/daep/roster/RoomRosterContext.tsx</ref>
+    <ref type="roster-table">components/daep/roster/RoomRosterTable.tsx</ref>
+    <ref type="points-actions">app/actions/daep/points.ts</ref>
+    <ref type="roster-view">app/daep/(main)/rooms/[roomId]/RoomRosterView.tsx</ref>
+    <ref type="ux-design">docs/sessions/ux-design-specification.md</ref>
+  </references>
+
+</story-context>

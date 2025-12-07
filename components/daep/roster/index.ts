@@ -3,6 +3,7 @@
  *
  * Story 3-1: Room Roster View
  * Story 3-2: Point Entry Grid
+ * Story 3-3: Bulk Point Entry
  *
  * Re-exports all roster-related components for easy imports.
  */
@@ -24,3 +25,9 @@ export { RoomRosterProvider, useRoomRoster } from './RoomRosterContext';
 export { TodaysTotalCell, TodaysTotalBadge, PointsColorLegend } from './TodaysTotalCell';
 export { PointAdjustmentCell, PointAdjustmentButton } from './PointAdjustmentCell';
 export { PointAdjustmentDialog } from './PointAdjustmentDialog';
+
+// Story 3-3: Bulk Point Entry Components
+export { SelectAllCheckbox, RowSelectionCheckbox } from './SelectionCheckbox';
+export { BulkActionsToolbar, ADJUSTMENT_OPTIONS } from './BulkActionsToolbar';
+export type { AdjustmentOption } from './BulkActionsToolbar';
+export { BulkApplyDialog } from './BulkApplyDialog';
