@@ -41,6 +41,9 @@ interface RoomRosterContextValue {
   currentPeriodInfo: CurrentPeriodResult | null;
   accessibleRooms: RoomWithCount[];
 
+  // Story 3-10: User role
+  isAdmin: boolean;
+
   // Story 3-2: Points Data
   dailyPoints: Map<string, DailyPointsSummary>;
   behaviorCategories: BehaviorCategory[];
@@ -108,6 +111,7 @@ interface RoomRosterProviderProps {
   initialRoomId: string | null;
   initialDate: string;
   initialPeriodIndex: number;
+  isAdmin?: boolean;
   onRosterChange?: (roomId: string, date: string, periodIndex: number) => Promise<RoomRosterResult>;
   onPointsRefresh?: (roomId: string, date: string) => Promise<Map<string, DailyPointsSummary>>;
   onAttendanceRefresh?: (roomId: string, date: string, period: string) => Promise<Map<string, AttendanceEntry>>;
@@ -118,6 +122,7 @@ export function RoomRosterProvider({
   initialRoomId,
   initialDate,
   initialPeriodIndex,
+  isAdmin = false,
   onRosterChange,
   onPointsRefresh,
   onAttendanceRefresh,
@@ -361,6 +366,8 @@ export function RoomRosterProvider({
     dayType,
     currentPeriodInfo,
     accessibleRooms,
+    // Story 3-10: User role
+    isAdmin,
     // Story 3-2: Points Data
     dailyPoints,
     behaviorCategories,

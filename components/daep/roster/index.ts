@@ -42,3 +42,7 @@ export { AttendanceTimeModal } from './AttendanceTimeModal';
 export type { AttendanceTimeModalProps } from './AttendanceTimeModal';
 export { AttendanceSummaryBanner } from './AttendanceSummaryBanner';
 export type { AttendanceSummaryBannerProps } from './AttendanceSummaryBanner';
+
+// Story 3-10: Excuse Modal Component
+export { ExcuseModal } from './ExcuseModal';
+export type { ExcuseData } from './ExcuseModal';

@@ -25,6 +25,9 @@ import {
   type AttendanceEntry,
   type RoomAttendanceStatus,
   type AttendancePointsType,
+  type ExcuseReason,
+  POINTS_ELIGIBLE_REASONS,
+  isAdminRole,
 } from '@/lib/validation/schemas';
 import { createBasePoints, removeBasePoints } from './points';
 
@@ -222,14 +225,17 @@ export async function getAttendanceStatusTypes(): Promise<AttendanceStatusType[]
 
 /**
  * Mark attendance for a student in a specific period.
- * Handles point creation/removal based on status.
+ * Story 3-10: Role-aware behavior:
+ * - Staff: Absent saves as pending (excused=null, counts_toward_days_served=false)
+ * - Admin L1/L2: Can set excused status, reason, and points eligibility
+ * Handles point creation/removal based on status and excuse type.
  * Upserts - updates existing entry or creates new one.
  */
 export async function markAttendance(
   input: MarkAttendanceInput
 ): Promise<MarkAttendanceResult> {
   try {
-    const { userId, tenantId, displayName } = await checkDAEPStaffRole();
+    const { userId, role, tenantId, displayName } = await checkDAEPStaffRole();
 
     // Validate input
     const validation = MarkAttendanceSchema.safeParse(input);
@@ -240,7 +246,18 @@ export async function markAttendance(
       };
     }
 
-    const { placement_id, date, period, status, tardy_time, early_dismiss_time } = validation.data;
+    const {
+      placement_id,
+      date,
+      period,
+      status,
+      tardy_time,
+      early_dismiss_time,
+      excused,
+      excuse_reason,
+      excuse_notes,
+      counts_toward_days_served,
+    } = validation.data;
 
     const supabase = await createServerClient();
 
@@ -259,7 +276,7 @@ export async function markAttendance(
     // Get existing attendance entry (if any)
     const { data: existing } = await supabase
       .from('daep_attendance')
-      .select('id, status')
+      .select('id, status, excused, counts_toward_days_served')
       .eq('tenant_id', tenantId)
       .eq('placement_id', placement_id)
       .eq('date', date)
@@ -267,9 +284,14 @@ export async function markAttendance(
       .maybeSingle();
 
     const previousStatus = existing?.status;
+    const previousCountsToward = existing?.counts_toward_days_served ?? false;
 
-    // Upsert attendance record
-    const attendanceData = {
+    // Determine if user is admin (can set excuse details)
+    const userIsAdmin = isAdminRole(role);
+
+    // Build attendance data based on role
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const attendanceData: Record<string, any> = {
       tenant_id: tenantId,
       placement_id,
       date,
@@ -279,6 +301,34 @@ export async function markAttendance(
       early_dismiss_time: status === 'ED' ? early_dismiss_time : null,
       entered_by: userId,
     };
+
+    // Story 3-10: Role-based excuse handling
+    if (status === 'A') {
+      if (userIsAdmin) {
+        // Admin can set excuse details
+        attendanceData.excused = excused ?? false;
+        attendanceData.excuse_reason = excused ? excuse_reason : null;
+        attendanceData.notes = excuse_notes || null;
+
+        // Auto-set counts_toward_days_served based on reason, or use provided value
+        if (excuse_reason && POINTS_ELIGIBLE_REASONS.includes(excuse_reason as ExcuseReason)) {
+          // Gov't reasons always count toward points
+          attendanceData.counts_toward_days_served = true;
+        } else {
+          attendanceData.counts_toward_days_served = counts_toward_days_served ?? false;
+        }
+      } else {
+        // Staff: Absent is pending review (excused=null)
+        attendanceData.excused = null;
+        attendanceData.excuse_reason = null;
+        attendanceData.counts_toward_days_served = false;
+      }
+    } else {
+      // Non-absent statuses: clear excuse fields, counts toward days
+      attendanceData.excused = null;
+      attendanceData.excuse_reason = null;
+      attendanceData.counts_toward_days_served = true;
+    }
 
     let entry: AttendanceEntry;
 
@@ -311,27 +361,25 @@ export async function markAttendance(
       entry = data;
     }
 
-    // Handle points based on status change
+    // Handle points based on counts_toward_days_served
     let pointsCreated = false;
     let pointsRemoved = false;
 
-    const pointsValue = await getPointsForStatus(supabase, tenantId, status);
-    const wasAbsent = previousStatus === 'A';
-    const isNowAbsent = status === 'A';
+    const nowCountsToward = attendanceData.counts_toward_days_served;
 
-    if (isNowAbsent && !wasAbsent) {
-      // Changed to Absent - remove base points
+    if (!nowCountsToward && previousCountsToward) {
+      // Was counting, now not counting - remove points
       await removeBasePoints(placement_id, date, period);
       pointsRemoved = true;
-    } else if (!isNowAbsent && (wasAbsent || !previousStatus)) {
-      // Changed from Absent to present, OR new entry that's not absent
-      // Create base points with the configured value
-      if (pointsValue > 0) {
-        await createBasePoints(placement_id, date, period);
-        pointsCreated = true;
-      }
+    } else if (nowCountsToward && !previousCountsToward) {
+      // Wasn't counting, now counting - create points
+      await createBasePoints(placement_id, date, period);
+      pointsCreated = true;
+    } else if (nowCountsToward && !existing) {
+      // New entry that counts - create points
+      await createBasePoints(placement_id, date, period);
+      pointsCreated = true;
     }
-    // If changing between P/T/ED (non-absent statuses), points already exist
 
     // Audit log
     await logAttendanceAuditEvent(
@@ -350,9 +398,13 @@ export async function markAttendance(
         after_status: status,
         tardy_time: tardy_time || null,
         early_dismiss_time: early_dismiss_time || null,
+        excused: attendanceData.excused,
+        excuse_reason: attendanceData.excuse_reason,
+        counts_toward_days_served: attendanceData.counts_toward_days_served,
         points_created: pointsCreated,
         points_removed: pointsRemoved,
         entered_by_name: displayName,
+        user_role: role,
       }
     );
 
@@ -832,4 +884,60 @@ export async function getPlacementAttendance(
   }
 
   return data || [];
+}
+
+// ============================================================================
+// GET PARENT CALL COUNT (Story 3-10)
+// ============================================================================
+
+/**
+ * Get the count of parent call excuses for a placement in the current semester.
+ * Used to show "Call X of 6" in the excuse modal.
+ */
+export async function getParentCallCount(
+  placementId: string,
+  semesterStartDate?: string
+): Promise<number> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Default to current school year start (August 1st of current year)
+  const now = new Date();
+  const year = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  const defaultStart = semesterStartDate || `${year}-08-01`;
+
+  const { count, error } = await supabase
+    .from('daep_attendance')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .eq('excuse_reason', 'parent_call')
+    .eq('excused', true)
+    .gte('date', defaultStart);
+
+  if (error) {
+    console.error('Error fetching parent call count:', error);
+    return 0;
+  }
+
+  return count || 0;
+}
+
+// ============================================================================
+// GET USER ROLE FOR ATTENDANCE
+// ============================================================================
+
+/**
+ * Get the current user's role for attendance-related UI decisions.
+ * Used by client components to determine if user can see excuse modal.
+ */
+export async function getUserAttendanceRole(): Promise<{
+  role: string;
+  isAdmin: boolean;
+}> {
+  const { role } = await checkDAEPStaffRole();
+  return {
+    role,
+    isAdmin: isAdminRole(role),
+  };
 }

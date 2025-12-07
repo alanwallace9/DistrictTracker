@@ -585,6 +585,68 @@ export type AttendanceStatusCode = (typeof ATTENDANCE_STATUS_CODES)[number];
 export const ATTENDANCE_POINTS_TYPES = ['full', 'partial', 'none'] as const;
 export type AttendancePointsType = (typeof ATTENDANCE_POINTS_TYPES)[number];
 
+// ============================================================================
+// DAEP EXCUSE REASON SCHEMAS (Story 3-10)
+// ============================================================================
+
+// Excuse reason categories
+export const EXCUSE_REASONS = [
+  'court_legal',
+  'parole_probation',
+  'drivers_license_dps',
+  'state_federal_gov',
+  'medical',
+  'parent_call',
+  'other',
+] as const;
+
+export type ExcuseReason = (typeof EXCUSE_REASONS)[number];
+
+// Reasons that auto-check "counts toward points" (state/federal government obligations)
+export const POINTS_ELIGIBLE_REASONS: ExcuseReason[] = [
+  'court_legal',
+  'parole_probation',
+  'drivers_license_dps',
+  'state_federal_gov',
+];
+
+// Labels for dropdown display
+export const EXCUSE_REASON_LABELS: Record<ExcuseReason, string> = {
+  court_legal: 'Court/Legal Appearance',
+  parole_probation: 'Parole/Probation Officer',
+  drivers_license_dps: "Driver's License (DPS)",
+  state_federal_gov: 'State/Federal Government',
+  medical: 'Medical (with documentation)',
+  parent_call: 'Parent Call',
+  other: 'Other',
+};
+
+// Order for dropdown (gov't reasons first - most common for DAEP)
+export const EXCUSE_REASON_ORDER: ExcuseReason[] = [
+  'court_legal',
+  'parole_probation',
+  'drivers_license_dps',
+  'state_federal_gov',
+  'medical',
+  'parent_call',
+  'other',
+];
+
+// Admin roles that can set excuse status
+export const ADMIN_ROLES = [
+  'super_admin',
+  'district_admin',
+  'daep_admin_l1',
+  'daep_admin_l2',
+] as const;
+
+export type AdminRole = (typeof ADMIN_ROLES)[number];
+
+// Helper to check if role is admin
+export function isAdminRole(role: string): boolean {
+  return ADMIN_ROLES.includes(role as AdminRole);
+}
+
 // Attendance status type (for settings)
 export const AttendanceStatusTypeSchema = z.object({
   status_code: z.string().min(1, 'Status code is required').max(10, 'Status code too long'),
@@ -598,7 +660,7 @@ export const AttendanceStatusTypeSchema = z.object({
 
 export type AttendanceStatusTypeInput = z.infer<typeof AttendanceStatusTypeSchema>;
 
-// Mark attendance input
+// Mark attendance input (Story 3-10: Added excuse fields)
 export const MarkAttendanceSchema = z.object({
   placement_id: z.string().uuid('Invalid placement ID'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
@@ -606,6 +668,11 @@ export const MarkAttendanceSchema = z.object({
   status: z.string().min(1, 'Status is required').max(10, 'Status code too long'),
   tardy_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Time must be HH:MM').nullable().optional(),
   early_dismiss_time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Time must be HH:MM').nullable().optional(),
+  // Story 3-10: Excuse fields (only used by Admin L1/L2)
+  excused: z.boolean().nullable().optional(), // null = pending review (staff-marked)
+  excuse_reason: z.enum(EXCUSE_REASONS).nullable().optional(),
+  excuse_notes: z.string().max(500, 'Notes too long').nullable().optional(),
+  counts_toward_days_served: z.boolean().optional(), // Auto-set based on reason for admins
 }).refine(
   (data) => {
     // Tardy requires tardy_time
@@ -629,7 +696,7 @@ export const BulkMarkAttendanceSchema = z.object({
 
 export type BulkMarkAttendanceInput = z.infer<typeof BulkMarkAttendanceSchema>;
 
-// Attendance entry response type
+// Attendance entry response type (Story 3-10: excused can be null for pending)
 export interface AttendanceEntry {
   id: string;
   placement_id: string;
@@ -638,8 +705,8 @@ export interface AttendanceEntry {
   status: string;
   tardy_time: string | null;
   early_dismiss_time: string | null;
-  excused: boolean;
-  excuse_reason: string | null;
+  excused: boolean | null; // null = pending review (staff-marked absent)
+  excuse_reason: ExcuseReason | null;
   counts_toward_days_served: boolean;
   notes: string | null;
   entered_by: string;

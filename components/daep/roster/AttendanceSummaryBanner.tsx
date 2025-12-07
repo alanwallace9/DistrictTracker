@@ -25,6 +25,8 @@ export interface AttendanceSummaryBannerProps {
   attendance: Map<string, AttendanceEntry>;
   onAttendanceUpdated?: () => void;
   className?: string;
+  /** Compact mode for inline display next to other controls */
+  compact?: boolean;
 }
 
 export function AttendanceSummaryBanner({
@@ -34,6 +36,7 @@ export function AttendanceSummaryBanner({
   attendance,
   onAttendanceUpdated,
   className,
+  compact = false,
 }: AttendanceSummaryBannerProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -80,6 +83,61 @@ export function AttendanceSummaryBanner({
     return null;
   }
 
+  // Compact mode: inline display for toolbar row
+  if (compact) {
+    return (
+      <div className={cn('flex items-center gap-2', className)}>
+        {/* Compact stats */}
+        <div className="flex items-center gap-2 text-sm">
+          <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+          <Badge
+            variant={allPresent ? 'default' : allMarked ? 'secondary' : 'outline'}
+            className={cn(
+              'gap-1',
+              allPresent && 'bg-emerald-500 hover:bg-emerald-500'
+            )}
+          >
+            {allPresent ? (
+              <>
+                <CheckCircle2 className="h-3 w-3" />
+                All Present
+              </>
+            ) : (
+              <>
+                <Users className="h-3 w-3" />
+                {markedCount}/{totalStudents}
+                {unmarkedCount > 0 && (
+                  <span className="text-amber-500 ml-1">({unmarkedCount})</span>
+                )}
+              </>
+            )}
+          </Badge>
+        </div>
+
+        {/* Compact Mark All Button */}
+        {!allPresent && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMarkAllPresent}
+            disabled={isPending}
+            className="h-7 px-2 text-xs gap-1"
+          >
+            {isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <>
+                <CheckCircle2 className="h-3 w-3" />
+                All P
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // Full banner mode (original)
   return (
     <div
       className={cn(
@@ -123,7 +181,7 @@ export function AttendanceSummaryBanner({
           {allPresent && (
             <Badge
               variant="default"
-              className="bg-green-600 hover:bg-green-600 gap-1"
+              className="bg-emerald-500 hover:bg-emerald-500 gap-1"
             >
               <CheckCircle2 className="h-3 w-3" />
               All Present

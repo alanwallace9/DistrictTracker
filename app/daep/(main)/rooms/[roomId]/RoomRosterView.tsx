@@ -121,6 +121,7 @@ function RosterContent() {
     dayType,
     currentPeriodInfo,
     accessibleRooms,
+    isAdmin,
     dailyPoints,
     behaviorCategories,
     attendance,
@@ -291,26 +292,28 @@ function RosterContent() {
         </Alert>
       )}
 
-      {/* Story 3-2: Points Color Legend + Story 3-3: Bulk Actions Toolbar */}
+      {/* Story 3-2 & 3-9: Combined Actions Row - Attendance, Bulk Actions, Points Legend */}
       {students.length > 0 && (
-        <div className="flex items-center justify-between">
-          <BulkActionsToolbar onApplyAction={handleBulkAction} />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {/* Compact Attendance Summary - left of bulk actions */}
+            {attendanceStatusTypes.length > 0 && (
+              <AttendanceSummaryBanner
+                date={date}
+                period={currentPeriodName}
+                placementIds={students.map((s) => s.placement_id)}
+                attendance={attendance}
+                onAttendanceUpdated={() => {
+                  refreshAttendance();
+                  refreshDailyPoints();
+                }}
+                compact
+              />
+            )}
+            <BulkActionsToolbar onApplyAction={handleBulkAction} />
+          </div>
           <PointsColorLegend />
         </div>
-      )}
-
-      {/* Story 3-9: Attendance Summary Banner with Mark All Present */}
-      {students.length > 0 && attendanceStatusTypes.length > 0 && (
-        <AttendanceSummaryBanner
-          date={date}
-          period={currentPeriodName}
-          placementIds={students.map((s) => s.placement_id)}
-          attendance={attendance}
-          onAttendanceUpdated={() => {
-            refreshAttendance();
-            refreshDailyPoints();
-          }}
-        />
       )}
 
       {/* Student Table with Story 3-2 and 3-9 columns */}
@@ -327,17 +330,23 @@ function RosterContent() {
         renderAttendanceCell={(context: StudentRowContext) => {
           const { student } = context;
           const entry = attendance.get(student.placement_id);
+          const studentName = `${student.first_name} ${student.last_name}`;
 
           return (
             <TableCell className="px-2">
               <AttendanceCell
                 placementId={student.placement_id}
+                studentName={studentName}
                 date={date}
                 period={currentPeriodName}
                 currentStatus={entry?.status || null}
                 tardyTime={entry?.tardy_time}
                 earlyDismissTime={entry?.early_dismiss_time}
+                excused={entry?.excused}
+                excuseReason={entry?.excuse_reason}
+                countsTowardDaysServed={entry?.counts_toward_days_served ?? true}
                 statusTypes={attendanceStatusTypes}
+                isAdmin={isAdmin}
                 onStatusChange={() => {
                   // Refresh both attendance and points (P grants points)
                   refreshAttendance();
@@ -392,6 +401,7 @@ interface RoomRosterViewProps {
   initialDailyPoints: Map<string, DailyPointsSummary>;
   initialAttendance: Map<string, AttendanceEntry>;
   attendanceStatusTypes: AttendanceStatusType[];
+  isAdmin: boolean;
 }
 
 export function RoomRosterView({
@@ -401,6 +411,7 @@ export function RoomRosterView({
   initialDailyPoints,
   initialAttendance,
   attendanceStatusTypes,
+  isAdmin,
 }: RoomRosterViewProps) {
   const { toast } = useToast();
 
@@ -442,6 +453,7 @@ export function RoomRosterView({
       initialRoomId={initialData.room.id}
       initialDate={initialData.date}
       initialPeriodIndex={initialData.periodIndex}
+      isAdmin={isAdmin}
       onRosterChange={handleRosterChange}
       onPointsRefresh={handlePointsRefresh}
       onAttendanceRefresh={handleAttendanceRefresh}
