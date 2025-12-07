@@ -74,8 +74,16 @@ For each story, complete these steps **in order**:
       Command: /bmad:bmm:workflows:story-done
       Updates: sprint-status.yaml status to "done"
 
-□ 11. Commit changes
-      git add . && git commit -m "feat(daep): Implement Story X.X - [Title]"
+□ 11. Update Epic changelog
+      Location: docs/sprint-artifacts/daep/epic-{N}-changelog.md
+      Add version entry with: Title, Description, Key Features, FRs
+      Update Summary Table and Remaining Stories sections
+
+□ 12. Commit changes
+      Use: /bmad:bmm:agents:tech-writer to draft commit message
+      Include version bump in package.json
+      git add . && git commit -m "feat(daep): Implement Story X.X - [Title] (vX.Y.Z)"
+      git push origin staging
 ```
 
 ---
