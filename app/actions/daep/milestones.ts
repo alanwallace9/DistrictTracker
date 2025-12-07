@@ -57,9 +57,17 @@ export interface MilestoneRule {
 
 export interface CreateMilestoneRuleInput {
   ruleName: string;
+  triggerType: 'milestone' | 'consecutive_perfect_days';
   triggerValue: number;
   bonusPoints: number;
   badgeName: string;
+}
+
+export interface StreakData {
+  currentStreak: number;
+  streakStartDate: string | null;
+  lastPerfectDate: string | null;
+  isPerfectToday: boolean;
 }
 
 // ============================================================================
@@ -193,7 +201,7 @@ export async function getCumulativePoints(
 // ============================================================================
 
 /**
- * Get configured milestone rules for tenant.
+ * Get configured milestone rules for tenant (both points and streak types).
  */
 export async function getMilestoneRules(): Promise<MilestoneRule[]> {
   const tenantId = await getTenantId();
@@ -203,7 +211,7 @@ export async function getMilestoneRules(): Promise<MilestoneRule[]> {
     .from('daep_point_bonus_rules')
     .select('*')
     .eq('tenant_id', tenantId)
-    .eq('trigger_type', 'milestone')
+    .in('trigger_type', ['milestone', 'consecutive_perfect_days'])
     .order('trigger_value', { ascending: true });
 
   if (error) {
@@ -235,7 +243,8 @@ export async function getAllMilestoneRules(): Promise<MilestoneRule[]> {
     .from('daep_point_bonus_rules')
     .select('*')
     .eq('tenant_id', tenantId)
-    .eq('trigger_type', 'milestone')
+    .in('trigger_type', ['milestone', 'consecutive_perfect_days'])
+    .order('trigger_type', { ascending: true })
     .order('trigger_value', { ascending: true });
 
   if (error) {
@@ -597,7 +606,7 @@ export async function createMilestoneRule(
     .insert({
       tenant_id: tenantId,
       rule_name: input.ruleName,
-      trigger_type: 'milestone',
+      trigger_type: input.triggerType || 'milestone',
       trigger_value: input.triggerValue,
       bonus_points: input.bonusPoints,
       badge_name: input.badgeName,
@@ -805,17 +814,19 @@ export async function seedDefaultMilestones(): Promise<{ seeded: number }> {
   }
 
   const defaults = [
-    { rule_name: '100 Point Milestone', trigger_value: 100, bonus_points: 0, badge_name: '100 Club' },
-    { rule_name: '250 Point Milestone', trigger_value: 250, bonus_points: 0, badge_name: '250 Club' },
-    { rule_name: '500 Point Milestone', trigger_value: 500, bonus_points: 0, badge_name: '500 Club' },
-    { rule_name: '1000 Point Milestone', trigger_value: 1000, bonus_points: 5, badge_name: '1000 Club' },
-    { rule_name: '1500 Point Milestone', trigger_value: 1500, bonus_points: 5, badge_name: '1500 Club' },
-    { rule_name: '2000 Point Milestone', trigger_value: 2000, bonus_points: 10, badge_name: '2000 Club' },
+    // Points thresholds
+    { rule_name: '100 Point Milestone', trigger_type: 'milestone', trigger_value: 100, bonus_points: 0, badge_name: '100 Club' },
+    { rule_name: '250 Point Milestone', trigger_type: 'milestone', trigger_value: 250, bonus_points: 0, badge_name: '250 Club' },
+    { rule_name: '500 Point Milestone', trigger_type: 'milestone', trigger_value: 500, bonus_points: 0, badge_name: '500 Club' },
+    { rule_name: '1000 Point Milestone', trigger_type: 'milestone', trigger_value: 1000, bonus_points: 5, badge_name: '1000 Club' },
+    // Consecutive perfect days
+    { rule_name: '3-Day Perfect Streak', trigger_type: 'consecutive_perfect_days', trigger_value: 3, bonus_points: 3, badge_name: '3-Day Streak' },
+    { rule_name: '5-Day Perfect Streak', trigger_type: 'consecutive_perfect_days', trigger_value: 5, bonus_points: 5, badge_name: '5-Day Streak' },
+    { rule_name: '10-Day Perfect Streak', trigger_type: 'consecutive_perfect_days', trigger_value: 10, bonus_points: 10, badge_name: '10-Day Streak' },
   ];
 
   const inserts = defaults.map(d => ({
     tenant_id: tenantId,
-    trigger_type: 'milestone',
     active: true,
     ...d,
   }));
@@ -840,4 +851,183 @@ export async function seedDefaultMilestones(): Promise<{ seeded: number }> {
   revalidatePath('/daep/settings/badges');
 
   return { seeded: data?.length || 0 };
+}
+
+// ============================================================================
+// CONSECUTIVE PERFECT DAYS (STREAK) FUNCTIONS
+// ============================================================================
+
+/**
+ * Get current streak of consecutive perfect days for a placement.
+ * A "perfect day" = 100% of possible points earned that day.
+ */
+export async function getCurrentStreak(placementId: string): Promise<StreakData> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get daily point summaries, most recent first
+  const { data: dailyPoints, error } = await supabase
+    .from('daep_daily_points')
+    .select('date, points_earned, period')
+    .eq('placement_id', placementId)
+    .eq('approval_status', 'approved')
+    .order('date', { ascending: false });
+
+  if (error || !dailyPoints?.length) {
+    return { currentStreak: 0, streakStartDate: null, lastPerfectDate: null, isPerfectToday: false };
+  }
+
+  // Group by date and calculate daily totals
+  const periodsPerDay = await getPeriodsPerDaySetting(tenantId, supabase);
+  const maxPointsPerDay = periodsPerDay * 10;
+
+  const dailyTotals = new Map<string, number>();
+  for (const p of dailyPoints) {
+    const current = dailyTotals.get(p.date) || 0;
+    dailyTotals.set(p.date, current + p.points_earned);
+  }
+
+  // Sort dates descending
+  const sortedDates = Array.from(dailyTotals.keys()).sort((a, b) => b.localeCompare(a));
+
+  const today = new Date().toISOString().split('T')[0];
+  let streak = 0;
+  let streakStartDate: string | null = null;
+  let lastPerfectDate: string | null = null;
+  let isPerfectToday = false;
+
+  for (const date of sortedDates) {
+    const total = dailyTotals.get(date) || 0;
+    const isPerfect = total >= maxPointsPerDay;
+
+    if (isPerfect) {
+      if (streak === 0) {
+        lastPerfectDate = date;
+        if (date === today) isPerfectToday = true;
+      }
+      streak++;
+      streakStartDate = date;
+    } else {
+      // Streak broken
+      break;
+    }
+  }
+
+  return { currentStreak: streak, streakStartDate, lastPerfectDate, isPerfectToday };
+}
+
+/**
+ * Check and award streak milestones after a perfect day.
+ * Called after daily points are finalized.
+ */
+export async function checkAndAwardStreakMilestones(
+  placementId: string,
+  awardedBy: string
+): Promise<MilestoneAchievement[]> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  const streak = await getCurrentStreak(placementId);
+  if (streak.currentStreak === 0) return [];
+
+  // Get streak milestone rules that this streak qualifies for
+  const { data: rules, error: rulesError } = await supabase
+    .from('daep_point_bonus_rules')
+    .select('id, badge_name, trigger_value, bonus_points')
+    .eq('tenant_id', tenantId)
+    .eq('trigger_type', 'consecutive_perfect_days')
+    .eq('active', true)
+    .lte('trigger_value', streak.currentStreak);
+
+  if (rulesError || !rules?.length) return [];
+
+  // Get already earned streak milestones for this placement (check by streak_end_date to allow re-earning)
+  const { data: earned } = await supabase
+    .from('daep_student_milestones')
+    .select('rule_id, streak_end_date')
+    .eq('placement_id', placementId)
+    .eq('tenant_id', tenantId);
+
+  // For streak milestones, check if this exact streak was already awarded
+  const earnedKey = (ruleId: string, endDate: string) => `${ruleId}-${endDate}`;
+  const earnedKeys = new Set(earned?.map((e: any) => earnedKey(e.rule_id, e.streak_end_date)) || []);
+
+  const newMilestones = rules.filter((r: any) =>
+    !earnedKeys.has(earnedKey(r.id, streak.lastPerfectDate || ''))
+  );
+
+  if (newMilestones.length === 0) return [];
+
+  // Insert new streak milestone achievements
+  const inserts = newMilestones.map((r: any) => ({
+    tenant_id: tenantId,
+    placement_id: placementId,
+    rule_id: r.id,
+    points_at_achievement: 0,
+    streak_days: streak.currentStreak,
+    streak_start_date: streak.streakStartDate,
+    streak_end_date: streak.lastPerfectDate,
+    awarded_by: awardedBy,
+    award_type: 'auto',
+    bonus_points_awarded: r.bonus_points,
+  }));
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('daep_student_milestones')
+    .insert(inserts)
+    .select();
+
+  if (insertError) {
+    console.error('Error inserting streak milestones:', insertError);
+    return [];
+  }
+
+  // Award bonus points if any
+  for (const milestone of newMilestones) {
+    if (milestone.bonus_points > 0) {
+      // Insert bonus points as an adjustment
+      await supabase.from('daep_daily_points').insert({
+        tenant_id: tenantId,
+        placement_id: placementId,
+        date: streak.lastPerfectDate,
+        period: 0, // Special period for bonus
+        points_earned: milestone.bonus_points,
+        approval_status: 'approved',
+        entered_by: awardedBy,
+        approved_by: awardedBy,
+        notes: `Bonus: ${milestone.badge_name} (${streak.currentStreak} consecutive perfect days)`,
+        is_bonus: true,
+      });
+    }
+
+    // Log to audit trail
+    await supabase.from('admin_audit_log').insert({
+      tenant_id: tenantId,
+      event_type: 'milestone.streak_achieved',
+      actor_id: awardedBy,
+      target_id: placementId,
+      action: `Achieved streak milestone: ${milestone.badge_name} (${streak.currentStreak} days)`,
+      details: {
+        milestone_rule_id: milestone.id,
+        badge_name: milestone.badge_name,
+        streak_days: streak.currentStreak,
+        streak_start: streak.streakStartDate,
+        streak_end: streak.lastPerfectDate,
+        bonus_points: milestone.bonus_points,
+        award_type: 'auto',
+      },
+      module: 'daep_management',
+    });
+  }
+
+  return newMilestones.map((r: any) => ({
+    id: inserted?.find((i: any) => i.rule_id === r.id)?.id || '',
+    ruleId: r.id,
+    badgeName: r.badge_name,
+    triggerValue: r.trigger_value,
+    bonusPoints: r.bonus_points,
+    pointsAtAchievement: 0,
+    achievedAt: new Date().toISOString(),
+    awardType: 'auto' as const,
+  }));
 }

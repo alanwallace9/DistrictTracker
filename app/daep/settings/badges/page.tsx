@@ -21,6 +21,7 @@ import {
   ArrowUpDown,
   Sparkles,
   Trophy,
+  Flame,
 } from 'lucide-react';
 import { AddBadgeDialog } from './AddBadgeDialog';
 import { EditBadgeDialog } from './EditBadgeDialog';
@@ -192,7 +193,7 @@ export default function BadgesSettingsPage() {
         <div>
           <h2 className="text-xl font-semibold text-foreground">Milestone Badge Management</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure milestone badges awarded when students reach point thresholds
+            Configure milestone badges for point thresholds and consecutive perfect days
           </p>
         </div>
         <div className="flex gap-2">
@@ -255,6 +256,7 @@ export default function BadgesSettingsPage() {
               <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-4">{renderSortableHeader('Badge Name', 'badge_name')}</th>
+                  <th className="text-left p-4">Type</th>
                   <th className="text-left p-4">{renderSortableHeader('Threshold', 'trigger_value')}</th>
                   <th className="text-left p-4">{renderSortableHeader('Bonus Points', 'bonus_points')}</th>
                   <th className="text-left p-4">{renderSortableHeader('Status', 'active')}</th>
@@ -265,6 +267,8 @@ export default function BadgesSettingsPage() {
                 {filteredBadges.map((badge, index) => {
                   const rowBg = index % 2 === 0 ? 'bg-card' : 'bg-muted/50';
 
+                  const isStreak = badge.triggerType === 'consecutive_perfect_days';
+
                   return (
                     <tr
                       key={badge.id}
@@ -272,13 +276,29 @@ export default function BadgesSettingsPage() {
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <Trophy className="w-5 h-5 text-amber-500" />
+                          {isStreak ? (
+                            <Flame className="w-5 h-5 text-orange-500" />
+                          ) : (
+                            <Trophy className="w-5 h-5 text-amber-500" />
+                          )}
                           <span className="font-medium">{badge.badgeName}</span>
                         </div>
                       </td>
                       <td className="p-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          isStreak
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {isStreak ? 'Streak' : 'Points'}
+                        </span>
+                      </td>
+                      <td className="p-4">
                         <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                          {badge.triggerValue.toLocaleString()} pts
+                          {isStreak
+                            ? `${badge.triggerValue} days`
+                            : `${badge.triggerValue.toLocaleString()} pts`
+                          }
                         </span>
                       </td>
                       <td className="p-4">

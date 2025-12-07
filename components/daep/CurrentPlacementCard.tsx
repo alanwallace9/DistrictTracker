@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { ToggleableProgressBar } from './shared/ToggleableProgressBar';
 import { MilestoneBadges } from './shared/MilestoneBadges';
 import { PlacementStatusBadge } from './shared/PlacementStatusBadge';
+import { PlacementActivityPreview, PlacementAuditLog } from './audit';
 import type { MilestoneRule, MilestoneAchievement } from '@/app/actions/daep/milestones';
 import { StatusTransitionActions } from './placements/StatusTransitionActions';
 import {
@@ -53,6 +55,7 @@ export function CurrentPlacementCard({
 }: Props) {
   const router = useRouter();
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
+  const [auditSheetOpen, setAuditSheetOpen] = useState(false);
 
   // Format dates
   const formatDate = (dateStr: string | null) =>
@@ -222,6 +225,14 @@ export function CurrentPlacementCard({
             onTransitionComplete={() => router.refresh()}
           />
         </div>
+
+        {/* Story 3-8: Recent Activity Preview */}
+        <Separator className="my-2" />
+        <PlacementActivityPreview
+          placementId={placement.id}
+          maxItems={3}
+          onViewAll={() => setAuditSheetOpen(true)}
+        />
       </CardContent>
 
       {/* Room Assignment Dialog (AC: 6.2) */}
@@ -233,6 +244,14 @@ export function CurrentPlacementCard({
         studentName={studentName}
         currentRoomId={placement.assigned_room?.id}
         onSuccess={() => router.refresh()}
+      />
+
+      {/* Story 3-8: Full Audit Log Sheet */}
+      <PlacementAuditLog
+        placementId={placement.id}
+        placementLabel={`#${placement.incident_number || 'N/A'} (${placement.status})`}
+        open={auditSheetOpen}
+        onOpenChange={setAuditSheetOpen}
       />
     </Card>
   );

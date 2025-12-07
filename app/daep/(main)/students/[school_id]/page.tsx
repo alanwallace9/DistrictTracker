@@ -9,6 +9,7 @@ import { PlacementHistoryTable } from '@/components/daep/PlacementHistoryTable';
 import { TrespassTrackerStatus } from '@/components/daep/TrespassTrackerStatus';
 import { StudentSeparationsTab } from '@/components/daep/StudentSeparationsTab';
 import { StudentPointsLog } from '@/components/daep/StudentPointsLog';
+import { StudentAuditLog } from '@/components/daep/audit';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   getMilestoneRules,
@@ -105,12 +106,16 @@ export default async function StudentProfilePage({ params }: Props) {
               </div>
             )}
 
-            {/* Tabs: History, Separations, Activity */}
+            {/* Tabs: History, Separations, Activity, Audit Log (admin only) */}
             <Tabs defaultValue="history">
               <TabsList>
                 <TabsTrigger value="history">Placement History</TabsTrigger>
                 <TabsTrigger value="separations">Separations</TabsTrigger>
                 <TabsTrigger value="activity">Activity Timeline</TabsTrigger>
+                {/* Story 3-8: Audit Log tab - admin only */}
+                {userRole && ['super_admin', 'district_admin', 'daep_admin_l1'].includes(userRole) && (
+                  <TabsTrigger value="audit">Audit Log</TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="history" className="mt-4">
@@ -132,6 +137,20 @@ export default async function StudentProfilePage({ params }: Props) {
                   userRole={userRole}
                 />
               </TabsContent>
+
+              {/* Story 3-8: Audit Log tab content - admin only */}
+              {userRole && ['super_admin', 'district_admin', 'daep_admin_l1'].includes(userRole) && (
+                <TabsContent value="audit" className="mt-4">
+                  <StudentAuditLog
+                    studentId={school_id}
+                    placements={profile.placementHistory.map((p) => ({
+                      id: p.id,
+                      incident_number: p.incident_number,
+                      status: p.status,
+                    }))}
+                  />
+                </TabsContent>
+              )}
             </Tabs>
           </div>
         </div>

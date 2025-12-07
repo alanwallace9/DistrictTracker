@@ -1,5 +1,42 @@
 # Project Instructions for Claude
 
+---
+## ⚠️ MANDATORY PRE-FLIGHT CHECKLIST
+
+**STOP! Before ANY task, complete this checklist:**
+
+### 1. Project IDs (DO THIS FIRST)
+```bash
+# Get Supabase project ID from .env.local
+grep NEXT_PUBLIC_SUPABASE_URL .env.local
+# Extract subdomain: gnbxdjiibwjaurybohak (example)
+```
+**NEVER hardcode project IDs. ALWAYS read from .env.local first.**
+
+### 2. Story Development Workflow (FOLLOW THIS EXACT ORDER)
+
+| Step | Action | Wait for User? |
+|------|--------|----------------|
+| 1 | **Tech Spec** - Write technical specification | No |
+| 2 | **Story File** - Create story markdown | No |
+| 3 | **Executive Plan** - Present summary for review | **YES - WAIT** |
+| 4 | **Approval/Updates** - Get user feedback, iterate | **YES - WAIT** |
+| 5 | **Context File** - Create .context.xml if needed | No |
+| 6 | **Implement** - Write the code | No |
+| 7 | **Test with Playwright** - Verify UI works | No |
+| 8 | **Confirm** - Show user the results | **YES - WAIT** |
+| 9 | **Commit** - Use `/bmad:bmm:agents:tech-writer` | No |
+
+**DO NOT skip steps. DO NOT proceed past "WAIT" steps without user approval.**
+
+### 3. Commit Workflow
+After story completion:
+1. Invoke `/bmad:bmm:agents:tech-writer` to draft commit message
+2. Follow the commit format from tech-writer output
+3. Push to staging branch
+
+---
+
 ## CRITICAL: Follow Existing Patterns First
 
 **BEFORE writing ANY new code, you MUST:**

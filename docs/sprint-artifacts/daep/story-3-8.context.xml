@@ -1,0 +1,704 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story 3-8 Context File: Point Audit Trail
+  Generated: 2025-12-07
+  Purpose: Pre-assembled context for implementing audit trail UI
+-->
+<story-context story="3-8" title="Point Audit Trail">
+
+  <!-- ============================================ -->
+  <!-- SECTION 1: STORY OVERVIEW                   -->
+  <!-- ============================================ -->
+  <overview>
+    <story-id>3-8</story-id>
+    <title>Point Audit Trail</title>
+    <points>3</points>
+    <frs>FR37</frs>
+    <status>backlog</status>
+    <dependencies>Stories 3-2 through 3-6 (all already logging to audit trail)</dependencies>
+
+    <key-insight>
+      All point actions (entered, approved, rejected, edited, deleted) are ALREADY being
+      logged to `admin_audit_log` with `module = 'daep_management'`. This story is primarily
+      UI work to display existing audit data.
+    </key-insight>
+
+    <scope>
+      <in-scope>
+        - Student-level audit log tab on profile page
+        - Placement-level audit preview on PlacementCard/PlacementHistoryTable
+        - Full audit log sheet for single placement
+        - Filter controls (date, user, event type, placement)
+        - Event type icons and color coding
+        - Expandable detail view with before/after diffs
+        - Copy entry ID, keyboard navigation
+      </in-scope>
+      <out-of-scope>
+        - Global audit page in settings (deferred: after TT/DAEP settings merge)
+        - CSV export of audit log (Epic 6, Story 6.12)
+        - Email notifications for audit events (Epic 7)
+      </out-of-scope>
+    </scope>
+  </overview>
+
+  <!-- ============================================ -->
+  <!-- SECTION 2: DATABASE SCHEMA                  -->
+  <!-- ============================================ -->
+  <database-schema>
+    <table name="admin_audit_log" existing="true">
+      <description>
+        Existing table that stores all audit events. No new tables needed for this story.
+      </description>
+      <columns>
+        <column name="id" type="UUID" pk="true">Primary key</column>
+        <column name="event_type" type="TEXT">Event identifier (e.g., 'points.approved_by_admin')</column>
+        <column name="actor_id" type="TEXT">Clerk user ID who performed action</column>
+        <column name="actor_email" type="TEXT">Email of actor (for display)</column>
+        <column name="actor_role" type="TEXT">Role at time of action</column>
+        <column name="target_id" type="TEXT">Usually placement_id for DAEP events</column>
+        <column name="action" type="TEXT">Human-readable action description</column>
+        <column name="details" type="JSONB">Event-specific data (dates, values, before/after)</column>
+        <column name="tenant_id" type="TEXT">Multi-tenancy filter</column>
+        <column name="module" type="TEXT">Module: 'daep_management' or 'trespass_tracker'</column>
+        <column name="record_subject_name" type="TEXT">Student name for FERPA searches</column>
+        <column name="record_school_id" type="TEXT">Student school_id for student-level queries</column>
+        <column name="created_at" type="TIMESTAMPTZ">Event timestamp</column>
+      </columns>
+      <indexes>
+        <index>idx_admin_audit_log_actor ON (actor_id)</index>
+        <index>idx_admin_audit_log_created ON (created_at DESC)</index>
+        <index>idx_admin_audit_log_event_type ON (event_type)</index>
+        <index>idx_admin_audit_log_target ON (target_id)</index>
+        <index>idx_audit_log_tenant ON (tenant_id)</index>
+      </indexes>
+      <rls-policies>
+        - "Master and district admins can view audit logs" - SELECT for super_admin, district_admin
+        - "Authenticated users can insert audit logs" - INSERT for all authenticated
+      </rls-policies>
+    </table>
+
+    <query-patterns>
+      <pattern name="student-level">
+        <description>All audit entries across all placements for a student</description>
+        <sql><![CDATA[
+SELECT * FROM admin_audit_log
+WHERE tenant_id = $1
+  AND module = 'daep_management'
+  AND (target_id = ANY($2) OR record_school_id = $3)  -- placement IDs or student ID
+ORDER BY created_at DESC
+LIMIT 20 OFFSET $4;
+        ]]></sql>
+      </pattern>
+      <pattern name="placement-level">
+        <description>All audit entries for a specific placement</description>
+        <sql><![CDATA[
+SELECT * FROM admin_audit_log
+WHERE tenant_id = $1
+  AND module = 'daep_management'
+  AND target_id = $2  -- specific placement_id
+ORDER BY created_at DESC
+LIMIT 20 OFFSET $3;
+        ]]></sql>
+      </pattern>
+    </query-patterns>
+  </database-schema>
+
+  <!-- ============================================ -->
+  <!-- SECTION 3: EXISTING EVENT TYPES             -->
+  <!-- ============================================ -->
+  <event-types>
+    <category name="points" description="Point entry events (from points.ts)">
+      <event type="points.base_auto_approved">Base points by approved teacher</event>
+      <event type="points.base_pending_approval">Base points by non-approved staff</event>
+      <event type="points.base_removed">Attendance changed to absent</event>
+      <event type="points.auto_approved">Adjustment by approved teacher</event>
+      <event type="points.pending_approval">Adjustment by non-approved staff</event>
+      <event type="points.adjustment_deleted">User/admin deletes adjustment</event>
+      <event type="points.adjustment_edited">User/admin edits adjustment</event>
+      <event type="points.bulk_auto_approved">Bulk entry by approved teacher</event>
+      <event type="points.bulk_pending_approval">Bulk entry by non-approved staff</event>
+      <event type="points.approved_by_admin">Admin approves pending entry</event>
+      <event type="points.rejected_by_admin">Admin rejects pending entry</event>
+      <event type="points.bulk_approved_by_admin">Admin bulk approves</event>
+      <event type="points.edited_and_approved">Admin edits &amp; approves</event>
+    </category>
+
+    <category name="placement" description="Placement lifecycle events (from placements.ts)">
+      <event type="placement.created">New placement created</event>
+      <event type="placement.updated">Placement edited</event>
+      <event type="placement.intake_processed">Status changed to active</event>
+      <event type="placement.transitioned">Status change</event>
+      <event type="placement.cancelled">Placement cancelled</event>
+      <event type="placement.no_show">Marked as no-show</event>
+      <event type="placement.rollover_decision">Rollover handled</event>
+      <event type="room.assignment_changed">Room reassignment</event>
+      <event type="student.separation_added">Separation created</event>
+      <event type="student.separation_removed">Separation removed</event>
+    </category>
+
+    <category name="attendance" description="Future attendance events (Story 3.12)">
+      <event type="attendance.marked">Attendance recorded</event>
+      <event type="attendance.override">Admin overrides</event>
+    </category>
+
+    <icon-mapping>
+      <map category="Created" events="*.created, points.*_approved (new)" icon="Plus" color="green"/>
+      <map category="Approved" events="points.approved_*, points.edited_and_approved" icon="Check" color="green"/>
+      <map category="Rejected" events="points.rejected_*" icon="X" color="red"/>
+      <map category="Edited" events="*.edited, *.updated" icon="Pencil" color="amber"/>
+      <map category="Deleted" events="*.deleted, *.removed, *.cancelled" icon="Trash2" color="red"/>
+      <map category="Bulk" events="*.bulk_*" icon="Package" color="blue"/>
+      <map category="Status" events="placement.transitioned, placement.intake_*" icon="RefreshCw" color="purple"/>
+      <map category="Room" events="room.*, student.separation_*" icon="MapPin" color="slate"/>
+      <map category="Attendance" events="attendance.*" icon="ClipboardList" color="teal"/>
+    </icon-mapping>
+  </event-types>
+
+  <!-- ============================================ -->
+  <!-- SECTION 4: FILES TO CREATE                  -->
+  <!-- ============================================ -->
+  <files-to-create>
+    <file path="app/actions/daep/audit.ts">
+      <purpose>Audit log server actions</purpose>
+      <exports>
+        <export name="getStudentAuditLog">Full audit for student (admin only)</export>
+        <export name="getPlacementAuditLog">Full audit for placement (admin only)</export>
+        <export name="getRecentPlacementActivity">Limited preview (all staff)</export>
+        <export name="getAuditLogUsers">User dropdown options</export>
+      </exports>
+      <types>
+        <type name="AuditEntry">id, event_type, actor_id, actor_name, target_id, action, details, created_at, placement_label?</type>
+        <type name="AuditFilterOptions">studentId?, placementId?, placementIds?, userId?, eventCategory?, eventType?, startDate?, endDate?, limit?, offset?</type>
+        <type name="AuditLogResult">entries, total, hasMore</type>
+      </types>
+      <pattern-reference>
+        Follow existing patterns from points.ts for:
+        - getTenantId() helper
+        - checkDAEPStaffRole() for role checking
+        - Admin role check: ['super_admin', 'district_admin', 'daep_admin_l1']
+      </pattern-reference>
+    </file>
+
+    <file path="components/daep/audit/audit-utils.ts">
+      <purpose>Utility functions for audit display</purpose>
+      <exports>
+        <export name="getEventIcon">Map event_type to Lucide icon component</export>
+        <export name="getEventColor">Map event_type to Tailwind color classes</export>
+        <export name="formatRelativeTime">Human-friendly time (e.g., "2 hours ago")</export>
+        <export name="getEventCategoryGroup">Group events for filter toggle</export>
+        <export name="formatActionText">Make action text more human-readable</export>
+      </exports>
+    </file>
+
+    <file path="components/daep/audit/AuditEntryCard.tsx">
+      <purpose>Individual audit entry display</purpose>
+      <props>
+        <prop name="entry" type="AuditEntry">The audit entry to display</prop>
+        <prop name="showPlacement" type="boolean">Show placement label (for student-level view)</prop>
+        <prop name="expanded" type="boolean">Whether details are expanded</prop>
+        <prop name="onToggle" type="function">Toggle expand callback</prop>
+        <prop name="onJumpToEntry" type="function">Navigate to related entry</prop>
+      </props>
+      <features>
+        - Expandable details section with before/after diff
+        - Copy ID button
+        - Jump to entry link
+        - Icon and color based on event type
+      </features>
+    </file>
+
+    <file path="components/daep/audit/AuditLogFilters.tsx">
+      <purpose>Filter controls for audit log</purpose>
+      <props>
+        <prop name="placements" type="array">Placement options for dropdown</prop>
+        <prop name="users" type="array">User options for dropdown</prop>
+        <prop name="showCategoryToggle" type="boolean">Show Points/Attendance/Placement/All toggle</prop>
+        <prop name="onFilterChange" type="function">Callback when filters change</prop>
+      </props>
+      <controls>
+        - Date range picker (DatePickerWithRange)
+        - User dropdown (Select)
+        - Event category toggle buttons
+        - Placement dropdown (student-level only)
+        - Clear filters button
+      </controls>
+    </file>
+
+    <file path="components/daep/audit/PlacementActivityPreview.tsx">
+      <purpose>Mini audit preview on placement card</purpose>
+      <props>
+        <prop name="placementId" type="string">Placement to show activity for</prop>
+        <prop name="maxItems" type="number">Max items to show (default 3)</prop>
+        <prop name="onViewAll" type="function">Open full audit sheet</prop>
+      </props>
+      <features>
+        - Compact 3-item list
+        - "View All" button
+        - Empty state
+        - Does NOT require admin (limited fields)
+      </features>
+    </file>
+
+    <file path="components/daep/audit/StudentAuditLog.tsx">
+      <purpose>Full audit log for student profile tab</purpose>
+      <props>
+        <prop name="studentId" type="string">Student school_id</prop>
+        <prop name="placements" type="array">Student's placements for filter</prop>
+      </props>
+      <features>
+        - Full filter controls
+        - Pagination with "Load More"
+        - Total count display
+        - Expand/Collapse all buttons
+        - Keyboard navigation (↑/↓/E)
+        - Admin-only access
+      </features>
+    </file>
+
+    <file path="components/daep/audit/PlacementAuditLog.tsx">
+      <purpose>Full audit log for single placement (sheet)</purpose>
+      <props>
+        <prop name="placementId" type="string">Placement ID</prop>
+        <prop name="placementLabel" type="string">Display label</prop>
+        <prop name="open" type="boolean">Sheet open state</prop>
+        <prop name="onClose" type="function">Close callback</prop>
+      </props>
+      <features>
+        - Sheet component (slide-in panel)
+        - Date and user filters only
+        - Pagination
+        - Admin-only access
+      </features>
+    </file>
+  </files-to-create>
+
+  <!-- ============================================ -->
+  <!-- SECTION 5: FILES TO MODIFY                  -->
+  <!-- ============================================ -->
+  <files-to-modify>
+    <file path="app/daep/(main)/students/[school_id]/page.tsx">
+      <changes>
+        - Add "Audit Log" tab to TabsList (admin-only visibility)
+        - Import and render StudentAuditLog component
+        - Pass placements array for filter dropdown
+        - Check userRole for admin access before showing tab
+      </changes>
+      <current-tabs>history, separations, activity</current-tabs>
+      <new-tab>audit (admin-only)</new-tab>
+    </file>
+
+    <file path="components/daep/CurrentPlacementCard.tsx">
+      <changes>
+        - Add PlacementActivityPreview section
+        - Add state for audit sheet open/close
+        - Add PlacementAuditLog sheet
+        - Wire "View All" to open sheet
+      </changes>
+      <placement>After "Status Transition Actions" section</placement>
+    </file>
+
+    <file path="components/daep/PlacementHistoryTable.tsx">
+      <changes>
+        - Add expandable row with PlacementActivityPreview
+        - Or add "Activity" column with mini preview
+        - Add PlacementAuditLog sheet for each placement
+      </changes>
+    </file>
+  </files-to-modify>
+
+  <!-- ============================================ -->
+  <!-- SECTION 6: CODE PATTERNS                    -->
+  <!-- ============================================ -->
+  <code-patterns>
+    <pattern name="Server Action - Admin Check">
+      <description>How to check admin role in server actions</description>
+      <source>app/actions/daep/points.ts</source>
+      <code><![CDATA[
+const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+if (!adminRoles.includes(role)) {
+  throw new Error('Only administrators can view full audit logs');
+}
+      ]]></code>
+    </pattern>
+
+    <pattern name="Server Action - Get Tenant ID">
+      <description>Standard tenant ID retrieval pattern</description>
+      <source>app/actions/daep/points.ts</source>
+      <code><![CDATA[
+async function getTenantId(): Promise<string> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) {
+    throw new Error('User profile not found');
+  }
+
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) {
+    throw new Error('No tenant assigned');
+  }
+
+  return effectiveTenantId;
+}
+      ]]></code>
+    </pattern>
+
+    <pattern name="Sheet Component">
+      <description>How to use Sheet for slide-in panel</description>
+      <source>components/daep/rollover/DecisionHistoryPanel.tsx</source>
+      <code><![CDATA[
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+
+<Sheet open={open} onOpenChange={onOpenChange}>
+  <SheetContent className="sm:max-w-[400px]">
+    <SheetHeader>
+      <SheetTitle>Title</SheetTitle>
+      <SheetDescription>Description</SheetDescription>
+    </SheetHeader>
+    {/* Content */}
+  </SheetContent>
+</Sheet>
+      ]]></code>
+    </pattern>
+
+    <pattern name="Filter Component">
+      <description>Filter UI pattern from StudentPointsLog</description>
+      <source>components/daep/StudentPointsLog.tsx</source>
+      <code><![CDATA[
+<div className="flex flex-wrap items-center gap-3">
+  <Select value={value} onValueChange={setValue}>
+    <SelectTrigger className="w-[280px]">
+      <SelectValue placeholder="Select..." />
+    </SelectTrigger>
+    <SelectContent>
+      {options.map((opt) => (
+        <SelectItem key={opt.id} value={opt.id}>
+          {opt.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+
+  {/* Count display */}
+  <span className="text-sm text-muted-foreground ml-auto">
+    {count} entries
+  </span>
+</div>
+      ]]></code>
+    </pattern>
+
+    <pattern name="Entry Card">
+      <description>Card layout pattern from StudentPointsLog</description>
+      <source>components/daep/StudentPointsLog.tsx</source>
+      <code><![CDATA[
+<Card className={cn('transition-colors', colorClass)}>
+  <CardContent className="p-4">
+    <div className="flex items-start gap-3">
+      {/* Icon/Badge */}
+      <Badge className="shrink-0">...</Badge>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Header */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-medium">Primary</span>
+          <span className="text-muted-foreground">•</span>
+          <span>Secondary</span>
+        </div>
+
+        {/* Body */}
+        {entry.notes && (
+          <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p>
+        )}
+
+        {/* Footer */}
+        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+          ...
+        </div>
+      </div>
+
+      {/* Action button */}
+      <Button variant="ghost" size="sm" className="shrink-0">
+        ...
+      </Button>
+    </div>
+  </CardContent>
+</Card>
+      ]]></code>
+    </pattern>
+
+    <pattern name="Audit Logging">
+      <description>How audit events are logged (for reference)</description>
+      <source>app/actions/daep/points.ts</source>
+      <code><![CDATA[
+async function logPointsAuditEvent(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  eventType: string,
+  actorId: string,
+  targetId: string,
+  action: string,
+  tenantId: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await supabase.from('admin_audit_log').insert({
+      event_type: eventType,
+      actor_id: actorId,
+      target_id: targetId,
+      action,
+      tenant_id: tenantId,
+      module: 'daep_management',
+      details,
+    });
+  } catch (error) {
+    console.error('Failed to log points audit event:', error);
+  }
+}
+      ]]></code>
+    </pattern>
+  </code-patterns>
+
+  <!-- ============================================ -->
+  <!-- SECTION 7: UI/UX DESIGN                     -->
+  <!-- ============================================ -->
+  <ui-design>
+    <component name="Student Audit Log Tab">
+      <wireframe><![CDATA[
+┌─────────────────────────────────────────────────────────────────┐
+│ [Overview] [Placement] [Activity] [Audit Log]                   │
+├─────────────────────────────────────────────────────────────────┤
+│ Student Audit Trail                           [Export CSV ▼]    │
+│                                                                 │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ Filters: [Date Range ▼] [User ▼] [Type ▼] [Placement ▼]    │ │
+│ │          ○ Points  ○ Attendance  ○ Placement  ● All         │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ ✅ Dec 7, 2025 10:32 AM              Placement #2 (Current) │ │
+│ │ John Smith approved +5 points for Period 3                  │ │
+│ │ Original entry by: Jane Doe                                 │ │
+│ │ [View Details]                            [Jump to Entry →] │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│ Showing 20 of 47 entries                     [Load More (27)]   │
+└─────────────────────────────────────────────────────────────────┘
+      ]]></wireframe>
+    </component>
+
+    <component name="Placement Activity Preview">
+      <wireframe><![CDATA[
+┌─────────────────────────────────────────────────────────────────┐
+│ Recent Activity (3)                           [View All →]      │
+│ ────────────────────────────────────────────────────────────── │
+│ ✅ 10:32 AM - Points approved (+5, Period 3)                    │
+│ ✏️  9:15 AM - Points edited (-5 → -10)                          │
+│ 📍 Yesterday - Room changed (101 → 203)                         │
+└─────────────────────────────────────────────────────────────────┘
+      ]]></wireframe>
+    </component>
+
+    <component name="Expanded Detail View">
+      <wireframe><![CDATA[
+┌─────────────────────────────────────────────────────────────────┐
+│ ✅ Dec 7, 2025 10:32 AM                                         │
+│ John Smith approved +5 points for Period 3                      │
+│ ────────────────────────────────────────────────────────────── │
+│ Event Type: points.approved_by_admin                            │
+│ Placement: #2 (Active)                                          │
+│ ────────────────────────────────────────────────────────────── │
+│ Student Action: Disruptive Behavior                             │
+│ Teacher Action: Redirected                                      │
+│ Notes: "Disrupted class during reading time"                    │
+│ ────────────────────────────────────────────────────────────── │
+│ Original Entry By: Jane Doe (9:15 AM)                           │
+│ Approved By: John Smith                                         │
+│ Entry ID: 550e8400-e29b-41d4...              [📋 Copy ID]       │
+│                                                                 │
+│                                    [Close]  [Jump to Entry →]   │
+└─────────────────────────────────────────────────────────────────┘
+      ]]></wireframe>
+    </component>
+  </ui-design>
+
+  <!-- ============================================ -->
+  <!-- SECTION 8: ACCESS CONTROL                   -->
+  <!-- ============================================ -->
+  <access-control>
+    <rule name="Full Audit Log">
+      <description>Student tab and full placement audit</description>
+      <allowed-roles>daep_admin_l1, district_admin, super_admin</allowed-roles>
+      <implementation>Server-side role check in getStudentAuditLog, getPlacementAuditLog</implementation>
+    </rule>
+
+    <rule name="Activity Preview">
+      <description>Mini preview on placement cards</description>
+      <allowed-roles>All DAEP staff</allowed-roles>
+      <limitations>Limited fields: event_type, action, created_at (no sensitive details)</limitations>
+      <implementation>getRecentPlacementActivity returns sanitized data</implementation>
+    </rule>
+
+    <rule name="Database RLS">
+      <description>Existing tenant isolation</description>
+      <policy>tenant_id check on all queries</policy>
+    </rule>
+  </access-control>
+
+  <!-- ============================================ -->
+  <!-- SECTION 9: IMPLEMENTATION TASKS             -->
+  <!-- ============================================ -->
+  <implementation-tasks>
+    <task id="1" name="Server Actions" hours="1.5">
+      <subtask>Create app/actions/daep/audit.ts</subtask>
+      <subtask>Implement getStudentAuditLog() with all filters</subtask>
+      <subtask>Implement getPlacementAuditLog()</subtask>
+      <subtask>Implement getRecentPlacementActivity() (limited, all staff)</subtask>
+      <subtask>Implement getAuditLogUsers() for dropdown</subtask>
+      <subtask>Add role checks (admin for full, staff for preview)</subtask>
+    </task>
+
+    <task id="2" name="Utility Functions" hours="0.5">
+      <subtask>Create audit-utils.ts</subtask>
+      <subtask>Event type → icon/color mapping</subtask>
+      <subtask>Relative timestamp formatter</subtask>
+      <subtask>Event type grouping for filters</subtask>
+      <subtask>Action text formatter</subtask>
+    </task>
+
+    <task id="3" name="Audit Entry Card" hours="0.5">
+      <subtask>Create AuditEntryCard.tsx</subtask>
+      <subtask>Expandable details section</subtask>
+      <subtask>Before/after diff view for edits</subtask>
+      <subtask>Copy ID button</subtask>
+      <subtask>Jump to entry link</subtask>
+    </task>
+
+    <task id="4" name="Filter Controls" hours="0.5">
+      <subtask>Create AuditLogFilters.tsx</subtask>
+      <subtask>Date range picker</subtask>
+      <subtask>User dropdown</subtask>
+      <subtask>Event category toggle</subtask>
+      <subtask>Placement dropdown (student-level only)</subtask>
+      <subtask>Clear filters button</subtask>
+    </task>
+
+    <task id="5" name="Placement Activity Preview" hours="0.5">
+      <subtask>Create PlacementActivityPreview.tsx</subtask>
+      <subtask>Compact 3-item list</subtask>
+      <subtask>"View All" button</subtask>
+      <subtask>Empty state</subtask>
+    </task>
+
+    <task id="6" name="Full Audit Log Components" hours="1">
+      <subtask>Create StudentAuditLog.tsx with filters</subtask>
+      <subtask>Create PlacementAuditLog.tsx as Sheet</subtask>
+      <subtask>Pagination with "Load More"</subtask>
+      <subtask>Empty state and loading states</subtask>
+      <subtask>Total count display</subtask>
+    </task>
+
+    <task id="7" name="Integration" hours="0.5">
+      <subtask>Add "Audit Log" tab to student profile (admin-only)</subtask>
+      <subtask>Add activity preview to CurrentPlacementCard</subtask>
+      <subtask>Add activity preview to PlacementHistoryTable</subtask>
+      <subtask>Wire up "View All" to open PlacementAuditLog sheet</subtask>
+    </task>
+  </implementation-tasks>
+
+  <!-- ============================================ -->
+  <!-- SECTION 10: EDGE CASES                      -->
+  <!-- ============================================ -->
+  <edge-cases>
+    <case name="No audit entries">
+      <behavior>Show "No activity recorded" empty state</behavior>
+    </case>
+    <case name="Many placements">
+      <behavior>Placement filter dropdown with all options</behavior>
+    </case>
+    <case name="Filter returns empty">
+      <behavior>Show "No entries match filters" with clear button</behavior>
+    </case>
+    <case name="User deleted">
+      <behavior>Show "Unknown User" for actor_name</behavior>
+    </case>
+    <case name="Long notes">
+      <behavior>Truncate at 150 chars, show full in expanded</behavior>
+    </case>
+    <case name="Bulk action">
+      <behavior>Show count, don't list all 50+ IDs</behavior>
+    </case>
+  </edge-cases>
+
+  <!-- ============================================ -->
+  <!-- SECTION 11: QUICK WINS                      -->
+  <!-- ============================================ -->
+  <quick-wins>
+    <win name="Relative timestamps" location="audit-utils.ts" effort="Low">
+      "2 hours ago" instead of full date for recent
+    </win>
+    <win name="Copy entry ID" location="AuditEntryCard" effort="Low">
+      Click to copy UUID to clipboard
+    </win>
+    <win name="Expand/Collapse all" location="StudentAuditLog" effort="Low">
+      Buttons to expand or collapse all entries
+    </win>
+    <win name="Keyboard navigation" location="StudentAuditLog" effort="Low">
+      ↑/↓ or W/S to move, E to expand/collapse
+    </win>
+    <win name="Quick search" location="AuditLogFilters" effort="Low">
+      Search within action text
+    </win>
+    <win name="Summary stats" location="StudentAuditLog" effort="Low">
+      "47 total: 32 points, 10 attendance, 5 placement"
+    </win>
+  </quick-wins>
+
+  <!-- ============================================ -->
+  <!-- SECTION 12: DEPENDENCY IMPORTS              -->
+  <!-- ============================================ -->
+  <imports>
+    <import category="Server Actions">
+      import { createServerClient } from '@/lib/supabase/server';
+      import { currentUser } from '@clerk/nextjs/server';
+      import { revalidatePath } from 'next/cache';
+    </import>
+
+    <import category="UI Components">
+      import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+      import { Badge } from '@/components/ui/badge';
+      import { Button } from '@/components/ui/button';
+      import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+      import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+      import { Separator } from '@/components/ui/separator';
+      import { Skeleton } from '@/components/ui/skeleton';
+    </import>
+
+    <import category="Icons">
+      import {
+        Plus, Check, X, Pencil, Trash2, Package, RefreshCw,
+        MapPin, ClipboardList, Clock, User, ChevronDown, ChevronUp,
+        Copy, ExternalLink, Filter
+      } from 'lucide-react';
+    </import>
+
+    <import category="Utilities">
+      import { cn } from '@/lib/utils';
+      import { format, formatDistanceToNow } from 'date-fns';
+      import { useToast } from '@/hooks/use-toast';
+    </import>
+  </imports>
+
+</story-context>
