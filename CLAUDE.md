@@ -79,55 +79,73 @@ This provides shared visibility between Claude and the user during development.
 
 ---
 
-## Pre-Implementation Planning (Required)
+## Tech Spec & Story Workflow (Required)
 
-**BEFORE writing any code for a story, present an execution plan:**
+**When asked to create a tech spec or story, follow this workflow:**
 
-1. **Overview** - Brief summary of what we're building and why it matters
-2. **Order of operations** - Which files/components to create/modify and in what sequence
-3. **Key architectural decisions** - Patterns to use, components to reuse, potential pitfalls
-4. **Refactor prevention** - Identify dependencies and integration points upfront
-5. **Database considerations** - Any schema changes, RLS policies, or migrations needed
+### Step 1: Write Tech Spec & Story
+Create the technical specification and story file first. These document:
+- Acceptance criteria, tasks, and subtasks
+- Database changes, server actions, UI components
+- Edge cases and out-of-scope items
 
-**Format:**
+### Step 2: Present Executive Plan for Review
+**AFTER writing the tech spec and story**, present an executive plan summary for user feedback:
+
 ```
-## Execution Plan for Story X-Y
+## Executive Plan: Story X-Y - [Title]
 
-### Overview
-[2-3 sentence summary of what we're building, why it matters to users, and any key constraint]
+### What We're Building
+[2-3 sentence summary of what we're building and why it matters to users]
 
-Example: "Building the Room Roster page that displays students assigned to a room with
-period/date selectors. This is the foundational UI for all Epic 3 daily operations -
-points entry, attendance, and behavior notes will build on this view. Must be designed
-for extensibility since future stories add interactive columns."
+### UI/UX Placement
+- Where new components will appear in the UI
+- How they integrate with existing pages
+- Visual mockup description if helpful
+
+### Key Deliverables
+| Component | Description |
+|-----------|-------------|
+| [Component 1] | [What it does] |
+| [Component 2] | [What it does] |
 
 ### Order of Operations
 1. [First task] - why this order
 2. [Second task] - dependencies on #1
 ...
 
-### Key Decisions
-- [Decision 1]: [Rationale]
-- [Decision 2]: [Rationale]
+### Database Changes
+- [Table/column changes if any]
 
-### Watch Out For
-- [Potential issue 1]
-- [Potential issue 2]
+### Key Decisions (Need Your Input)
+- [Decision 1]: [Options and recommendation]
+- [Decision 2]: [Options and recommendation]
+
+### Scope Boundaries
+| In Scope | Out of Scope |
+|----------|--------------|
+| [Item] | [Item] |
+
+### Effort Estimate
+- Story Points: X
+- Tasks: N
+- New Files: N
+- Modified Files: N
 
 ### Recommendations (Quick Wins)
-Proactively identify UX improvements or edge case handling that:
-- Add meaningful value without major scope creep
-- Address user pain points not explicitly in requirements
-- Improve error recovery or user feedback
-- Can be implemented in <30 min additional effort
+- [Recommendation] - [Why it helps] - [Effort: Low/Medium]
 
-Format: "[Recommendation] - [Why it helps] - [Effort: Low/Medium]"
-
-If a recommendation is valuable but exceeds scope, note it as:
-"BACKLOG: [Idea] - add to story X-Y backlog for future consideration"
+### Questions for You
+- [Any clarifying questions about requirements or preferences]
 ```
 
-**Get user approval on the plan before proceeding with implementation.**
+### Step 3: Get Approval Before Implementation
+Wait for user feedback on the executive plan. User may:
+- Approve as-is
+- Request changes to placement, scope, or approach
+- Add requirements or clarifications
+
+**Only proceed to implementation after user approves the plan.**
 
 ## Documentation Folder Structure
 

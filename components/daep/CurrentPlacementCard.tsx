@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DaysProgressBar } from './shared/DaysProgressBar';
+import { ToggleableProgressBar } from './shared/ToggleableProgressBar';
+import { MilestoneBadges } from './shared/MilestoneBadges';
 import { PlacementStatusBadge } from './shared/PlacementStatusBadge';
+import type { MilestoneRule, MilestoneAchievement } from '@/app/actions/daep/milestones';
 import { StatusTransitionActions } from './placements/StatusTransitionActions';
 import {
   Calendar,
@@ -28,9 +30,27 @@ interface Props {
   placement: PlacementDetail;
   schoolId: string;
   studentName: string;
+  // Story 3-7: Cumulative Points & Milestones
+  milestoneRules?: MilestoneRule[];
+  milestoneAchievements?: MilestoneAchievement[];
+  cumulativePoints?: {
+    totalPointsEarned: number;
+    totalPointsPossible: number;
+    periodsPerDay: number;
+  };
+  /** IDs of badges newly earned this session (for glow animation) */
+  newlyEarnedBadgeIds?: string[];
 }
 
-export function CurrentPlacementCard({ placement, schoolId, studentName }: Props) {
+export function CurrentPlacementCard({
+  placement,
+  schoolId,
+  studentName,
+  milestoneRules = [],
+  milestoneAchievements = [],
+  cumulativePoints,
+  newlyEarnedBadgeIds = [],
+}: Props) {
   const router = useRouter();
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
 
@@ -45,7 +65,18 @@ export function CurrentPlacementCard({ placement, schoolId, studentName }: Props
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base font-medium">Current Placement</CardTitle>
+        <div className="flex items-center gap-3">
+          <CardTitle className="text-base font-medium">Current Placement</CardTitle>
+          {/* Story 3-7: Milestone Badges */}
+          {milestoneRules.length > 0 && (
+            <MilestoneBadges
+              rules={milestoneRules}
+              achievements={milestoneAchievements}
+              currentPoints={cumulativePoints?.totalPointsEarned || 0}
+              newlyEarnedIds={newlyEarnedBadgeIds}
+            />
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <PlacementStatusBadge status={placement.status as PlacementStatus} />
           {/* Edit Button - Story 2-8: AC 2.8.1 */}
@@ -68,14 +99,15 @@ export function CurrentPlacementCard({ placement, schoolId, studentName }: Props
           </Alert>
         )}
 
-        {/* Days Progress - Story 2-7 DaysProgressBar component */}
+        {/* Days/Points Progress - Story 3-7: Toggleable view */}
         <div className="space-y-1">
-          <span className="text-sm text-muted-foreground">Days Progress</span>
-          <DaysProgressBar
+          <span className="text-sm text-muted-foreground">Progress</span>
+          <ToggleableProgressBar
             daysServed={placement.days_served}
             daysAssigned={placement.days_assigned}
             daysRemaining={placement.days_remaining}
-            showLabels={true}
+            pointsEarned={cumulativePoints?.totalPointsEarned || 0}
+            pointsPossible={cumulativePoints?.totalPointsPossible || 0}
           />
         </div>
 

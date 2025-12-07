@@ -40,6 +40,7 @@ const CATEGORY_TYPE_OPTIONS = [
   { value: 'positive', label: 'Positive', description: 'Earns points' },
   { value: 'negative', label: 'Negative', description: 'Loses points' },
   { value: 'neutral', label: 'Neutral', description: 'No point impact' },
+  { value: 'bonus', label: 'Bonus', description: 'Extra points awarded' },
 ] as const;
 
 export function AddCategoryDialog({ open, onOpenChange, onSuccess }: AddCategoryDialogProps) {

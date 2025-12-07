@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story Context: 3-7 Cumulative Points & Milestones
+  Generated: 2025-12-07
+  Purpose: Pre-assembled context for Story 3-7 implementation
+-->
+<story-context story="3-7" title="Cumulative Points & Milestones">
+
+  <design-philosophy>
+    "How did they ever do their job without this?"
+
+    Students need visible progress markers. Without cumulative tracking, points feel
+    like isolated daily events. Milestones create motivation (close to next badge),
+    celebration (crossed 500!), and staff visibility into trajectories.
+  </design-philosophy>
+
+  <summary>
+    Add cumulative point display and milestone badges to CurrentPlacementCard.
+    Badges appear on title row. Progress bar toggles between days/points on click.
+    Milestones auto-award when threshold crossed OR can be manually awarded.
+    New Badges settings page for CRUD. Add 'bonus' type to behavior categories.
+  </summary>
+
+  <key-concepts>
+    <concept name="Milestones vs Bonus Points">
+      MILESTONES = Achievement badges (auto when threshold met OR manual award)
+      BONUS POINTS = Extra points added manually (never automatic)
+      Flow: Bonus points → increases total → may trigger milestone auto-award
+    </concept>
+    <concept name="Points Formula">
+      points_possible = days_served × periods_per_day × 10
+      Example: 20 days × 7 periods × 10 = 1,400 points possible
+    </concept>
+  </key-concepts>
+
+  <ui-placement>
+    <placement name="Milestone Badges">
+      Same row as "Current Placement" title in CurrentPlacementCard header
+      Format: Current Placement  🏆🏆🏆○○                    [Status]
+    </placement>
+    <placement name="Progress Bar">
+      Toggleable - click to switch between days and points view
+      Replaces existing DaysProgressBar
+      Persists preference in localStorage
+    </placement>
+    <placement name="Badges Settings">
+      New tab at /daep/settings/badges
+      Same pattern as behaviors page
+    </placement>
+  </ui-placement>
+
+  <quick-wins>
+    <win>Hover tooltip on unearned badge: "47 pts to 500 Club"</win>
+    <win>Seed defaults button on empty badges settings page</win>
+    <win>Animated glow on newly earned badge (same session)</win>
+  </quick-wins>
+
+  <files-to-create>
+    <file path="supabase/migrations/XXXXXX_create_student_milestones.sql">
+      - daep_student_milestones table with award_type column
+      - Add 'bonus' to behavior category type
+      - Indexes and RLS policies
+    </file>
+    <file path="app/actions/daep/milestones.ts">
+      - getCumulativePoints(placementId)
+      - getStudentMilestones(placementId)
+      - getMilestoneRules()
+      - checkAndAwardMilestones() - auto award
+      - manuallyAwardMilestone() - individual manual
+      - bulkAwardMilestones() - bulk manual
+      - CRUD for milestone rules
+      - seedDefaultMilestones()
+    </file>
+    <file path="app/daep/settings/badges/page.tsx">
+      Same pattern as behaviors page:
+      - Table: Badge Name, Threshold, Bonus Points, Status, Actions
+      - Search, sort, activate/deactivate
+      - Seed defaults button on empty state
+    </file>
+    <file path="app/daep/settings/badges/AddBadgeDialog.tsx">
+      Fields: badge_name, trigger_value, bonus_points
+    </file>
+    <file path="app/daep/settings/badges/EditBadgeDialog.tsx">
+      Same fields as Add, pre-populated
+    </file>
+    <file path="components/daep/MilestoneBadges.tsx">
+      - Compact row of badges for card header
+      - Gold trophy for earned, gray circle for unearned
+      - Hover tooltip with progress
+      - Animated glow for newly earned
+    </file>
+    <file path="components/daep/ToggleableProgressBar.tsx">
+      - Click to toggle days ↔ points view
+      - localStorage persistence
+      - Color coding by percentage
+    </file>
+  </files-to-create>
+
+  <files-to-modify>
+    <file path="components/daep/CurrentPlacementCard.tsx">
+      - Add MilestoneBadges to CardHeader (same row as title)
+      - Replace DaysProgressBar with ToggleableProgressBar
+      - Accept new props for points data
+    </file>
+    <file path="app/daep/(main)/students/[school_id]/page.tsx">
+      - Fetch cumulative points and milestones
+      - Pass to CurrentPlacementCard
+    </file>
+    <file path="app/actions/daep/points.ts">
+      - After approved entry, call checkAndAwardMilestones()
+      - After approval, call checkAndAwardMilestones()
+    </file>
+    <file path="app/daep/settings/behaviors/page.tsx">
+      - Add 'bonus' to CATEGORY_TYPE_LABELS
+    </file>
+    <file path="lib/validation/schemas.ts">
+      - Add 'bonus' to BehaviorCategoryType enum
+    </file>
+  </files-to-modify>
+
+  <existing-code-patterns>
+    <pattern name="Behaviors Page Structure" file="app/daep/settings/behaviors/page.tsx">
+      <![CDATA[
+const CATEGORY_TYPE_LABELS: Record<BehaviorCategoryType, { label: string; color: string }> = {
+  positive: { label: 'Positive', color: 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))]' },
+  negative: { label: 'Negative', color: 'bg-destructive/10 text-destructive' },
+  neutral: { label: 'Neutral', color: 'bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))]' },
+  // ADD: bonus: { label: 'Bonus', color: 'bg-amber-100 text-amber-800' },
+};
+      ]]>
+    </pattern>
+    <pattern name="CurrentPlacementCard Header" file="components/daep/CurrentPlacementCard.tsx">
+      <![CDATA[
+<CardHeader className="flex flex-row items-center justify-between pb-2">
+  <CardTitle className="text-base font-medium">Current Placement</CardTitle>
+  {/* ADD: MilestoneBadges here between title and status */}
+  <div className="flex items-center gap-2">
+    <PlacementStatusBadge status={placement.status as PlacementStatus} />
+    ...
+  </div>
+</CardHeader>
+      ]]>
+    </pattern>
+    <pattern name="DaysProgressBar Usage" file="components/daep/CurrentPlacementCard.tsx">
+      <![CDATA[
+{/* REPLACE this with ToggleableProgressBar */}
+<div className="space-y-1">
+  <span className="text-sm text-muted-foreground">Days Progress</span>
+  <DaysProgressBar
+    daysServed={placement.days_served}
+    daysAssigned={placement.days_assigned}
+    daysRemaining={placement.days_remaining}
+    showLabels={true}
+  />
+</div>
+      ]]>
+    </pattern>
+    <pattern name="Point Bonus Rules Table" file="supabase/migrations/20251124221840_create_daep_schema.sql">
+      <![CDATA[
+CREATE TABLE IF NOT EXISTS daep_point_bonus_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL,
+  rule_name TEXT NOT NULL,
+  trigger_type TEXT NOT NULL, -- "perfect_streak" | "milestone" | "manual"
+  trigger_value INT, -- e.g., 100 for "milestone" at 100 pts
+  bonus_points INT NOT NULL,
+  badge_name TEXT,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+      ]]>
+    </pattern>
+  </existing-code-patterns>
+
+  <database-schema>
+    <table name="daep_student_milestones">
+      <![CDATA[
+CREATE TABLE IF NOT EXISTS daep_student_milestones (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL,
+  placement_id UUID NOT NULL REFERENCES daep_placements(id) ON DELETE CASCADE,
+  rule_id UUID NOT NULL REFERENCES daep_point_bonus_rules(id),
+  points_at_achievement INT NOT NULL,
+  achieved_at TIMESTAMPTZ DEFAULT NOW(),
+  awarded_by TEXT,
+  award_type TEXT NOT NULL DEFAULT 'auto',  -- 'auto' | 'manual'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tenant_id, placement_id, rule_id)
+);
+
+CREATE INDEX idx_daep_milestones_tenant ON daep_student_milestones(tenant_id);
+CREATE INDEX idx_daep_milestones_placement ON daep_student_milestones(placement_id);
+
+ALTER TABLE daep_student_milestones ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "daep_student_milestones_tenant_isolation" ON daep_student_milestones
+  FOR ALL USING (tenant_id = get_current_tenant_id());
+      ]]>
+    </table>
+  </database-schema>
+
+  <default-milestones>
+    <milestone badge_name="100 Club" trigger_value="100" bonus_points="0" />
+    <milestone badge_name="250 Club" trigger_value="250" bonus_points="0" />
+    <milestone badge_name="500 Club" trigger_value="500" bonus_points="0" />
+    <milestone badge_name="1000 Club" trigger_value="1000" bonus_points="5" />
+    <milestone badge_name="1500 Club" trigger_value="1500" bonus_points="5" />
+    <milestone badge_name="2000 Club" trigger_value="2000" bonus_points="10" />
+  </default-milestones>
+
+  <edge-cases>
+    <case name="Zero days served">Show "No data yet" instead of 0%</case>
+    <case name="No milestones configured">Hide badges section</case>
+    <case name="Duplicate award">Unique constraint prevents</case>
+    <case name="Bulk approval">Award all crossed milestones, once per student</case>
+    <case name="Points rejected after milestone">Keep milestone (already earned)</case>
+  </edge-cases>
+
+  <out-of-scope>
+    <item>Milestone notifications (Epic 7)</item>
+    <item>Dashboard milestone leaderboard (Epic 6)</item>
+    <item>Perfect streak badges (different trigger_type)</item>
+    <item>Auto-applied bonus points (manual only)</item>
+  </out-of-scope>
+
+</story-context>

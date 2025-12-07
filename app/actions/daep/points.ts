@@ -22,6 +22,40 @@ import {
   type DailyPointsSummary,
   type DailyPointEntry,
 } from '@/lib/validation/schemas';
+import { checkAndAwardMilestones } from './milestones';
+
+// ========== HELPER: Check Milestones After Point Change ==========
+
+/**
+ * Calculate cumulative points and check for new milestones.
+ * Called after approved points are added/approved.
+ * Story 3-7: Cumulative Points & Milestones
+ */
+async function checkMilestonesForPlacement(
+  supabase: any,
+  placementId: string,
+  userId: string
+): Promise<void> {
+  try {
+    // Get sum of all approved points for this placement
+    const { data: pointsData } = await supabase
+      .from('daep_daily_points')
+      .select('points_earned')
+      .eq('placement_id', placementId)
+      .eq('approval_status', 'approved');
+
+    const currentTotal = pointsData?.reduce(
+      (sum: number, p: { points_earned: number }) => sum + p.points_earned,
+      0
+    ) || 0;
+
+    // Check and award any new milestones
+    await checkAndAwardMilestones(placementId, currentTotal, userId);
+  } catch (error) {
+    // Don't fail the main operation if milestone check fails
+    console.error('Milestone check error (non-fatal):', error);
+  }
+}
 
 // ========== HELPER: Get Tenant ID ==========
 
@@ -352,6 +386,11 @@ export async function createPointAdjustment(
         is_approved_teacher: isApprovedTeacher,
       }
     );
+
+    // Story 3-7: Check for milestone achievements if points are approved
+    if (isApprovedTeacher) {
+      await checkMilestonesForPlacement(supabase, placement_id, userId);
+    }
 
     revalidatePath('/daep/rooms');
     return { success: true, entryId: entry.id, isPending: !isApprovedTeacher };
@@ -1145,6 +1184,9 @@ export async function approvePointEntry(
       }
     );
 
+    // Story 3-7: Check for milestone achievements after approval
+    await checkMilestonesForPlacement(supabase, entry.placement_id, userId);
+
     revalidatePath('/daep/approvals');
     revalidatePath('/daep/rooms');
     return { success: true };
@@ -1294,6 +1336,23 @@ export async function bulkApproveEntries(
         approved_by_name: displayName,
       }
     );
+
+    // Story 3-7: Check milestones for all affected placements
+    const { data: approvedEntries } = await supabase
+      .from('daep_daily_points')
+      .select('placement_id')
+      .in('id', entryIds);
+
+    if (approvedEntries && approvedEntries.length > 0) {
+      // Get unique placement IDs
+      const placementIdSet = new Set(approvedEntries.map((e: { placement_id: string }) => e.placement_id));
+      const uniquePlacementIds = Array.from(placementIdSet);
+
+      // Check milestones for each placement (non-blocking)
+      for (const placementId of uniquePlacementIds) {
+        await checkMilestonesForPlacement(supabase, placementId, userId);
+      }
+    }
 
     revalidatePath('/daep/approvals');
     revalidatePath('/daep/rooms');

@@ -106,7 +106,7 @@ development_status:
   3-4-point-notes-comments: done  # Story: docs/sprint-artifacts/daep/story-3-4.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-4.md
   3-5-approved-teacher-auto-finalize: done  # Story: docs/sprint-artifacts/daep/story-3-5.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-5.md
   3-6-pending-approval-workflow: review  # Story: docs/sprint-artifacts/daep/story-3-6.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-6.md
-  3-7-cumulative-points-milestones: backlog
+  3-7-cumulative-points-milestones: drafted  # Story: docs/sprint-artifacts/daep/story-3-7.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-7.md
   3-8-point-audit-trail: backlog
   3-9-attendance-entry: backlog
   3-10-excused-unexcused-absences: backlog

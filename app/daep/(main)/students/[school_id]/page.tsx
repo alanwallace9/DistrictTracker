@@ -10,6 +10,11 @@ import { TrespassTrackerStatus } from '@/components/daep/TrespassTrackerStatus';
 import { StudentSeparationsTab } from '@/components/daep/StudentSeparationsTab';
 import { StudentPointsLog } from '@/components/daep/StudentPointsLog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  getMilestoneRules,
+  getStudentMilestones,
+  getCumulativePoints,
+} from '@/app/actions/daep/milestones';
 
 interface Props {
   params: Promise<{ school_id: string }>;
@@ -47,6 +52,28 @@ export default async function StudentProfilePage({ params }: Props) {
       status: p.status,
     }));
 
+    // Story 3-7: Fetch milestone data for current placement
+    let milestoneRules: Awaited<ReturnType<typeof getMilestoneRules>> = [];
+    let milestoneAchievements: Awaited<ReturnType<typeof getStudentMilestones>> = [];
+    let cumulativePoints: Awaited<ReturnType<typeof getCumulativePoints>> | null = null;
+
+    if (profile.currentPlacement) {
+      try {
+        // Fetch milestone rules, achievements, and cumulative points in parallel
+        const [rulesResult, achievementsResult, pointsResult] = await Promise.all([
+          getMilestoneRules(),
+          getStudentMilestones(profile.currentPlacement.id),
+          getCumulativePoints(profile.currentPlacement.id),
+        ]);
+        milestoneRules = rulesResult;
+        milestoneAchievements = achievementsResult;
+        cumulativePoints = pointsResult;
+      } catch (error) {
+        // Non-fatal - milestones just won't display
+        console.error('Error fetching milestone data:', error);
+      }
+    }
+
     return (
       <div className="space-y-6">
         {/* Header: Photo, Name, ID, Grade, Flags, Actions */}
@@ -68,6 +95,9 @@ export default async function StudentProfilePage({ params }: Props) {
                 placement={profile.currentPlacement}
                 schoolId={school_id}
                 studentName={`${profile.student.first_name} ${profile.student.last_name}`}
+                milestoneRules={milestoneRules}
+                milestoneAchievements={milestoneAchievements}
+                cumulativePoints={cumulativePoints || undefined}
               />
             ) : (
               <div className="p-6 border rounded-lg bg-card">

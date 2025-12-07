@@ -301,7 +301,7 @@ export type CampusDAEPSettings = z.infer<typeof CampusDAEPSettingsSchema>;
 // DAEP BEHAVIOR CATEGORY SCHEMAS
 // ============================================================================
 
-export const BEHAVIOR_CATEGORY_TYPES = ['positive', 'negative', 'neutral'] as const;
+export const BEHAVIOR_CATEGORY_TYPES = ['positive', 'negative', 'neutral', 'bonus'] as const;
 
 export type BehaviorCategoryType = (typeof BEHAVIOR_CATEGORY_TYPES)[number];
 

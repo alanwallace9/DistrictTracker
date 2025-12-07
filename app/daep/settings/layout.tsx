@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Palette,
+  Trophy,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { href: '/daep/settings/codes', label: 'Discipline Codes', icon: FileText },
   { href: '/daep/settings/calendar', label: 'Calendar', icon: Calendar },
   { href: '/daep/settings/behaviors', label: 'Behaviors', icon: Tag },
+  { href: '/daep/settings/badges', label: 'Badges', icon: Trophy },
 ];
 
 const ALLOWED_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1'];

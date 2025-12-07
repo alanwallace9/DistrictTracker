@@ -35,6 +35,7 @@ const CATEGORY_TYPE_LABELS: Record<BehaviorCategoryType, { label: string; color:
   positive: { label: 'Positive', color: 'bg-[rgb(var(--daep-success))]/10 text-[rgb(var(--daep-success))]' },
   negative: { label: 'Negative', color: 'bg-destructive/10 text-destructive' },
   neutral: { label: 'Neutral', color: 'bg-[rgb(var(--daep-info))]/10 text-[rgb(var(--daep-info))]' },
+  bonus: { label: 'Bonus', color: 'bg-amber-100 text-amber-800' },
 };
 
 export default function BehaviorCategoriesPage() {
