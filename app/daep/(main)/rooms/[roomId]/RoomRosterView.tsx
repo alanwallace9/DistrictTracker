@@ -156,10 +156,18 @@ function RosterContent() {
       });
 
       if (result.success) {
-        toast({
-          title: 'Points Applied',
-          description: `Added ${adjustment > 0 ? '+' : ''}${adjustment} points to ${result.count} student${result.count !== 1 ? 's' : ''}`,
-        });
+        // Story 3.5: Different toast for pending vs approved entries
+        if (result.isPending) {
+          toast({
+            title: 'Submitted for Approval',
+            description: `${adjustment > 0 ? '+' : ''}${adjustment} points submitted for ${result.count} student${result.count !== 1 ? 's' : ''}. An admin will review.`,
+          });
+        } else {
+          toast({
+            title: 'Points Applied',
+            description: `Added ${adjustment > 0 ? '+' : ''}${adjustment} points to ${result.count} student${result.count !== 1 ? 's' : ''}`,
+          });
+        }
         // Refresh points data
         await refreshDailyPoints();
       }

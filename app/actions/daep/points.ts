@@ -55,6 +55,7 @@ interface DAEPStaffInfo {
   role: string;
   tenantId: string;
   displayName: string;
+  isApprovedTeacher: boolean;
 }
 
 async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> {
@@ -64,7 +65,7 @@ async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> {
   const supabase = await createServerClient();
   const { data: profile, error } = await supabase
     .from('user_profiles')
-    .select('role, tenant_id, active_tenant_id, display_name')
+    .select('role, tenant_id, active_tenant_id, display_name, approved_teacher')
     .eq('id', user.id)
     .single();
 
@@ -89,11 +90,17 @@ async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> {
     throw new Error('No tenant assigned');
   }
 
+  // Admin roles are always considered "approved" for point entry (Story 3.5)
+  // This prevents workflow bottlenecks for administrative staff
+  const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+  const isApprovedTeacher = adminRoles.includes(profile.role) || profile.approved_teacher === true;
+
   return {
     userId: user.id,
     role: profile.role,
     tenantId: effectiveTenantId,
     displayName: profile.display_name || user.firstName || 'Staff',
+    isApprovedTeacher,
   };
 }
 
@@ -129,14 +136,16 @@ async function logPointsAuditEvent(
  * Creates base points (10) for a student when marked present for a period.
  * Called by attendance marking (Story 3-9).
  * Idempotent - won't duplicate if base points already exist for this period.
+ *
+ * Story 3.5: Approval status based on approved_teacher flag
  */
 export async function createBasePoints(
   placementId: string,
   date: string,
   period: string
-): Promise<{ success: boolean; error?: string; alreadyExists?: boolean }> {
+): Promise<{ success: boolean; error?: string; alreadyExists?: boolean; isPending?: boolean }> {
   try {
-    const { userId, tenantId } = await checkDAEPStaffRole();
+    const { userId, tenantId, isApprovedTeacher } = await checkDAEPStaffRole();
     const supabase = await createServerClient();
 
     // Check if base points already exist for this period (idempotent)
@@ -154,6 +163,10 @@ export async function createBasePoints(
       return { success: true, alreadyExists: true };
     }
 
+    // Story 3.5: Determine approval status based on approved_teacher flag
+    const approvalStatus = isApprovedTeacher ? 'approved' : 'pending';
+    const isPublic = isApprovedTeacher;
+
     // Create base points entry
     const { error } = await supabase.from('daep_daily_points').insert({
       tenant_id: tenantId,
@@ -163,8 +176,8 @@ export async function createBasePoints(
       points_earned: 10,
       is_base_points: true,
       entered_by: userId,
-      approval_status: 'approved',
-      public: true,
+      approval_status: approvalStatus,
+      public: isPublic,
     });
 
     if (error) {
@@ -172,19 +185,20 @@ export async function createBasePoints(
       return { success: false, error: 'Failed to create base points' };
     }
 
-    // Audit log
+    // Audit log - different event type based on approval status (Story 3.5)
+    const eventType = isApprovedTeacher ? 'points.base_auto_approved' : 'points.base_pending_approval';
     await logPointsAuditEvent(
       supabase,
-      'points.base_created',
+      eventType,
       userId,
       placementId,
-      `Created base points for ${period}`,
+      `Created base points for ${period} (${approvalStatus})`,
       tenantId,
-      { date, period, points: 10 }
+      { date, period, points: 10, approval_status: approvalStatus, is_approved_teacher: isApprovedTeacher }
     );
 
     revalidatePath('/daep/rooms');
-    return { success: true };
+    return { success: true, isPending: !isApprovedTeacher };
   } catch (error) {
     console.error('createBasePoints error:', error);
     return {
@@ -251,12 +265,16 @@ export async function removeBasePoints(
  * Creates a point adjustment entry for a student.
  * Multiple adjustments per period are allowed.
  * Each entry is timestamped for the log.
+ *
+ * Story 3.5: Approval status based on approved_teacher flag
+ * - Approved teachers: approval_status = 'approved', public = true
+ * - Non-approved staff: approval_status = 'pending', public = false
  */
 export async function createPointAdjustment(
   input: PointAdjustmentInput
-): Promise<{ success: boolean; error?: string; entryId?: string }> {
+): Promise<{ success: boolean; error?: string; entryId?: string; isPending?: boolean }> {
   try {
-    const { userId, tenantId, displayName } = await checkDAEPStaffRole();
+    const { userId, tenantId, displayName, isApprovedTeacher } = await checkDAEPStaffRole();
 
     // Validate input
     const validation = PointAdjustmentSchema.safeParse(input);
@@ -284,6 +302,10 @@ export async function createPointAdjustment(
       return { success: false, error: 'Placement not found' };
     }
 
+    // Story 3.5: Determine approval status based on approved_teacher flag
+    const approvalStatus = isApprovedTeacher ? 'approved' : 'pending';
+    const isPublic = isApprovedTeacher;
+
     // Create adjustment entry
     const { data: entry, error } = await supabase
       .from('daep_daily_points')
@@ -298,8 +320,8 @@ export async function createPointAdjustment(
         teacher_action: teacher_action || null,
         notes: notes || null,
         entered_by: userId,
-        approval_status: 'approved',
-        public: true,
+        approval_status: approvalStatus,
+        public: isPublic,
       })
       .select('id')
       .single();
@@ -309,13 +331,14 @@ export async function createPointAdjustment(
       return { success: false, error: 'Failed to save adjustment. Please try again.' };
     }
 
-    // Audit log
+    // Audit log - different event type based on approval status (Story 3.5)
+    const eventType = isApprovedTeacher ? 'points.auto_approved' : 'points.pending_approval';
     await logPointsAuditEvent(
       supabase,
-      'points.adjustment_added',
+      eventType,
       userId,
       placement_id,
-      `Added ${adjustment_value >= 0 ? '+' : ''}${adjustment_value} point adjustment`,
+      `Added ${adjustment_value >= 0 ? '+' : ''}${adjustment_value} point adjustment (${approvalStatus})`,
       tenantId,
       {
         date,
@@ -325,11 +348,13 @@ export async function createPointAdjustment(
         teacher_action,
         notes,
         entered_by_name: displayName,
+        approval_status: approvalStatus,
+        is_approved_teacher: isApprovedTeacher,
       }
     );
 
     revalidatePath('/daep/rooms');
-    return { success: true, entryId: entry.id };
+    return { success: true, entryId: entry.id, isPending: !isApprovedTeacher };
   } catch (error) {
     console.error('createPointAdjustment error:', error);
     return {
@@ -574,12 +599,13 @@ export interface BulkAddPointsInput {
  * Creates individual entries for each student (not a single bulk record).
  *
  * Story 3-3: Bulk Point Entry
+ * Story 3.5: Approval status based on approved_teacher flag
  */
 export async function bulkAddPoints(
   input: BulkAddPointsInput
-): Promise<{ success: boolean; count: number; error?: string }> {
+): Promise<{ success: boolean; count: number; error?: string; isPending?: boolean }> {
   try {
-    const { userId, tenantId, displayName } = await checkDAEPStaffRole();
+    const { userId, tenantId, displayName, isApprovedTeacher } = await checkDAEPStaffRole();
     const supabase = await createServerClient();
 
     const { placementIds, date, period, adjustment, notes } = input;
@@ -619,6 +645,10 @@ export async function bulkAddPoints(
       return { success: false, count: 0, error: 'No valid students found' };
     }
 
+    // Story 3.5: Determine approval status based on approved_teacher flag
+    const approvalStatus = isApprovedTeacher ? 'approved' : 'pending';
+    const isPublic = isApprovedTeacher;
+
     // Build insert records (matching existing createPointAdjustment pattern)
     const defaultNote = `Bulk: ${adjustment > 0 ? '+' : ''}${adjustment} points`;
     const entries = validPlacementIds.map((placementId) => ({
@@ -630,8 +660,8 @@ export async function bulkAddPoints(
       is_base_points: false,
       notes: notes || defaultNote,
       entered_by: userId,
-      approval_status: 'approved',
-      public: true,
+      approval_status: approvalStatus,
+      public: isPublic,
     }));
 
     // INSERT (not upsert - multiple entries per period are allowed)
@@ -644,13 +674,14 @@ export async function bulkAddPoints(
       return { success: false, count: 0, error: 'Failed to save bulk points' };
     }
 
-    // Audit log for bulk action
+    // Audit log for bulk action - different event type based on approval status (Story 3.5)
+    const eventType = isApprovedTeacher ? 'points.bulk_auto_approved' : 'points.bulk_pending_approval';
     await logPointsAuditEvent(
       supabase,
-      'points.bulk_adjustment',
+      eventType,
       userId,
       validPlacementIds[0], // Primary target
-      `Bulk ${adjustment >= 0 ? '+' : ''}${adjustment} to ${validPlacementIds.length} students`,
+      `Bulk ${adjustment >= 0 ? '+' : ''}${adjustment} to ${validPlacementIds.length} students (${approvalStatus})`,
       tenantId,
       {
         date,
@@ -660,11 +691,13 @@ export async function bulkAddPoints(
         affected_count: validPlacementIds.length,
         placement_ids: validPlacementIds,
         entered_by_name: displayName,
+        approval_status: approvalStatus,
+        is_approved_teacher: isApprovedTeacher,
       }
     );
 
     revalidatePath('/daep/rooms');
-    return { success: true, count: validPlacementIds.length };
+    return { success: true, count: validPlacementIds.length, isPending: !isApprovedTeacher };
   } catch (error) {
     console.error('bulkAddPoints error:', error);
     return {
@@ -889,6 +922,502 @@ export async function updatePointAdjustment(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update adjustment',
+    };
+  }
+}
+
+// ========== PENDING APPROVALS (Story 3-6) ==========
+
+/**
+ * Pending approval entry with student and staff info
+ */
+export interface PendingApprovalEntry {
+  id: string;
+  placement_id: string;
+  school_id: string;
+  student_first_name: string;
+  student_last_name: string;
+  date: string;
+  period: string;
+  points_earned: number;
+  is_base_points: boolean;
+  student_action: string | null;
+  teacher_action: string | null;
+  notes: string | null;
+  entered_by: string;
+  entered_by_name: string;
+  created_at: string;
+}
+
+/**
+ * Get all pending approval entries for the tenant.
+ * Only accessible by admin roles.
+ *
+ * Story 3-6: Pending Approval Workflow
+ */
+export async function getPendingApprovals(): Promise<PendingApprovalEntry[]> {
+  const { tenantId, role } = await checkDAEPStaffRole();
+
+  // Only admins can view pending approvals
+  const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+  if (!adminRoles.includes(role)) {
+    throw new Error('Only administrators can view pending approvals');
+  }
+
+  const supabase = await createServerClient();
+
+  // Query pending entries with student and staff info
+  const { data, error } = await supabase
+    .from('daep_daily_points')
+    .select(`
+      id,
+      placement_id,
+      date,
+      period,
+      points_earned,
+      is_base_points,
+      student_action,
+      teacher_action,
+      notes,
+      entered_by,
+      created_at,
+      daep_placements!inner (
+        school_id,
+        students!inner (
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('approval_status', 'pending')
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching pending approvals:', error);
+    throw new Error('Failed to fetch pending approvals');
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Get unique user IDs to fetch display names
+  const userIds = Array.from(new Set(data.map((e) => e.entered_by).filter(Boolean)));
+
+  // Fetch user display names
+  const { data: users } = await supabase
+    .from('user_profiles')
+    .select('id, display_name')
+    .in('id', userIds);
+
+  const userNameMap = new Map(users?.map((u) => [u.id, u.display_name || 'Unknown']) || []);
+
+  // Map entries with student and staff info
+  return data.map((entry) => {
+    // Type the nested relations - Supabase returns them as objects when using !inner
+    const placement = entry.daep_placements as unknown as {
+      school_id: string;
+      students: { first_name: string; last_name: string };
+    };
+
+    return {
+      id: entry.id,
+      placement_id: entry.placement_id,
+      school_id: placement.school_id,
+      student_first_name: placement.students.first_name,
+      student_last_name: placement.students.last_name,
+      date: entry.date,
+      period: entry.period,
+      points_earned: entry.points_earned,
+      is_base_points: entry.is_base_points,
+      student_action: entry.student_action,
+      teacher_action: entry.teacher_action,
+      notes: entry.notes,
+      entered_by: entry.entered_by,
+      entered_by_name: userNameMap.get(entry.entered_by) || 'Unknown',
+      created_at: entry.created_at,
+    };
+  });
+}
+
+/**
+ * Get count of pending approvals for nav badge.
+ * Returns 0 for non-admin roles.
+ *
+ * Story 3-6: Pending Approval Workflow
+ */
+export async function getPendingApprovalsCount(): Promise<number> {
+  try {
+    const { tenantId, role } = await checkDAEPStaffRole();
+
+    // Only admins see the count
+    const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+    if (!adminRoles.includes(role)) {
+      return 0;
+    }
+
+    const supabase = await createServerClient();
+
+    const { count, error } = await supabase
+      .from('daep_daily_points')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('approval_status', 'pending');
+
+    if (error) {
+      console.error('Error fetching pending count:', error);
+      return 0;
+    }
+
+    return count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Approve a pending point entry.
+ * Sets approval_status = 'approved', public = true.
+ *
+ * Story 3-6: Pending Approval Workflow
+ */
+export async function approvePointEntry(
+  entryId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { userId, tenantId, role, displayName } = await checkDAEPStaffRole();
+
+    // Only admins can approve
+    const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+    if (!adminRoles.includes(role)) {
+      return { success: false, error: 'Only administrators can approve entries' };
+    }
+
+    const supabase = await createServerClient();
+
+    // Get entry details for audit
+    const { data: entry, error: fetchError } = await supabase
+      .from('daep_daily_points')
+      .select('placement_id, date, period, points_earned, entered_by')
+      .eq('id', entryId)
+      .eq('tenant_id', tenantId)
+      .eq('approval_status', 'pending')
+      .single();
+
+    if (fetchError || !entry) {
+      return { success: false, error: 'Entry not found or already processed' };
+    }
+
+    // Update to approved
+    const { error: updateError } = await supabase
+      .from('daep_daily_points')
+      .update({
+        approval_status: 'approved',
+        public: true,
+        approved_by: userId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', entryId)
+      .eq('tenant_id', tenantId);
+
+    if (updateError) {
+      console.error('Error approving entry:', updateError);
+      return { success: false, error: 'Failed to approve entry' };
+    }
+
+    // Audit log
+    await logPointsAuditEvent(
+      supabase,
+      'points.approved_by_admin',
+      userId,
+      entry.placement_id,
+      `Approved ${entry.points_earned >= 0 ? '+' : ''}${entry.points_earned} point entry`,
+      tenantId,
+      {
+        entry_id: entryId,
+        date: entry.date,
+        period: entry.period,
+        points: entry.points_earned,
+        original_entered_by: entry.entered_by,
+        approved_by_name: displayName,
+      }
+    );
+
+    revalidatePath('/daep/approvals');
+    revalidatePath('/daep/rooms');
+    return { success: true };
+  } catch (error) {
+    console.error('approvePointEntry error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to approve entry',
+    };
+  }
+}
+
+/**
+ * Reject a pending point entry.
+ * Sets approval_status = 'rejected', public = false.
+ *
+ * Story 3-6: Pending Approval Workflow
+ */
+export async function rejectPointEntry(
+  entryId: string,
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { userId, tenantId, role, displayName } = await checkDAEPStaffRole();
+
+    // Only admins can reject
+    const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+    if (!adminRoles.includes(role)) {
+      return { success: false, error: 'Only administrators can reject entries' };
+    }
+
+    const supabase = await createServerClient();
+
+    // Get entry details for audit
+    const { data: entry, error: fetchError } = await supabase
+      .from('daep_daily_points')
+      .select('placement_id, date, period, points_earned, entered_by')
+      .eq('id', entryId)
+      .eq('tenant_id', tenantId)
+      .eq('approval_status', 'pending')
+      .single();
+
+    if (fetchError || !entry) {
+      return { success: false, error: 'Entry not found or already processed' };
+    }
+
+    // Update to rejected
+    const { error: updateError } = await supabase
+      .from('daep_daily_points')
+      .update({
+        approval_status: 'rejected',
+        public: false,
+        rejected_by: userId,
+        rejected_at: new Date().toISOString(),
+        rejection_reason: reason || null,
+      })
+      .eq('id', entryId)
+      .eq('tenant_id', tenantId);
+
+    if (updateError) {
+      console.error('Error rejecting entry:', updateError);
+      return { success: false, error: 'Failed to reject entry' };
+    }
+
+    // Audit log
+    await logPointsAuditEvent(
+      supabase,
+      'points.rejected_by_admin',
+      userId,
+      entry.placement_id,
+      `Rejected ${entry.points_earned >= 0 ? '+' : ''}${entry.points_earned} point entry`,
+      tenantId,
+      {
+        entry_id: entryId,
+        date: entry.date,
+        period: entry.period,
+        points: entry.points_earned,
+        original_entered_by: entry.entered_by,
+        rejected_by_name: displayName,
+        rejection_reason: reason,
+      }
+    );
+
+    revalidatePath('/daep/approvals');
+    return { success: true };
+  } catch (error) {
+    console.error('rejectPointEntry error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to reject entry',
+    };
+  }
+}
+
+/**
+ * Bulk approve multiple pending entries.
+ *
+ * Story 3-6: Pending Approval Workflow
+ */
+export async function bulkApproveEntries(
+  entryIds: string[]
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const { userId, tenantId, role, displayName } = await checkDAEPStaffRole();
+
+    // Only admins can approve
+    const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+    if (!adminRoles.includes(role)) {
+      return { success: false, count: 0, error: 'Only administrators can approve entries' };
+    }
+
+    if (!entryIds || entryIds.length === 0) {
+      return { success: false, count: 0, error: 'No entries selected' };
+    }
+
+    const supabase = await createServerClient();
+
+    // Update all to approved
+    const { error: updateError } = await supabase
+      .from('daep_daily_points')
+      .update({
+        approval_status: 'approved',
+        public: true,
+        approved_by: userId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId)
+      .eq('approval_status', 'pending')
+      .in('id', entryIds);
+
+    if (updateError) {
+      console.error('Error bulk approving entries:', updateError);
+      return { success: false, count: 0, error: 'Failed to approve entries' };
+    }
+
+    // Audit log
+    await logPointsAuditEvent(
+      supabase,
+      'points.bulk_approved_by_admin',
+      userId,
+      entryIds[0],
+      `Bulk approved ${entryIds.length} point entries`,
+      tenantId,
+      {
+        entry_ids: entryIds,
+        approved_count: entryIds.length,
+        approved_by_name: displayName,
+      }
+    );
+
+    revalidatePath('/daep/approvals');
+    revalidatePath('/daep/rooms');
+    return { success: true, count: entryIds.length };
+  } catch (error) {
+    console.error('bulkApproveEntries error:', error);
+    return {
+      success: false,
+      count: 0,
+      error: error instanceof Error ? error.message : 'Failed to approve entries',
+    };
+  }
+}
+
+/**
+ * Input for editing and approving a pending entry
+ */
+export interface EditAndApproveInput {
+  entryId: string;
+  adjustment_value: number;
+  student_action?: string | null;
+  teacher_action?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * Edit a pending entry and approve it in one action.
+ * Allows admin to modify points/notes before approving.
+ *
+ * Story 3-6: Pending Approval Workflow
+ */
+export async function editAndApproveEntry(
+  input: EditAndApproveInput
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { userId, tenantId, role, displayName } = await checkDAEPStaffRole();
+
+    // Only admins can edit and approve
+    const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+    if (!adminRoles.includes(role)) {
+      return { success: false, error: 'Only administrators can edit and approve entries' };
+    }
+
+    const { entryId, adjustment_value, student_action, teacher_action, notes } = input;
+
+    // Validate adjustment value
+    const allowedValues = [10, 5, 0, -5, -10, -15];
+    if (!allowedValues.includes(adjustment_value)) {
+      return { success: false, error: 'Invalid adjustment value' };
+    }
+
+    const supabase = await createServerClient();
+
+    // Get entry details for audit (before values)
+    const { data: entry, error: fetchError } = await supabase
+      .from('daep_daily_points')
+      .select('*')
+      .eq('id', entryId)
+      .eq('tenant_id', tenantId)
+      .eq('approval_status', 'pending')
+      .single();
+
+    if (fetchError || !entry) {
+      return { success: false, error: 'Entry not found or already processed' };
+    }
+
+    // Update and approve in one operation
+    const { error: updateError } = await supabase
+      .from('daep_daily_points')
+      .update({
+        points_earned: adjustment_value,
+        student_action: student_action !== undefined ? student_action : entry.student_action,
+        teacher_action: teacher_action !== undefined ? teacher_action : entry.teacher_action,
+        notes: notes !== undefined ? notes : entry.notes,
+        approval_status: 'approved',
+        public: true,
+        approved_by: userId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', entryId)
+      .eq('tenant_id', tenantId);
+
+    if (updateError) {
+      console.error('Error editing and approving entry:', updateError);
+      return { success: false, error: 'Failed to save changes' };
+    }
+
+    // Audit log with before/after
+    await logPointsAuditEvent(
+      supabase,
+      'points.edited_and_approved',
+      userId,
+      entry.placement_id,
+      `Edited and approved point entry`,
+      tenantId,
+      {
+        entry_id: entryId,
+        date: entry.date,
+        period: entry.period,
+        before: {
+          points: entry.points_earned,
+          student_action: entry.student_action,
+          teacher_action: entry.teacher_action,
+          notes: entry.notes,
+        },
+        after: {
+          points: adjustment_value,
+          student_action: student_action !== undefined ? student_action : entry.student_action,
+          teacher_action: teacher_action !== undefined ? teacher_action : entry.teacher_action,
+          notes: notes !== undefined ? notes : entry.notes,
+        },
+        original_entered_by: entry.entered_by,
+        edited_by_name: displayName,
+      }
+    );
+
+    revalidatePath('/daep/approvals');
+    revalidatePath('/daep/rooms');
+    return { success: true };
+  } catch (error) {
+    console.error('editAndApproveEntry error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save changes',
     };
   }
 }

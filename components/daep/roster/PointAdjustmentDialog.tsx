@@ -181,10 +181,18 @@ export function PointAdjustmentDialog({
         });
 
         if (result.success) {
-          toast({
-            title: 'Adjustment Saved',
-            description: `${formatAdjustment(adjustmentValue)} points recorded.`,
-          });
+          // Story 3.5: Different toast for pending vs approved entries
+          if (result.isPending) {
+            toast({
+              title: 'Submitted for Approval',
+              description: `${formatAdjustment(adjustmentValue)} points submitted. An admin will review.`,
+            });
+          } else {
+            toast({
+              title: 'Adjustment Saved',
+              description: `${formatAdjustment(adjustmentValue)} points recorded.`,
+            });
+          }
           resetForm();
           onSuccess?.();
           onOpenChange(false);

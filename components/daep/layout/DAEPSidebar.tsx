@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -17,8 +18,14 @@ import {
   AlertTriangle,
   BarChart3,
   Building2,
+  CheckCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getUserProfile } from '@/app/actions/users';
+import { getPendingApprovalsCount } from '@/app/actions/daep/points';
+
+// Admin roles that can access approvals
+const APPROVAL_ADMIN_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1'];
 
 const NAV_ITEMS = [
   { href: '/daep', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -28,6 +35,7 @@ const NAV_ITEMS = [
   { href: '/daep/attendance', label: 'Attendance', icon: Calendar },
   { href: '/daep/reconciliation', label: 'Reconciliation', icon: FileSpreadsheet },
   { href: '/daep/notifications', label: 'Notifications', icon: Bell },
+  { href: '/daep/approvals', label: 'Approvals', icon: CheckCircle, adminOnly: true },
   { href: '/daep/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -43,10 +51,53 @@ interface DAEPSidebarProps {
 
 export function DAEPSidebar({ collapsed = false, onCollapsedChange }: DAEPSidebarProps) {
   const pathname = usePathname();
+  const { user, isLoaded } = useUser();
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const isCollapsed = onCollapsedChange ? collapsed : internalCollapsed;
   const setCollapsed = onCollapsedChange || setInternalCollapsed;
+  const isAdmin = userRole ? APPROVAL_ADMIN_ROLES.includes(userRole) : false;
+
+  // Fetch user role and pending count
+  useEffect(() => {
+    async function loadUserData() {
+      if (!isLoaded || !user) return;
+
+      try {
+        const profile = await getUserProfile(user.id);
+        const role = profile?.role || 'viewer';
+        setUserRole(role);
+
+        // Only fetch pending count for admins
+        if (APPROVAL_ADMIN_ROLES.includes(role)) {
+          const count = await getPendingApprovalsCount();
+          setPendingCount(count);
+        }
+      } catch (error) {
+        console.error('[DAEPSidebar] Error fetching user data:', error);
+      }
+    }
+
+    loadUserData();
+  }, [user, isLoaded]);
+
+  // Refresh pending count periodically (every 30 seconds) for admins
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const count = await getPendingApprovalsCount();
+        setPendingCount(count);
+      } catch (error) {
+        console.error('[DAEPSidebar] Error refreshing pending count:', error);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAdmin]);
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) {
@@ -82,16 +133,17 @@ export function DAEPSidebar({ collapsed = false, onCollapsedChange }: DAEPSideba
 
       {/* Navigation */}
       <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter(item => !item.adminOnly || isAdmin).map((item) => {
           const active = isActive(item.href, item.exact);
           const Icon = item.icon;
+          const showBadge = item.href === '/daep/approvals' && pendingCount > 0;
 
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md transition-colors',
+                'flex items-center gap-3 px-3 py-2 rounded-md transition-colors relative',
                 active
                   ? 'bg-[rgb(var(--daep-primary))] text-white'
                   : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -99,7 +151,22 @@ export function DAEPSidebar({ collapsed = false, onCollapsedChange }: DAEPSideba
               title={isCollapsed ? item.label : undefined}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {!isCollapsed && <span>{item.label}</span>}
+              {!isCollapsed && (
+                <span className="flex-1">{item.label}</span>
+              )}
+              {/* Pending approvals badge */}
+              {showBadge && (
+                <span
+                  className={cn(
+                    'flex items-center justify-center text-xs font-medium text-white bg-[rgb(var(--daep-danger))] rounded-full',
+                    isCollapsed
+                      ? 'absolute -top-1 -right-1 h-5 w-5 min-w-[20px]'
+                      : 'h-5 min-w-[20px] px-1.5'
+                  )}
+                >
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}
