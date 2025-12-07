@@ -51,7 +51,8 @@ import {
 import { getDailyPointsSummary, bulkAddPoints } from '@/app/actions/daep/points';
 import { getRoomAttendance, type AttendanceStatusType } from '@/app/actions/daep/attendance';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
-import type { DailyPointsSummary, AttendanceEntry } from '@/lib/validation/schemas';
+import type { DailyPointsSummary, AttendanceEntry, AttendanceRateResult } from '@/lib/validation/schemas';
+import { AttendanceRateBadge } from '@/components/daep/roster/AttendanceRateBadge';
 
 // ========== COPY LINK BUTTON (Quick Win #2) ==========
 
@@ -126,6 +127,7 @@ function RosterContent() {
     behaviorCategories,
     attendance,
     attendanceStatusTypes,
+    attendanceRates,
     isLoading,
     error,
     setRoom,
@@ -356,6 +358,22 @@ function RosterContent() {
             </TableCell>
           );
         }}
+        showRateColumn={attendanceStatusTypes.length > 0}
+        rateColumnHeader="Rate"
+        renderRateCell={(context: StudentRowContext) => {
+          const { student } = context;
+          const rateData = attendanceRates.get(student.placement_id);
+
+          return (
+            <TableCell className="text-center">
+              {rateData && rateData.totalPeriods > 0 ? (
+                <AttendanceRateBadge rate={rateData.rate} size="sm" />
+              ) : (
+                <span className="text-muted-foreground text-xs">—</span>
+              )}
+            </TableCell>
+          );
+        }}
         extraColumns={[
           { id: 'today_total', header: "Today's Total", width: '100px' },
           { id: 'adjust', header: 'Adjust', width: '80px' },
@@ -401,6 +419,7 @@ interface RoomRosterViewProps {
   initialDailyPoints: Map<string, DailyPointsSummary>;
   initialAttendance: Map<string, AttendanceEntry>;
   attendanceStatusTypes: AttendanceStatusType[];
+  initialAttendanceRates: Map<string, AttendanceRateResult>;
   isAdmin: boolean;
 }
 
@@ -411,6 +430,7 @@ export function RoomRosterView({
   initialDailyPoints,
   initialAttendance,
   attendanceStatusTypes,
+  initialAttendanceRates,
   isAdmin,
 }: RoomRosterViewProps) {
   const { toast } = useToast();
@@ -465,6 +485,7 @@ export function RoomRosterView({
         initialDailyPoints={initialDailyPoints}
         initialAttendance={initialAttendance}
         attendanceStatusTypes={attendanceStatusTypes}
+        initialAttendanceRates={initialAttendanceRates}
       />
       <RosterContent />
     </RoomRosterProvider>
@@ -479,6 +500,7 @@ function RosterInitializer({
   initialDailyPoints,
   initialAttendance,
   attendanceStatusTypes,
+  initialAttendanceRates,
 }: {
   initialData: RoomRosterResult;
   accessibleRooms: RoomWithCount[];
@@ -486,6 +508,7 @@ function RosterInitializer({
   initialDailyPoints: Map<string, DailyPointsSummary>;
   initialAttendance: Map<string, AttendanceEntry>;
   attendanceStatusTypes: AttendanceStatusType[];
+  initialAttendanceRates: Map<string, AttendanceRateResult>;
 }) {
   const { initializeFromData } = useRoomRoster();
 
@@ -496,9 +519,10 @@ function RosterInitializer({
       behaviorCategories,
       initialDailyPoints,
       initialAttendance,
-      attendanceStatusTypes
+      attendanceStatusTypes,
+      initialAttendanceRates
     );
-  }, [initialData, accessibleRooms, behaviorCategories, initialDailyPoints, initialAttendance, attendanceStatusTypes, initializeFromData]);
+  }, [initialData, accessibleRooms, behaviorCategories, initialDailyPoints, initialAttendance, attendanceStatusTypes, initialAttendanceRates, initializeFromData]);
 
   return null;
 }

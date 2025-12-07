@@ -28,8 +28,16 @@ import {
   type ExcuseReason,
   POINTS_ELIGIBLE_REASONS,
   isAdminRole,
+  // Story 3-11: Attendance Rate types
+  getRateCategory,
+  type AttendanceRateResult,
+  type DailyAttendanceRate,
+  type CumulativeAttendanceRate,
+  type StudentAttendanceRates,
+  type StudentBelowThreshold,
 } from '@/lib/validation/schemas';
 import { createBasePoints, removeBasePoints } from './points';
+import { getDistrictDAEPSettings } from './settings';
 
 // ============================================================================
 // TYPES
@@ -940,4 +948,555 @@ export async function getUserAttendanceRole(): Promise<{
     role,
     isAdmin: isAdminRole(role),
   };
+}
+
+// ============================================================================
+// ATTENDANCE RATE CALCULATIONS (Story 3-11)
+// ============================================================================
+
+/**
+ * Helper to determine if an attendance record counts as "present"
+ * Present = P, T, ED, or Absent with counts_toward_days_served = true
+ */
+function isConsideredPresent(record: { status: string; counts_toward_days_served: boolean }): boolean {
+  return record.status !== 'A' || record.counts_toward_days_served === true;
+}
+
+/**
+ * Get the configured ADA attendance period from district settings.
+ * Story 3-11: The ADA attendance period is the period used for daily attendance rate calculation.
+ * Only this period determines if a student is "present" for the day.
+ */
+async function getADAAttendancePeriod(): Promise<string | null> {
+  try {
+    const settings = await getDistrictDAEPSettings();
+    return settings.settings.ada_attendance_period || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Calculate consecutive absent days from attendance records
+ * Groups by date and counts consecutive days where ALL periods were absent
+ */
+function calculateConsecutiveAbsentDays(
+  attendance: Array<{ date: string; status: string; counts_toward_days_served: boolean }>
+): number {
+  if (!attendance || attendance.length === 0) return 0;
+
+  // Group by date - a day is "present" if ANY period was present
+  const byDate = new Map<string, boolean>();
+
+  attendance.forEach((record) => {
+    const wasPresent = isConsideredPresent(record);
+    const current = byDate.get(record.date);
+
+    // A day is "present" if ANY period was present
+    if (current === undefined) {
+      byDate.set(record.date, wasPresent);
+    } else if (wasPresent) {
+      byDate.set(record.date, true);
+    }
+  });
+
+  // Sort dates descending (most recent first)
+  const sortedDates = Array.from(byDate.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]));
+
+  // Count consecutive absent days from most recent backwards
+  let consecutive = 0;
+  for (const [, wasPresent] of sortedDates) {
+    if (wasPresent) break;
+    consecutive++;
+  }
+
+  return consecutive;
+}
+
+/**
+ * Get attendance rate for a single day.
+ * Story 3-11 CORRECTED: Uses ADA period only (if configured).
+ * Daily rate is simply: present (100%) or absent (0%) for that day.
+ */
+export async function getDailyAttendanceRate(
+  placementId: string,
+  date: string
+): Promise<DailyAttendanceRate | null> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get the ADA attendance period from settings
+  const adaPeriod = await getADAAttendancePeriod();
+
+  // Build query - filter to ADA period if configured
+  let query = supabase
+    .from('daep_attendance')
+    .select('status, counts_toward_days_served')
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .eq('date', date);
+
+  if (adaPeriod) {
+    query = query.eq('period', adaPeriod);
+  }
+
+  const { data: attendance, error } = await query;
+
+  if (error) {
+    console.error('Error fetching daily attendance:', error);
+    throw new Error('Failed to fetch attendance');
+  }
+
+  if (!attendance || attendance.length === 0) {
+    return null; // No attendance taken for this date
+  }
+
+  // Story 3-11 CORRECTED: Day-based rate
+  // If ADA period is configured, there should be only 1 record
+  // Day is "present" if any record is present
+  let wasPresent = false;
+  attendance.forEach((record) => {
+    if (isConsideredPresent(record)) {
+      wasPresent = true;
+    }
+  });
+
+  // Daily rate: 100% if present, 0% if absent
+  const rate = wasPresent ? 100 : 0;
+
+  return {
+    date,
+    periodsPresent: wasPresent ? 1 : 0,
+    periodsAbsent: wasPresent ? 0 : 1,
+    totalPeriods: 1,
+    rate,
+    rateCategory: getRateCategory(rate),
+  };
+}
+
+/**
+ * Get cumulative attendance rate for entire placement.
+ * Story 3-11 CORRECTED: Rate is based on DAYS, not periods.
+ * Only the ADA attendance period (if configured) determines if a day is "present".
+ */
+export async function getCumulativeAttendanceRate(
+  placementId: string
+): Promise<CumulativeAttendanceRate> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get the ADA attendance period from settings
+  const adaPeriod = await getADAAttendancePeriod();
+
+  // Get placement date range
+  const { data: placement, error: placementError } = await supabase
+    .from('daep_placements')
+    .select('start_date, expected_end_date')
+    .eq('id', placementId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (placementError || !placement) {
+    // Return default when no placement found
+    const today = new Date().toISOString().split('T')[0];
+    return {
+      periodsPresent: 0,
+      periodsAbsent: 0,
+      totalPeriods: 0,
+      rate: 100, // Assume perfect until proven otherwise
+      rateCategory: 'green',
+      startDate: today,
+      endDate: today,
+      daysWithAttendance: 0,
+      consecutiveAbsentDays: 0,
+    };
+  }
+
+  // Build query for attendance records
+  let query = supabase
+    .from('daep_attendance')
+    .select('date, period, status, counts_toward_days_served')
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .order('date', { ascending: true });
+
+  // If ADA period is configured, filter to only that period
+  if (adaPeriod) {
+    query = query.eq('period', adaPeriod);
+  }
+
+  const { data: attendance, error: attendanceError } = await query;
+
+  if (attendanceError) {
+    console.error('Error fetching cumulative attendance:', attendanceError);
+    throw new Error('Failed to fetch attendance');
+  }
+
+  const records = attendance || [];
+  const today = new Date().toISOString().split('T')[0];
+
+  if (records.length === 0) {
+    return {
+      periodsPresent: 0,
+      periodsAbsent: 0,
+      totalPeriods: 0,
+      rate: 100, // Assume perfect until proven otherwise
+      rateCategory: 'green',
+      startDate: placement.start_date,
+      endDate: today,
+      daysWithAttendance: 0,
+      consecutiveAbsentDays: 0,
+    };
+  }
+
+  // Story 3-11 CORRECTED: Count DAYS, not periods
+  // Group by date - each date has one ADA period record
+  const byDate = new Map<string, boolean>();
+  records.forEach((record) => {
+    const wasPresent = isConsideredPresent(record);
+    const current = byDate.get(record.date);
+
+    // If multiple records for same date (shouldn't happen with ADA filter),
+    // day is "present" if ANY record is present
+    if (current === undefined) {
+      byDate.set(record.date, wasPresent);
+    } else if (wasPresent) {
+      byDate.set(record.date, true);
+    }
+  });
+
+  // Calculate day-based metrics
+  let daysPresent = 0;
+  byDate.forEach((wasPresent) => {
+    if (wasPresent) daysPresent++;
+  });
+
+  const totalDays = byDate.size;
+  const daysAbsent = totalDays - daysPresent;
+  const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 100;
+  const roundedRate = Math.round(rate * 10) / 10;
+
+  // Calculate consecutive absent days (uses day-based logic)
+  const consecutiveAbsentDays = calculateConsecutiveAbsentDays(records);
+
+  return {
+    // Using day-based values but keeping field names for backward compatibility
+    periodsPresent: daysPresent,
+    periodsAbsent: daysAbsent,
+    totalPeriods: totalDays,
+    rate: roundedRate,
+    rateCategory: getRateCategory(roundedRate),
+    startDate: placement.start_date,
+    endDate: today,
+    daysWithAttendance: totalDays,
+    consecutiveAbsentDays,
+  };
+}
+
+/**
+ * Get both daily and cumulative rates for student profile.
+ */
+export async function getStudentAttendanceRates(
+  placementId: string,
+  date?: string
+): Promise<StudentAttendanceRates> {
+  const today = date || new Date().toISOString().split('T')[0];
+
+  // Fetch both in parallel
+  const [daily, cumulative] = await Promise.all([
+    getDailyAttendanceRate(placementId, today),
+    getCumulativeAttendanceRate(placementId),
+  ]);
+
+  return {
+    daily,
+    cumulative,
+  };
+}
+
+/**
+ * Get attendance rates for all students in a room (for roster display).
+ * Efficient batch query instead of N+1.
+ * Returns CUMULATIVE rates (per-placement), not just daily.
+ * Story 3-11 CORRECTED: Rate is based on DAYS, not periods.
+ */
+export async function getRoomAttendanceRates(
+  roomId: string,
+  date: string
+): Promise<Map<string, AttendanceRateResult>> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get the ADA attendance period from settings
+  const adaPeriod = await getADAAttendancePeriod();
+
+  // Get all placements for this room
+  const { data: placements, error: placementError } = await supabase
+    .from('daep_placements')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('assigned_room_id', roomId)
+    .in('status', ['pending', 'active']);
+
+  if (placementError) {
+    console.error('Error fetching placements:', placementError);
+    return new Map();
+  }
+
+  if (!placements || placements.length === 0) {
+    return new Map();
+  }
+
+  const placementIds = placements.map((p) => p.id);
+
+  // Build query for attendance - filter to ADA period if configured
+  let query = supabase
+    .from('daep_attendance')
+    .select('placement_id, date, status, counts_toward_days_served')
+    .eq('tenant_id', tenantId)
+    .in('placement_id', placementIds);
+
+  // If ADA period is configured, filter to only that period
+  if (adaPeriod) {
+    query = query.eq('period', adaPeriod);
+  }
+
+  const { data: attendance, error: attendanceError } = await query;
+
+  if (attendanceError) {
+    console.error('Error fetching attendance:', attendanceError);
+    return new Map();
+  }
+
+  // Group by placement and calculate rates
+  const resultMap = new Map<string, AttendanceRateResult>();
+
+  // Group attendance by placement
+  const byPlacement = new Map<string, typeof attendance>();
+  (attendance || []).forEach((record) => {
+    const existing = byPlacement.get(record.placement_id) || [];
+    existing.push(record);
+    byPlacement.set(record.placement_id, existing);
+  });
+
+  // Calculate rate for each placement
+  placementIds.forEach((placementId) => {
+    const records = byPlacement.get(placementId) || [];
+
+    if (records.length === 0) {
+      // No attendance taken yet - assume perfect
+      resultMap.set(placementId, {
+        periodsPresent: 0,
+        periodsAbsent: 0,
+        totalPeriods: 0,
+        rate: 100,
+        rateCategory: 'green',
+      });
+      return;
+    }
+
+    // Story 3-11 CORRECTED: Count DAYS, not periods
+    // Group by date - each date has one ADA period record
+    const byDate = new Map<string, boolean>();
+    records.forEach((record) => {
+      const wasPresent = isConsideredPresent(record);
+      const current = byDate.get(record.date);
+
+      // If multiple records for same date, day is "present" if ANY is present
+      if (current === undefined) {
+        byDate.set(record.date, wasPresent);
+      } else if (wasPresent) {
+        byDate.set(record.date, true);
+      }
+    });
+
+    // Calculate day-based metrics
+    let daysPresent = 0;
+    byDate.forEach((wasPresent) => {
+      if (wasPresent) daysPresent++;
+    });
+
+    const totalDays = byDate.size;
+    const daysAbsent = totalDays - daysPresent;
+    const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 100;
+    const roundedRate = Math.round(rate * 10) / 10;
+
+    resultMap.set(placementId, {
+      periodsPresent: daysPresent,
+      periodsAbsent: daysAbsent,
+      totalPeriods: totalDays,
+      rate: roundedRate,
+      rateCategory: getRateCategory(roundedRate),
+    });
+  });
+
+  return resultMap;
+}
+
+/**
+ * Get consecutive absent days for a placement.
+ * Used for notification triggers (Epic 7).
+ * Story 3-11 CORRECTED: Uses ADA period only (if configured).
+ */
+export async function getConsecutiveAbsentDays(
+  placementId: string
+): Promise<number> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get the ADA attendance period from settings
+  const adaPeriod = await getADAAttendancePeriod();
+
+  // Build query - filter to ADA period if configured
+  let query = supabase
+    .from('daep_attendance')
+    .select('date, status, counts_toward_days_served')
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .order('date', { ascending: true });
+
+  if (adaPeriod) {
+    query = query.eq('period', adaPeriod);
+  }
+
+  const { data: attendance, error } = await query;
+
+  if (error) {
+    console.error('Error fetching attendance:', error);
+    return 0;
+  }
+
+  return calculateConsecutiveAbsentDays(attendance || []);
+}
+
+/**
+ * Get students below attendance threshold.
+ * Used by dashboard (Epic 6) and notifications (Epic 7).
+ * Story 3-11 CORRECTED: Uses ADA period only and day-based calculation.
+ */
+export async function getStudentsBelowAttendanceThreshold(
+  threshold?: number
+): Promise<StudentBelowThreshold[]> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get the ADA attendance period from settings
+  const adaPeriod = await getADAAttendancePeriod();
+
+  // Get threshold from settings if not provided
+  const effectiveThreshold = threshold ?? 85;
+
+  // Get all active placements with student info
+  const { data: placements, error: placementError } = await supabase
+    .from('daep_placements')
+    .select(`
+      id,
+      student:students!inner(school_id, first_name, last_name)
+    `)
+    .eq('tenant_id', tenantId)
+    .in('status', ['pending', 'active']);
+
+  if (placementError || !placements) {
+    console.error('Error fetching placements:', placementError);
+    return [];
+  }
+
+  // Get all attendance for these placements
+  const placementIds = placements.map((p) => p.id);
+
+  // Build query - filter to ADA period if configured
+  let query = supabase
+    .from('daep_attendance')
+    .select('placement_id, date, status, counts_toward_days_served')
+    .eq('tenant_id', tenantId)
+    .in('placement_id', placementIds);
+
+  if (adaPeriod) {
+    query = query.eq('period', adaPeriod);
+  }
+
+  const { data: attendance, error: attendanceError } = await query;
+
+  if (attendanceError) {
+    console.error('Error fetching attendance:', attendanceError);
+    return [];
+  }
+
+  // Group by placement
+  const byPlacement = new Map<string, typeof attendance>();
+  (attendance || []).forEach((record) => {
+    const existing = byPlacement.get(record.placement_id) || [];
+    existing.push(record);
+    byPlacement.set(record.placement_id, existing);
+  });
+
+  // Calculate rates and filter
+  const results: StudentBelowThreshold[] = [];
+
+  placements.forEach((placement) => {
+    const records = byPlacement.get(placement.id) || [];
+
+    if (records.length === 0) {
+      return; // No attendance yet - don't flag
+    }
+
+    // Story 3-11 CORRECTED: Count DAYS, not periods
+    const byDate = new Map<string, boolean>();
+    records.forEach((record) => {
+      const wasPresent = isConsideredPresent(record);
+      const current = byDate.get(record.date);
+      if (current === undefined) {
+        byDate.set(record.date, wasPresent);
+      } else if (wasPresent) {
+        byDate.set(record.date, true);
+      }
+    });
+
+    let daysPresent = 0;
+    byDate.forEach((wasPresent) => {
+      if (wasPresent) daysPresent++;
+    });
+
+    const totalDays = byDate.size;
+    const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 100;
+    const roundedRate = Math.round(rate * 10) / 10;
+
+    if (roundedRate < effectiveThreshold) {
+      // Supabase returns joined data - handle both array and object formats
+      const studentData = Array.isArray(placement.student) ? placement.student[0] : placement.student;
+      const student = studentData as { school_id: string; first_name: string; last_name: string };
+      results.push({
+        placement_id: placement.id,
+        school_id: student.school_id,
+        student_name: `${student.first_name} ${student.last_name}`,
+        attendance_rate: roundedRate,
+        consecutive_absent_days: calculateConsecutiveAbsentDays(records),
+      });
+    }
+  });
+
+  // Sort by attendance rate (lowest first)
+  results.sort((a, b) => a.attendance_rate - b.attendance_rate);
+
+  return results;
+}
+
+/**
+ * Get attendance threshold from district settings.
+ * Defaults to 85 if not set.
+ */
+export async function getAttendanceThreshold(): Promise<number> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  const { data } = await supabase
+    .from('tenants')
+    .select('daep_settings')
+    .eq('id', tenantId)
+    .single();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const settings = data?.daep_settings as any;
+  return settings?.attendance_threshold ?? 85;
 }

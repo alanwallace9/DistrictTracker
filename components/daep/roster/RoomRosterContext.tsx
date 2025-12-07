@@ -17,7 +17,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { BellSchedulePeriod, DailyPointsSummary, AttendanceEntry } from '@/lib/validation/schemas';
+import type { BellSchedulePeriod, DailyPointsSummary, AttendanceEntry, AttendanceRateResult } from '@/lib/validation/schemas';
 import type { RosterStudent, RoomWithCount, RoomRosterResult } from '@/app/actions/daep/roster';
 import type { CurrentPeriodResult } from '@/lib/daep/bell-schedule';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
@@ -52,6 +52,9 @@ interface RoomRosterContextValue {
   attendance: Map<string, AttendanceEntry>;
   attendanceStatusTypes: AttendanceStatusType[];
 
+  // Story 3-11: Attendance Rates
+  attendanceRates: Map<string, AttendanceRateResult>;
+
   // State
   isLoading: boolean;
   error: string | null;
@@ -71,6 +74,9 @@ interface RoomRosterContextValue {
   refreshAttendance: () => Promise<void>;
   updateAttendance: (placementId: string, entry: AttendanceEntry) => void;
 
+  // Story 3-11: Attendance Rate Actions
+  refreshAttendanceRates: () => Promise<void>;
+
   // Story 3-3: Selection State for Bulk Actions
   selectedPlacements: Set<string>;
   toggleSelection: (placementId: string) => void;
@@ -86,7 +92,8 @@ interface RoomRosterContextValue {
     categories?: BehaviorCategory[],
     points?: Map<string, DailyPointsSummary>,
     attendanceData?: Map<string, AttendanceEntry>,
-    statusTypes?: AttendanceStatusType[]
+    statusTypes?: AttendanceStatusType[],
+    rates?: Map<string, AttendanceRateResult>
   ) => void;
 }
 
@@ -115,6 +122,7 @@ interface RoomRosterProviderProps {
   onRosterChange?: (roomId: string, date: string, periodIndex: number) => Promise<RoomRosterResult>;
   onPointsRefresh?: (roomId: string, date: string) => Promise<Map<string, DailyPointsSummary>>;
   onAttendanceRefresh?: (roomId: string, date: string, period: string) => Promise<Map<string, AttendanceEntry>>;
+  onAttendanceRatesRefresh?: (roomId: string, date: string) => Promise<Map<string, AttendanceRateResult>>;
 }
 
 export function RoomRosterProvider({
@@ -126,6 +134,7 @@ export function RoomRosterProvider({
   onRosterChange,
   onPointsRefresh,
   onAttendanceRefresh,
+  onAttendanceRatesRefresh,
 }: RoomRosterProviderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -152,6 +161,9 @@ export function RoomRosterProvider({
   // Story 3-9: Attendance Data
   const [attendance, setAttendance] = useState<Map<string, AttendanceEntry>>(new Map());
   const [attendanceStatusTypes, setAttendanceStatusTypes] = useState<AttendanceStatusType[]>([]);
+
+  // Story 3-11: Attendance Rates
+  const [attendanceRates, setAttendanceRates] = useState<Map<string, AttendanceRateResult>>(new Map());
 
   // Story 3-3: Selection State for Bulk Actions
   const [selectedPlacements, setSelectedPlacements] = useState<Set<string>>(new Set());
@@ -286,6 +298,18 @@ export function RoomRosterProvider({
     });
   }, []);
 
+  // Story 3-11: Refresh attendance rates for all students in room
+  const refreshAttendanceRates = useCallback(async () => {
+    if (!roomId || !onAttendanceRatesRefresh) return;
+
+    try {
+      const rates = await onAttendanceRatesRefresh(roomId, date);
+      setAttendanceRates(rates);
+    } catch (err) {
+      console.error('Failed to refresh attendance rates:', err);
+    }
+  }, [roomId, date, onAttendanceRatesRefresh]);
+
   // Story 3-3: Selection actions for bulk operations
   const toggleSelection = useCallback((placementId: string) => {
     setSelectedPlacements((prev) => {
@@ -323,7 +347,8 @@ export function RoomRosterProvider({
     categories?: BehaviorCategory[],
     points?: Map<string, DailyPointsSummary>,
     attendanceData?: Map<string, AttendanceEntry>,
-    statusTypes?: AttendanceStatusType[]
+    statusTypes?: AttendanceStatusType[],
+    rates?: Map<string, AttendanceRateResult>
   ) => {
     setRoom(data.room);
     setStudents(data.students);
@@ -352,6 +377,11 @@ export function RoomRosterProvider({
     if (statusTypes) {
       setAttendanceStatusTypes(statusTypes);
     }
+
+    // Story 3-11: Initialize attendance rates
+    if (rates) {
+      setAttendanceRates(rates);
+    }
   }, []);
 
   const value: RoomRosterContextValue = {
@@ -374,6 +404,8 @@ export function RoomRosterProvider({
     // Story 3-9: Attendance Data
     attendance,
     attendanceStatusTypes,
+    // Story 3-11: Attendance Rates
+    attendanceRates,
     // State
     isLoading,
     error,
@@ -389,6 +421,8 @@ export function RoomRosterProvider({
     // Story 3-9: Attendance Actions
     refreshAttendance,
     updateAttendance,
+    // Story 3-11: Attendance Rate Actions
+    refreshAttendanceRates,
     // Story 3-3: Selection State for Bulk Actions
     selectedPlacements,
     toggleSelection,

@@ -19,6 +19,7 @@ import {
   updateCampusDAEPSettings,
   type CampusInfo,
 } from '@/app/actions/daep/settings';
+import { getBellSchedules } from '@/app/actions/daep/schedules';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +56,7 @@ export default function DAEPSettingsGeneralPage() {
   const [tenantName, setTenantName] = useState('');
   const [daepCampuses, setDaepCampuses] = useState<CampusInfo[]>([]);
   const [selectedCampusId, setSelectedCampusId] = useState<string | null>(null);
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
   // District settings form
   const districtForm = useForm<DistrictDAEPSettings>({
@@ -65,6 +67,7 @@ export default function DAEPSettingsGeneralPage() {
       attendance_threshold: 85,
       point_threshold_warning: 7,
       school_year: null,
+      ada_attendance_period: null,
     },
   });
 
@@ -92,15 +95,27 @@ export default function DAEPSettingsGeneralPage() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      // Load district settings and DAEP campuses in parallel
-      const [districtResult, campuses] = await Promise.all([
+      // Load district settings, DAEP campuses, and bell schedules in parallel
+      const [districtResult, campuses, schedules] = await Promise.all([
         getDistrictDAEPSettings(),
         getDAEPCampuses(),
+        getBellSchedules(),
       ]);
 
       setTenantName(districtResult.tenant_name);
       districtForm.reset(districtResult.settings);
       setDaepCampuses(campuses);
+
+      // Extract unique period names from all active schedules
+      const periodSet = new Set<string>();
+      schedules
+        .filter((s) => s.active)
+        .forEach((schedule) => {
+          schedule.periods.forEach((period) => {
+            periodSet.add(period.period_name);
+          });
+        });
+      setAvailablePeriods(Array.from(periodSet).sort());
 
       // Auto-select first DAEP campus if available
       if (campuses.length > 0) {
@@ -273,7 +288,7 @@ export default function DAEPSettingsGeneralPage() {
 
               {/* Attendance Threshold */}
               <div className="space-y-2">
-                <Label htmlFor="attendance_threshold">Attendance Threshold (%)</Label>
+                <Label htmlFor="attendance_threshold">Attendance Alert Threshold (%)</Label>
                 <Input
                   id="attendance_threshold"
                   type="number"
@@ -282,11 +297,47 @@ export default function DAEPSettingsGeneralPage() {
                   {...districtForm.register('attendance_threshold', { valueAsNumber: true })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Minimum attendance percentage for DAEP completion
+                  Students below this rate will be flagged for attention (default: 85%)
                 </p>
                 {districtForm.formState.errors.attendance_threshold && (
                   <p className="text-sm text-destructive">
                     {districtForm.formState.errors.attendance_threshold.message}
+                  </p>
+                )}
+              </div>
+
+              {/* ADA Attendance Period - Story 3-11 */}
+              <div className="space-y-2">
+                <Label htmlFor="ada_attendance_period">ADA Attendance Period</Label>
+                <Select
+                  value={districtForm.watch('ada_attendance_period') || ''}
+                  onValueChange={(value) =>
+                    districtForm.setValue('ada_attendance_period', value || null)
+                  }
+                >
+                  <SelectTrigger id="ada_attendance_period">
+                    <SelectValue placeholder="Select period for ADA attendance" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePeriods.length > 0 ? (
+                      availablePeriods.map((period) => (
+                        <SelectItem key={period} value={period}>
+                          {period}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>
+                        No periods configured
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Period used for daily attendance rate (ADA). Other periods are for points only.
+                </p>
+                {districtForm.formState.errors.ada_attendance_period && (
+                  <p className="text-sm text-destructive">
+                    {districtForm.formState.errors.ada_attendance_period.message}
                   </p>
                 )}
               </div>

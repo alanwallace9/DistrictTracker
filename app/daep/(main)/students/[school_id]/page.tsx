@@ -16,6 +16,10 @@ import {
   getStudentMilestones,
   getCumulativePoints,
 } from '@/app/actions/daep/milestones';
+import {
+  getStudentAttendanceRates,
+  getAttendanceThreshold,
+} from '@/app/actions/daep/attendance';
 
 interface Props {
   params: Promise<{ school_id: string }>;
@@ -54,24 +58,31 @@ export default async function StudentProfilePage({ params }: Props) {
     }));
 
     // Story 3-7: Fetch milestone data for current placement
+    // Story 3-11: Fetch attendance rates for current placement
     let milestoneRules: Awaited<ReturnType<typeof getMilestoneRules>> = [];
     let milestoneAchievements: Awaited<ReturnType<typeof getStudentMilestones>> = [];
     let cumulativePoints: Awaited<ReturnType<typeof getCumulativePoints>> | null = null;
+    let attendanceRates: Awaited<ReturnType<typeof getStudentAttendanceRates>> | null = null;
+    let attendanceThreshold = 85;
 
     if (profile.currentPlacement) {
       try {
-        // Fetch milestone rules, achievements, and cumulative points in parallel
-        const [rulesResult, achievementsResult, pointsResult] = await Promise.all([
+        // Fetch milestone rules, achievements, cumulative points, and attendance rates in parallel
+        const [rulesResult, achievementsResult, pointsResult, attendanceResult, thresholdResult] = await Promise.all([
           getMilestoneRules(),
           getStudentMilestones(profile.currentPlacement.id),
           getCumulativePoints(profile.currentPlacement.id),
+          getStudentAttendanceRates(profile.currentPlacement.id),
+          getAttendanceThreshold(),
         ]);
         milestoneRules = rulesResult;
         milestoneAchievements = achievementsResult;
         cumulativePoints = pointsResult;
+        attendanceRates = attendanceResult;
+        attendanceThreshold = thresholdResult;
       } catch (error) {
-        // Non-fatal - milestones just won't display
-        console.error('Error fetching milestone data:', error);
+        // Non-fatal - milestones/attendance just won't display
+        console.error('Error fetching placement data:', error);
       }
     }
 
@@ -99,6 +110,8 @@ export default async function StudentProfilePage({ params }: Props) {
                 milestoneRules={milestoneRules}
                 milestoneAchievements={milestoneAchievements}
                 cumulativePoints={cumulativePoints || undefined}
+                attendanceRates={attendanceRates || undefined}
+                attendanceThreshold={attendanceThreshold}
               />
             ) : (
               <div className="p-6 border rounded-lg bg-card">

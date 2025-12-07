@@ -8,10 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ToggleableProgressBar } from './shared/ToggleableProgressBar';
+import { AttendanceRateProgress } from './shared/AttendanceRateProgress';
 import { MilestoneBadges } from './shared/MilestoneBadges';
 import { PlacementStatusBadge } from './shared/PlacementStatusBadge';
 import { PlacementActivityPreview, PlacementAuditLog } from './audit';
 import type { MilestoneRule, MilestoneAchievement } from '@/app/actions/daep/milestones';
+import type { StudentAttendanceRates } from '@/lib/validation/schemas';
 import { StatusTransitionActions } from './placements/StatusTransitionActions';
 import {
   Calendar,
@@ -19,6 +21,7 @@ import {
   Building,
   DoorOpen,
   AlertTriangle,
+  AlertCircle,
   FileText,
   Edit,
 } from 'lucide-react';
@@ -42,6 +45,9 @@ interface Props {
   };
   /** IDs of badges newly earned this session (for glow animation) */
   newlyEarnedBadgeIds?: string[];
+  // Story 3-11: Attendance Rates
+  attendanceRates?: StudentAttendanceRates;
+  attendanceThreshold?: number;
 }
 
 export function CurrentPlacementCard({
@@ -52,6 +58,8 @@ export function CurrentPlacementCard({
   milestoneAchievements = [],
   cumulativePoints,
   newlyEarnedBadgeIds = [],
+  attendanceRates,
+  attendanceThreshold = 85,
 }: Props) {
   const router = useRouter();
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
@@ -113,6 +121,31 @@ export function CurrentPlacementCard({
             pointsPossible={cumulativePoints?.totalPointsPossible || 0}
           />
         </div>
+
+        {/* Attendance Rate - Story 3-11 */}
+        {attendanceRates && (
+          <AttendanceRateProgress
+            dailyRate={attendanceRates.daily?.rate ?? null}
+            cumulativeRate={attendanceRates.cumulative.rate}
+            cumulativeCategory={attendanceRates.cumulative.rateCategory}
+            cumulativeData={{
+              periodsPresent: attendanceRates.cumulative.periodsPresent,
+              totalPeriods: attendanceRates.cumulative.totalPeriods,
+              daysWithAttendance: attendanceRates.cumulative.daysWithAttendance,
+            }}
+            threshold={attendanceThreshold}
+          />
+        )}
+
+        {/* Consecutive Absence Warning - Story 3-11 (show at 3+ days) */}
+        {attendanceRates && attendanceRates.cumulative.consecutiveAbsentDays >= 3 && (
+          <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-800 dark:text-amber-200">
+              {attendanceRates.cumulative.consecutiveAbsentDays} consecutive absent days
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Offense Code */}
         <div className="flex items-center gap-2">

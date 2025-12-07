@@ -34,8 +34,10 @@ export interface RosterStudentRowProps {
   onSelect?: (placementId: string) => void;
 
   // Render props for extensibility
-  // Story 3-9: Attendance cell (positioned after Status, before Days Remaining)
+  // Story 3-9: Attendance cell (positioned after Status, before Rate)
   renderAttendanceCell?: (context: StudentRowContext) => ReactNode;
+  // Story 3-11: Rate cell (positioned after Attendance, before Days Remaining)
+  renderRateCell?: (context: StudentRowContext) => ReactNode;
   // Story 3-2: Points/Behavior columns at the end
   renderExtraCells?: (context: StudentRowContext) => ReactNode;
 }
@@ -66,6 +68,7 @@ export function RosterStudentRow({
   isSelected = false,
   onSelect,
   renderAttendanceCell,
+  renderRateCell,
   renderExtraCells,
 }: RosterStudentRowProps) {
   const { selectedPlacements } = useRoomRoster();
@@ -115,6 +118,9 @@ export function RosterStudentRow({
 
       {/* Story 3-9: Attendance Cell */}
       {renderAttendanceCell?.(context)}
+
+      {/* Story 3-11: Rate Cell */}
+      {renderRateCell?.(context)}
 
       {/* Days Remaining */}
       <TableCell className="text-center">

@@ -46,3 +46,6 @@ export type { AttendanceSummaryBannerProps } from './AttendanceSummaryBanner';
 // Story 3-10: Excuse Modal Component
 export { ExcuseModal } from './ExcuseModal';
 export type { ExcuseData } from './ExcuseModal';
+
+// Story 3-11: Attendance Rate Components
+export { AttendanceRateBadge } from './AttendanceRateBadge';

@@ -283,6 +283,10 @@ export const DistrictDAEPSettingsSchema = z.object({
   attendance_threshold: z.number().int().min(0).max(100).default(85),
   point_threshold_warning: z.number().int().min(1).max(100).default(7),
   school_year: z.string().regex(/^\d{4}-\d{4}$/).nullable().optional(),
+  // Story 3-11: ADA attendance period - the period used for daily attendance rate calculation
+  // This is the period that determines if a student is "present" for the day (for ADA reporting)
+  // Other periods are for points tracking only
+  ada_attendance_period: z.string().max(50).nullable().optional(),
 });
 
 export const CampusDAEPSettingsSchema = z.object({
@@ -721,6 +725,63 @@ export interface RoomAttendanceStatus {
   count: number;        // Number of students with attendance
   total: number;        // Total students in room
   present_count: number; // Students marked present/tardy/ED (not absent)
+}
+
+// ============================================================================
+// DAEP ATTENDANCE RATE SCHEMAS (Story 3-11)
+// ============================================================================
+
+// Rate category for color coding
+export const ATTENDANCE_RATE_CATEGORIES = ['green', 'yellow', 'red'] as const;
+export type AttendanceRateCategory = (typeof ATTENDANCE_RATE_CATEGORIES)[number];
+
+/**
+ * Get rate category based on percentage
+ * - green: >90%
+ * - yellow: 85-90%
+ * - red: <85%
+ */
+export function getRateCategory(rate: number): AttendanceRateCategory {
+  if (rate > 90) return 'green';
+  if (rate >= 85) return 'yellow';
+  return 'red';
+}
+
+// Base attendance rate result
+export interface AttendanceRateResult {
+  periodsPresent: number;      // P + T + ED + Excused (counts_toward_days_served=true)
+  periodsAbsent: number;       // A (unexcused or excused that doesn't count)
+  totalPeriods: number;        // Total attendance-required periods
+  rate: number;                // Percentage (0-100), rounded to 1 decimal
+  rateCategory: AttendanceRateCategory;
+}
+
+// Daily attendance rate (for single day)
+export interface DailyAttendanceRate extends AttendanceRateResult {
+  date: string;
+}
+
+// Cumulative attendance rate (for entire placement)
+export interface CumulativeAttendanceRate extends AttendanceRateResult {
+  startDate: string;           // Placement start date
+  endDate: string;             // Today or last attendance date
+  daysWithAttendance: number;  // Unique days with attendance records
+  consecutiveAbsentDays: number; // For notification trigger (Epic 7)
+}
+
+// Combined rates for student profile
+export interface StudentAttendanceRates {
+  daily: DailyAttendanceRate | null;  // Today's rate (null if no attendance today)
+  cumulative: CumulativeAttendanceRate;
+}
+
+// Student below threshold result (for dashboard/notifications)
+export interface StudentBelowThreshold {
+  placement_id: string;
+  school_id: string;
+  student_name: string;
+  attendance_rate: number;
+  consecutive_absent_days: number;
 }
 
 // ============================================================================

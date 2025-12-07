@@ -17,7 +17,7 @@ import {
 } from '@/app/actions/daep/roster';
 import { getActiveBehaviorCategories } from '@/app/actions/daep/behavior-categories';
 import { getDailyPointsSummary } from '@/app/actions/daep/points';
-import { getRoomAttendance, getAttendanceStatusTypes, getUserAttendanceRole } from '@/app/actions/daep/attendance';
+import { getRoomAttendance, getAttendanceStatusTypes, getUserAttendanceRole, getRoomAttendanceRates } from '@/app/actions/daep/attendance';
 import { RoomRosterView } from './RoomRosterView';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -96,11 +96,12 @@ export default async function RoomRosterPage({ params, searchParams }: PageProps
     getUserAttendanceRole(),
   ]);
 
-  // Fetch daily points summary and attendance (after we have the date/period from roster)
+  // Fetch daily points summary, attendance, and attendance rates (after we have the date/period from roster)
   const currentPeriodName = rosterData.periods[rosterData.periodIndex]?.period_name || '';
-  const [dailyPoints, attendanceData] = await Promise.all([
+  const [dailyPoints, attendanceData, attendanceRates] = await Promise.all([
     getDailyPointsSummary(roomId, rosterData.date),
     currentPeriodName ? getRoomAttendance(roomId, rosterData.date, currentPeriodName) : Promise.resolve(new Map()),
+    getRoomAttendanceRates(roomId, rosterData.date),
   ]);
 
   return (
@@ -112,6 +113,7 @@ export default async function RoomRosterPage({ params, searchParams }: PageProps
         initialDailyPoints={dailyPoints}
         initialAttendance={attendanceData}
         attendanceStatusTypes={attendanceStatusTypes}
+        initialAttendanceRates={attendanceRates}
         isAdmin={userRole.isAdmin}
       />
     </Suspense>
