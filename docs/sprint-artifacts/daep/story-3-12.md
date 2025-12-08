@@ -1,6 +1,6 @@
 # Story 3.12: Attendance Override with Audit
 
-**Status:** drafted
+**Status:** done
 **Epic:** 3 - Daily Operations
 **Points:** 2
 **FR:** FR44

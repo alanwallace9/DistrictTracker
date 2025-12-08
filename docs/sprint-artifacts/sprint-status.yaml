@@ -98,7 +98,7 @@ development_status:
   #   Batch 4: 3-7, 3-8 (Points aggregation + audit)
   #   Batch 5: 3-9, 3-10, 3-11, 3-12 (Attendance track)
   # ============================================
-  epic-3: contexted  # Batch 1 tech spec: docs/sprint-artifacts/daep/tech-spec-epic-3-batch-1.md
+  epic-3: done  # Complete! 12 stories, 29 pts, FR27-FR44
   3-0-room-groups: done  # Prerequisite: story-3-0.md - Room groups for separation logic
   3-1-room-roster-view: done  # Story: docs/sprint-artifacts/daep/story-3-1.md | Context: docs/sprint-artifacts/daep/story-3-1.context.xml
   3-2-point-entry-grid: done  # Story: docs/sprint-artifacts/daep/story-3-2.md | Context: docs/sprint-artifacts/daep/story-3-2.context.xml
@@ -111,7 +111,7 @@ development_status:
   3-9-attendance-entry: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-9.md | Story: docs/sprint-artifacts/daep/story-3-9.md
   3-10-excused-unexcused-absences: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-10.md | Story: docs/sprint-artifacts/daep/story-3-10.md
   3-11-attendance-rate-calculations: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-11.md | Story: docs/sprint-artifacts/daep/story-3-11.md
-  3-12-attendance-override-audit: backlog
+  3-12-attendance-override-audit: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-3-12.md | Story: docs/sprint-artifacts/daep/story-3-12.md
   epic-3-retrospective: optional
 
   # ============================================
