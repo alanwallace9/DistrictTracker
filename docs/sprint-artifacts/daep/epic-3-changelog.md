@@ -1,8 +1,30 @@
 # Epic 3: Daily Operations - Changelog
 
-**Epic Status:** In Progress (11 of 12 stories complete)
-**Version Range:** v0.3.1 - v0.3.9
+**Epic Status:** ✅ Complete (12 of 12 stories)
+**Version Range:** v0.3.1 - v0.3.10
 **FRs Covered:** FR27-FR44
+
+---
+
+## v0.3.10 - Attendance Override with Audit
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Attendance Override with Audit |
+| **Story** | 3-12 |
+| **FRs** | FR44 |
+
+**Description:**
+Administrators can now correct attendance records with full accountability. When an admin edits an attendance entry made by someone else, a quick reason modal prompts for an override reason. The system captures before/after values, timestamps, and stores the admin's display name for readable audit trails. Same simple dropdown workflow - just adds accountability.
+
+**Key Features:**
+- Override reason modal with 4 options (Data Entry Error, Late Documentation, Administrative Correction, Other)
+- "Other" reason requires notes for specificity
+- Override fields stored: override_reason, override_notes, overridden_by, overridden_at
+- overridden_by shows display name (or email fallback) for human-readable audit
+- Staff can still edit their own entries without prompting
+- No workflow change for same-user edits
 
 ---
 
@@ -232,6 +254,7 @@ Room Groups allow administrators to define building sections (e.g., "Up", "Down"
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.3.10 | Feature | Attendance Override with Audit | 3-12 |
 | v0.3.9 | Feature | ADA Attendance Rate Calculations | 3-11 |
 | v0.3.8a | Feature | Excused/Unexcused Absences | 3-10 |
 | v0.3.8 | Feature | Attendance Entry | 3-9 |
@@ -245,8 +268,11 @@ Room Groups allow administrators to define building sections (e.g., "Up", "Down"
 
 ---
 
-## Remaining Stories (Backlog)
+## Epic 3 Complete! 🎉
 
-| Story | Title | Points |
-|-------|-------|--------|
-| 3-12 | Attendance Override Audit | 2 |
+All 12 stories have been implemented:
+- **Total Points:** 29
+- **FRs Covered:** FR27-FR44
+- **Version Range:** v0.3.1 - v0.3.10
+
+**Next up:** Epic 4 - Reports & Analytics
