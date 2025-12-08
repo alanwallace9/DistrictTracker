@@ -139,7 +139,7 @@ async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> {
     userId: user.id,
     role: profile.role,
     tenantId: effectiveTenantId,
-    displayName: profile.display_name || user.firstName || 'Staff',
+    displayName: profile.display_name || user.emailAddresses?.[0]?.emailAddress || 'Staff',
   };
 }
 
@@ -265,6 +265,9 @@ export async function markAttendance(
       excuse_reason,
       excuse_notes,
       counts_toward_days_served,
+      // Story 3-12: Override fields
+      override_reason,
+      override_notes,
     } = validation.data;
 
     const supabase = await createServerClient();
@@ -281,10 +284,10 @@ export async function markAttendance(
       return { success: false, error: 'Placement not found' };
     }
 
-    // Get existing attendance entry (if any)
+    // Get existing attendance entry (if any) - include entered_by for override detection
     const { data: existing } = await supabase
       .from('daep_attendance')
-      .select('id, status, excused, counts_toward_days_served')
+      .select('id, status, excused, excuse_reason, counts_toward_days_served, entered_by')
       .eq('tenant_id', tenantId)
       .eq('placement_id', placement_id)
       .eq('date', date)
@@ -292,7 +295,10 @@ export async function markAttendance(
       .maybeSingle();
 
     const previousStatus = existing?.status;
+    const previousExcused = existing?.excused;
+    const previousExcuseReason = existing?.excuse_reason;
     const previousCountsToward = existing?.counts_toward_days_served ?? false;
+    const previousEnteredBy = existing?.entered_by;
 
     // Determine if user is admin (can set excuse details)
     const userIsAdmin = isAdminRole(role);
@@ -336,6 +342,15 @@ export async function markAttendance(
       attendanceData.excused = null;
       attendanceData.excuse_reason = null;
       attendanceData.counts_toward_days_served = true;
+    }
+
+    // Story 3-12: Handle override fields when admin edits someone else's entry
+    const isOverride = override_reason && existing && previousEnteredBy !== userId;
+    if (isOverride && userIsAdmin) {
+      attendanceData.override_reason = override_reason;
+      attendanceData.override_notes = override_notes || null;
+      attendanceData.overridden_by = displayName;
+      attendanceData.overridden_at = new Date().toISOString();
     }
 
     let entry: AttendanceEntry;
@@ -389,31 +404,64 @@ export async function markAttendance(
       pointsCreated = true;
     }
 
-    // Audit log
-    await logAttendanceAuditEvent(
-      supabase,
-      previousStatus ? 'attendance.changed' : 'attendance.marked',
-      userId,
-      placement_id,
-      previousStatus
+    // Audit log - Story 3-12: Use 'attendance.override' event type when admin overrides
+    const auditEventType = isOverride
+      ? 'attendance.override'
+      : previousStatus
+        ? 'attendance.changed'
+        : 'attendance.marked';
+
+    const auditAction = isOverride
+      ? `Override: ${previousStatus} → ${status}`
+      : previousStatus
         ? `Changed attendance from ${previousStatus} to ${status}`
-        : `Marked attendance as ${status}`,
-      tenantId,
-      {
-        date,
-        period,
-        before_status: previousStatus || null,
-        after_status: status,
-        tardy_time: tardy_time || null,
-        early_dismiss_time: early_dismiss_time || null,
+        : `Marked attendance as ${status}`;
+
+    // Story 3-12: Include before/after details for overrides
+    const auditDetails: Record<string, unknown> = {
+      date,
+      period,
+      before_status: previousStatus || null,
+      after_status: status,
+      tardy_time: tardy_time || null,
+      early_dismiss_time: early_dismiss_time || null,
+      excused: attendanceData.excused,
+      excuse_reason: attendanceData.excuse_reason,
+      counts_toward_days_served: attendanceData.counts_toward_days_served,
+      points_created: pointsCreated,
+      points_removed: pointsRemoved,
+      entered_by_name: displayName,
+      user_role: role,
+    };
+
+    // Add override-specific details
+    if (isOverride) {
+      auditDetails.before = {
+        status: previousStatus,
+        excused: previousExcused,
+        excuse_reason: previousExcuseReason,
+        counts_toward_days_served: previousCountsToward,
+        entered_by: previousEnteredBy,
+      };
+      auditDetails.after = {
+        status,
         excused: attendanceData.excused,
         excuse_reason: attendanceData.excuse_reason,
         counts_toward_days_served: attendanceData.counts_toward_days_served,
-        points_created: pointsCreated,
-        points_removed: pointsRemoved,
-        entered_by_name: displayName,
-        user_role: role,
-      }
+      };
+      auditDetails.override_reason = override_reason;
+      auditDetails.override_notes = override_notes || null;
+      auditDetails.original_entered_by = previousEnteredBy;
+    }
+
+    await logAttendanceAuditEvent(
+      supabase,
+      auditEventType,
+      userId,
+      placement_id,
+      auditAction,
+      tenantId,
+      auditDetails
     );
 
     revalidatePath('/daep/rooms');
@@ -937,16 +985,19 @@ export async function getParentCallCount(
 
 /**
  * Get the current user's role for attendance-related UI decisions.
- * Used by client components to determine if user can see excuse modal.
+ * Story 3-10: Used by client components to determine if user can see excuse modal.
+ * Story 3-12: Also returns userId for override detection.
  */
 export async function getUserAttendanceRole(): Promise<{
   role: string;
   isAdmin: boolean;
+  userId: string;
 }> {
-  const { role } = await checkDAEPStaffRole();
+  const { role, userId } = await checkDAEPStaffRole();
   return {
     role,
     isAdmin: isAdminRole(role),
+    userId,
   };
 }
 

@@ -109,7 +109,7 @@ function NonSchoolDayAlert({ dayType }: { dayType: string | null }) {
 
 // ========== ROSTER CONTENT ==========
 
-function RosterContent() {
+function RosterContent({ currentUserId }: { currentUserId: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const {
@@ -349,6 +349,9 @@ function RosterContent() {
                 countsTowardDaysServed={entry?.counts_toward_days_served ?? true}
                 statusTypes={attendanceStatusTypes}
                 isAdmin={isAdmin}
+                // Story 3-12: Override detection
+                enteredBy={entry?.entered_by}
+                currentUserId={currentUserId}
                 onStatusChange={() => {
                   // Refresh both attendance and points (P grants points)
                   refreshAttendance();
@@ -421,6 +424,8 @@ interface RoomRosterViewProps {
   attendanceStatusTypes: AttendanceStatusType[];
   initialAttendanceRates: Map<string, AttendanceRateResult>;
   isAdmin: boolean;
+  // Story 3-12: Current user ID for override detection
+  currentUserId: string;
 }
 
 export function RoomRosterView({
@@ -432,6 +437,7 @@ export function RoomRosterView({
   attendanceStatusTypes,
   initialAttendanceRates,
   isAdmin,
+  currentUserId,
 }: RoomRosterViewProps) {
   const { toast } = useToast();
 
@@ -487,7 +493,7 @@ export function RoomRosterView({
         attendanceStatusTypes={attendanceStatusTypes}
         initialAttendanceRates={initialAttendanceRates}
       />
-      <RosterContent />
+      <RosterContent currentUserId={currentUserId} />
     </RoomRosterProvider>
   );
 }

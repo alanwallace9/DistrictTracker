@@ -651,6 +651,28 @@ export function isAdminRole(role: string): boolean {
   return ADMIN_ROLES.includes(role as AdminRole);
 }
 
+// ============================================================================
+// ATTENDANCE OVERRIDE TYPES (Story 3-12)
+// ============================================================================
+
+// Override reason options
+export const OVERRIDE_REASONS = [
+  'data_entry_error',
+  'late_documentation',
+  'admin_correction',
+  'other',
+] as const;
+
+export type OverrideReason = (typeof OVERRIDE_REASONS)[number];
+
+// Labels for override reasons
+export const OVERRIDE_REASON_LABELS: Record<OverrideReason, string> = {
+  data_entry_error: 'Data Entry Error',
+  late_documentation: 'Late Documentation',
+  admin_correction: 'Administrative Correction',
+  other: 'Other',
+};
+
 // Attendance status type (for settings)
 export const AttendanceStatusTypeSchema = z.object({
   status_code: z.string().min(1, 'Status code is required').max(10, 'Status code too long'),
@@ -664,7 +686,7 @@ export const AttendanceStatusTypeSchema = z.object({
 
 export type AttendanceStatusTypeInput = z.infer<typeof AttendanceStatusTypeSchema>;
 
-// Mark attendance input (Story 3-10: Added excuse fields)
+// Mark attendance input (Story 3-10: Added excuse fields, Story 3-12: Added override fields)
 export const MarkAttendanceSchema = z.object({
   placement_id: z.string().uuid('Invalid placement ID'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
@@ -677,6 +699,9 @@ export const MarkAttendanceSchema = z.object({
   excuse_reason: z.enum(EXCUSE_REASONS).nullable().optional(),
   excuse_notes: z.string().max(500, 'Notes too long').nullable().optional(),
   counts_toward_days_served: z.boolean().optional(), // Auto-set based on reason for admins
+  // Story 3-12: Override fields (when admin edits someone else's entry)
+  override_reason: z.enum(OVERRIDE_REASONS).optional(),
+  override_notes: z.string().max(500, 'Notes too long').optional(),
 }).refine(
   (data) => {
     // Tardy requires tardy_time
@@ -686,6 +711,15 @@ export const MarkAttendanceSchema = z.object({
     return true;
   },
   { message: 'Time is required for Tardy and Early Dismissal statuses' }
+).refine(
+  (data) => {
+    // If override_reason is 'other', override_notes is required
+    if (data.override_reason === 'other' && !data.override_notes?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Notes are required when override reason is "Other"' }
 );
 
 export type MarkAttendanceInput = z.infer<typeof MarkAttendanceSchema>;
@@ -700,7 +734,7 @@ export const BulkMarkAttendanceSchema = z.object({
 
 export type BulkMarkAttendanceInput = z.infer<typeof BulkMarkAttendanceSchema>;
 
-// Attendance entry response type (Story 3-10: excused can be null for pending)
+// Attendance entry response type (Story 3-10: excused can be null for pending, Story 3-12: override fields)
 export interface AttendanceEntry {
   id: string;
   placement_id: string;
@@ -716,6 +750,11 @@ export interface AttendanceEntry {
   entered_by: string;
   created_at: string;
   updated_at: string;
+  // Story 3-12: Override tracking
+  override_reason: OverrideReason | null;
+  override_notes: string | null;
+  overridden_by: string | null;
+  overridden_at: string | null;
 }
 
 // Room attendance status (for room cards)

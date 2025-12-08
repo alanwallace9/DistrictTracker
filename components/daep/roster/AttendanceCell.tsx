@@ -5,6 +5,7 @@
  *
  * Story 3-9: Attendance Entry
  * Story 3-10: Role-based excuse handling
+ * Story 3-12: Override with audit trail
  *
  * Interactive attendance cell with inline dropdown.
  * iPad-friendly design - click to open dropdown, select status.
@@ -12,6 +13,7 @@
  * Role-based behavior:
  * - Staff: Absent saves immediately as pending (no modal)
  * - Admin L1/L2: Absent opens ExcuseModal for excuse details
+ * - Admin editing someone else's entry: OverrideReasonModal opens
  *
  * For Tardy/ED, opens time modal after selection.
  */
@@ -28,6 +30,7 @@ import { Check, ChevronDown, Loader2 } from 'lucide-react';
 import { AttendanceStatusBadge } from './AttendanceStatusBadge';
 import { AttendanceTimeModal } from './AttendanceTimeModal';
 import { ExcuseModal, type ExcuseData } from './ExcuseModal';
+import { OverrideReasonModal, type OverrideData } from './OverrideReasonModal';
 import { markAttendance, getParentCallCount } from '@/app/actions/daep/attendance';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -49,6 +52,9 @@ export interface AttendanceCellProps {
   isAdmin: boolean;
   onStatusChange?: (status: string) => void;
   disabled?: boolean;
+  // Story 3-12: Override detection
+  enteredBy?: string | null;
+  currentUserId?: string;
 }
 
 export function AttendanceCell({
@@ -66,6 +72,9 @@ export function AttendanceCell({
   isAdmin,
   onStatusChange,
   disabled = false,
+  // Story 3-12: Override detection
+  enteredBy,
+  currentUserId,
 }: AttendanceCellProps) {
   const [isPending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
@@ -74,20 +83,25 @@ export function AttendanceCell({
   const [pendingStatus, setPendingStatus] = useState<'T' | 'ED' | null>(null);
   const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
   const [parentCallCount, setParentCallCount] = useState(0);
+  // Story 3-12: Override modal state
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [pendingNewStatus, setPendingNewStatus] = useState<string | null>(null);
+  const [pendingTime, setPendingTime] = useState<string | undefined>(undefined);
 
   // Use optimistic status if available, otherwise current
   const displayStatus = optimisticStatus ?? currentStatus;
 
-  // Save attendance (called by handleStatusSelect or ExcuseModal)
+  // Save attendance (called by handleStatusSelect, ExcuseModal, or OverrideReasonModal)
   const saveAttendance = useCallback(
     async (
       status: string,
       options?: {
         time?: string;
         excuseData?: ExcuseData;
+        overrideData?: OverrideData;
       }
     ) => {
-      const { time, excuseData } = options || {};
+      const { time, excuseData, overrideData } = options || {};
 
       // Optimistic update
       setOptimisticStatus(status);
@@ -105,13 +119,18 @@ export function AttendanceCell({
           excuse_reason: excuseData?.excuse_reason,
           excuse_notes: excuseData?.excuse_notes,
           counts_toward_days_served: excuseData?.counts_toward_days_served,
+          // Story 3-12: Override fields (when admin edits someone else's entry)
+          override_reason: overrideData?.override_reason,
+          override_notes: overrideData?.override_notes,
         });
 
         if (result.success) {
           onStatusChange?.(status);
 
           // Show success toast with context
-          if (status === 'A') {
+          if (overrideData) {
+            toast.success('Attendance override saved');
+          } else if (status === 'A') {
             if (excuseData?.excused) {
               if (excuseData.counts_toward_days_served) {
                 toast.success('Marked Excused - counts toward days served');
@@ -154,6 +173,23 @@ export function AttendanceCell({
         return;
       }
 
+      // Story 3-12: Check if admin is editing someone else's existing entry
+      const needsOverrideReason =
+        isAdmin &&
+        currentStatus !== null && // has existing entry
+        enteredBy && // has entered_by info
+        currentUserId && // has current user info
+        enteredBy !== currentUserId; // entered by someone else
+
+      if (needsOverrideReason) {
+        // Store pending status and time, open override modal
+        setPendingNewStatus(status);
+        setPendingTime(time);
+        setOverrideModalOpen(true);
+        setIsOpen(false);
+        return;
+      }
+
       // Story 3-10: Check if Absent and user is admin
       if (status === 'A' && isAdmin) {
         // Fetch parent call count for this placement
@@ -172,18 +208,39 @@ export function AttendanceCell({
       setIsOpen(false);
       saveAttendance(status, { time });
     },
-    [placementId, statusTypes, isAdmin, saveAttendance]
+    [placementId, statusTypes, isAdmin, currentStatus, enteredBy, currentUserId, saveAttendance]
   );
 
   const handleTimeModalSave = useCallback(
     (time: string) => {
       setTimeModalOpen(false);
-      if (pendingStatus) {
-        saveAttendance(pendingStatus, { time });
+
+      if (!pendingStatus) {
+        setPendingStatus(null);
+        return;
       }
+
+      // Story 3-12: Check if override is needed after time entry
+      const needsOverrideReason =
+        isAdmin &&
+        currentStatus !== null &&
+        enteredBy &&
+        currentUserId &&
+        enteredBy !== currentUserId;
+
+      if (needsOverrideReason) {
+        // Store pending status and time, open override modal
+        setPendingNewStatus(pendingStatus);
+        setPendingTime(time);
+        setOverrideModalOpen(true);
+        setPendingStatus(null);
+        return;
+      }
+
+      saveAttendance(pendingStatus, { time });
       setPendingStatus(null);
     },
-    [pendingStatus, saveAttendance]
+    [pendingStatus, isAdmin, currentStatus, enteredBy, currentUserId, saveAttendance]
   );
 
   const handleTimeModalCancel = useCallback(() => {
@@ -201,6 +258,25 @@ export function AttendanceCell({
 
   const handleExcuseModalClose = useCallback(() => {
     setExcuseModalOpen(false);
+  }, []);
+
+  // Story 3-12: Override modal handlers
+  const handleOverrideModalSave = useCallback(
+    (overrideData: OverrideData) => {
+      setOverrideModalOpen(false);
+      if (pendingNewStatus) {
+        saveAttendance(pendingNewStatus, { time: pendingTime, overrideData });
+      }
+      setPendingNewStatus(null);
+      setPendingTime(undefined);
+    },
+    [pendingNewStatus, pendingTime, saveAttendance]
+  );
+
+  const handleOverrideModalClose = useCallback(() => {
+    setOverrideModalOpen(false);
+    setPendingNewStatus(null);
+    setPendingTime(undefined);
   }, []);
 
   // Handle clicking on existing Absent badge (admin can edit excuse)
@@ -309,6 +385,14 @@ export function AttendanceCell({
             : undefined
         }
         parentCallCount={parentCallCount}
+        isLoading={isPending}
+      />
+
+      {/* Story 3-12: Override Reason Modal */}
+      <OverrideReasonModal
+        isOpen={overrideModalOpen}
+        onClose={handleOverrideModalClose}
+        onConfirm={handleOverrideModalSave}
         isLoading={isPending}
       />
     </>

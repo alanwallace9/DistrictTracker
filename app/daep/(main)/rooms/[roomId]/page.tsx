@@ -115,6 +115,7 @@ export default async function RoomRosterPage({ params, searchParams }: PageProps
         attendanceStatusTypes={attendanceStatusTypes}
         initialAttendanceRates={attendanceRates}
         isAdmin={userRole.isAdmin}
+        currentUserId={userRole.userId}
       />
     </Suspense>
   );

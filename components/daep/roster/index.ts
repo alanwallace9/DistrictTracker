@@ -47,5 +47,9 @@ export type { AttendanceSummaryBannerProps } from './AttendanceSummaryBanner';
 export { ExcuseModal } from './ExcuseModal';
 export type { ExcuseData } from './ExcuseModal';
 
+// Story 3-12: Override Reason Modal Component
+export { OverrideReasonModal } from './OverrideReasonModal';
+export type { OverrideData } from './OverrideReasonModal';
+
 // Story 3-11: Attendance Rate Components
 export { AttendanceRateBadge } from './AttendanceRateBadge';
