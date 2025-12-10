@@ -60,3 +60,9 @@ export { InlineStudentPanel, ChevronButton, ExpandedStudentRow } from './InlineS
 export type { InlineStudentPanelProps } from './InlineStudentPanel';
 export { CompactActivityItem, CompactActivityEmpty } from './CompactActivityItem';
 export type { CompactActivityItemProps } from './CompactActivityItem';
+
+// Story 4-2: Predefined Behavior Categories
+export { CategorySelect } from './CategorySelect';
+export { CategoryBadge } from './CategoryBadge';
+export type { CategoryType } from './CategoryBadge';
+export { PointsSelect } from './PointsSelect';

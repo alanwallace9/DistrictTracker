@@ -14,8 +14,9 @@
  */
 
 import { Pencil, Circle, FileText } from 'lucide-react';
-import { cn, formatRelativeTime } from '@/lib/utils';
+import { cn, formatActivityTimestamp } from '@/lib/utils';
 import type { RecentActivityItem } from '@/lib/validation/schemas';
+import { CategoryBadge } from './CategoryBadge';
 
 // ========== HELPER: Point Badge Styling ==========
 
@@ -78,13 +79,22 @@ export function CompactActivityItem({ item, className }: CompactActivityItemProp
           </span>
         )}
 
+        {/* Category badge - Story 4-2: Color-coded by type */}
+        {item.student_action && (
+          <CategoryBadge
+            category={item.student_action}
+            type={item.category_type}
+            className="flex-shrink-0"
+          />
+        )}
+
         {/* Summary text */}
         <span className="text-foreground truncate">{item.summary}</span>
       </div>
 
-      {/* Right side: Timestamp */}
+      {/* Right side: Timestamp with date and staff name */}
       <span className="text-muted-foreground whitespace-nowrap flex-shrink-0">
-        {formatRelativeTime(item.timestamp)}
+        {formatActivityTimestamp(item.timestamp, item.staff_name)}
       </span>
     </div>
   );

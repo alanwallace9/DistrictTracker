@@ -362,6 +362,25 @@ export async function getRecentActivityForPlacement(
     users?.forEach((u) => userNameMap.set(u.id, u.display_name || 'Staff'));
   }
 
+  // Story 4-2: Fetch category types for student_action values
+  const studentActionNames = new Set<string>();
+  (pointsResult.data || []).forEach((p) => {
+    if (p.student_action) studentActionNames.add(p.student_action);
+  });
+
+  const categoryTypeMap = new Map<string, 'positive' | 'negative' | 'neutral' | 'bonus'>();
+  if (studentActionNames.size > 0) {
+    const { data: categories } = await supabase
+      .from('daep_behavior_categories')
+      .select('name, category_type')
+      .eq('tenant_id', tenantId)
+      .in('name', Array.from(studentActionNames));
+
+    categories?.forEach((c) =>
+      categoryTypeMap.set(c.name, c.category_type as 'positive' | 'negative' | 'neutral' | 'bonus')
+    );
+  }
+
   // Convert to unified activity items
   const activities: RecentActivityItem[] = [];
 
@@ -380,6 +399,7 @@ export async function getRecentActivityForPlacement(
       period: p.period,
       student_action: p.student_action,
       teacher_action: p.teacher_action,
+      category_type: p.student_action ? categoryTypeMap.get(p.student_action) : undefined, // Story 4-2
       staff_name: userNameMap.get(p.entered_by) || 'Staff',
     });
   });

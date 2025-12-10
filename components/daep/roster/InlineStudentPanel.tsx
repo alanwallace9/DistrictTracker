@@ -15,35 +15,17 @@
 import { useState, useCallback, useEffect, useTransition } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { TableCell } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { CompactActivityItem, CompactActivityEmpty } from './CompactActivityItem';
+import { CategorySelect } from './CategorySelect';
+import { PointsSelect } from './PointsSelect';
 import { createBehaviorNote, getRecentActivityForPlacement } from '@/app/actions/daep/behavior-notes';
 import type { RecentActivityItem } from '@/lib/validation/schemas';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
 import Link from 'next/link';
-
-// ========== CONSTANTS ==========
-
-// Point adjustments (hardcoded for now, future: from settings)
-const POINT_ADJUSTMENTS = [
-  { value: 10, label: '+10' },
-  { value: 5, label: '+5' },
-  { value: 0, label: '0 (Note Only)' },
-  { value: -5, label: '-5' },
-  { value: -10, label: '-10' },
-  { value: -15, label: '-15' },
-];
 
 // ========== PROPS ==========
 
@@ -107,11 +89,7 @@ export function InlineStudentPanel({
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
 
-  // Filter categories by type
-  const studentActions = categories.filter(
-    (c) => c.category_type === 'positive' || c.category_type === 'negative'
-  );
-  const teacherActions = categories.filter((c) => c.category_type === 'neutral');
+  // Categories are filtered by CategorySelect component based on variant
 
   // Get today's date in YYYY-MM-DD format
   const today = currentDate || new Date().toISOString().split('T')[0];
@@ -186,60 +164,36 @@ export function InlineStudentPanel({
         <div className="space-y-3">
           <h4 className="text-sm font-medium text-muted-foreground">Add Entry</h4>
 
-          {/* Points selector */}
+          {/* Points + Actions row - all fields same width as Notes */}
           <div className="flex gap-2">
-            <Select
-              value={points.toString()}
-              onValueChange={(v) => setPoints(parseInt(v, 10))}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Points" />
-              </SelectTrigger>
-              <SelectContent>
-                {POINT_ADJUSTMENTS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value.toString()}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Points selector */}
+            <PointsSelect
+              value={points}
+              onValueChange={setPoints}
+              placeholder="Points"
+              className="flex-1"
+            />
 
-            {/* Student Action */}
-            <Select
-              value={studentAction || '__none__'}
-              onValueChange={(v) => setStudentAction(v === '__none__' ? '' : v)}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Student Action" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">-- None --</SelectItem>
-                {studentActions.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.name}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Student Action - Story 4-2: Grouped CategorySelect */}
+            <CategorySelect
+              categories={categories}
+              value={studentAction}
+              onValueChange={setStudentAction}
+              placeholder="Student Action"
+              variant="student"
+              className="flex-1"
+            />
+
+            {/* Teacher Action - Story 4-2: Grouped CategorySelect */}
+            <CategorySelect
+              categories={categories}
+              value={teacherAction}
+              onValueChange={setTeacherAction}
+              placeholder="Teacher Action"
+              variant="teacher"
+              className="flex-1"
+            />
           </div>
-
-          {/* Teacher Action */}
-          <Select
-            value={teacherAction || '__none__'}
-            onValueChange={(v) => setTeacherAction(v === '__none__' ? '' : v)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Teacher Action (optional)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">-- None --</SelectItem>
-              {teacherActions.map((cat) => (
-                <SelectItem key={cat.id} value={cat.name}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
           {/* Notes */}
           <Textarea

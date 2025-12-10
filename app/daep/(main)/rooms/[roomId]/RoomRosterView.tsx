@@ -385,7 +385,7 @@ function RosterContent({ currentUserId }: { currentUserId: string }) {
           const studentName = `${student.first_name} ${student.last_name}`;
 
           return (
-            <TableCell className="px-2">
+            <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
               <AttendanceCell
                 placementId={student.placement_id}
                 studentName={studentName}
@@ -429,7 +429,7 @@ function RosterContent({ currentUserId }: { currentUserId: string }) {
         }}
         extraColumns={[
           { id: 'today_total', header: "Today's Total", width: '100px' },
-          { id: 'adjust', header: 'Adjust', width: '80px' },
+          { id: 'comments', header: 'Comments', width: '80px' },
         ]}
         renderExtraCells={(context: StudentRowContext) => {
           const { student } = context;

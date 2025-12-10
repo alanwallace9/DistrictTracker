@@ -13,6 +13,7 @@
  */
 
 import { type ReactNode, useState, Fragment } from 'react';
+import { useRouter } from 'next/navigation';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DaysRemainingBadge } from './DaysRemainingBadge';
@@ -86,6 +87,7 @@ export function RosterStudentRow({
   currentDate,
   colSpan = 7,
 }: RosterStudentRowProps) {
+  const router = useRouter();
   const { selectedPlacements } = useRoomRoster();
   const context: StudentRowContext = { student, isSelected };
 
@@ -96,43 +98,38 @@ export function RosterStudentRow({
   // Story 4-1: Expandable panel state
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Navigate to student profile on row click
+  const handleRowClick = () => {
+    router.push(`/daep/students/${student.school_id}`);
+  };
+
   return (
     <Fragment>
       <TableRow
         className={cn(
+          'cursor-pointer hover:bg-[rgb(var(--daep-primary))]/20 transition-colors',
           isSelected && 'bg-muted/50',
           // Story 3-3: Highlight selected rows for bulk action
-          isChecked && 'bg-primary/5 hover:bg-primary/10',
-          // Story 4-1: Highlight expanded row
-          isExpanded && 'bg-muted/30'
+          isChecked && 'bg-primary/5 hover:bg-primary/15',
+          // Story 4-1: Highlight expanded row - same as hover color
+          isExpanded && 'bg-[rgb(var(--daep-primary))]/20'
         )}
-        onClick={() => onSelect?.(student.placement_id)}
-        role={onSelect ? 'button' : undefined}
-        tabIndex={onSelect ? 0 : undefined}
+        onClick={handleRowClick}
       >
         {/* Story 3-3: Selection Checkbox */}
         <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
           <RowSelectionCheckbox placementId={student.placement_id} studentName={studentName} />
         </TableCell>
 
-        {/* Student Name with optional expand button */}
+        {/* Student Name */}
         <TableCell className="font-medium">
-          <div className="flex items-center gap-2">
-            {/* Story 4-1: Expand/collapse button */}
-            {showExpandButton && (
-              <ChevronButton
-                isExpanded={isExpanded}
-                onToggle={() => setIsExpanded((prev) => !prev)}
-              />
-            )}
-            <div className="flex flex-col">
-              <span>
-                {student.last_name}, {student.first_name}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                ID: {student.school_id}
-              </span>
-            </div>
+          <div className="flex flex-col">
+            <span>
+              {student.last_name}, {student.first_name}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              ID: {student.school_id}
+            </span>
           </div>
         </TableCell>
 
@@ -159,6 +156,16 @@ export function RosterStudentRow({
 
         {/* Extensible cells via render props */}
         {renderExtraCells?.(context)}
+
+        {/* Story 4-1: Expand/collapse button - far right */}
+        {showExpandButton && (
+          <TableCell className="px-2 w-16 text-center" onClick={(e) => e.stopPropagation()}>
+            <ChevronButton
+              isExpanded={isExpanded}
+              onToggle={() => setIsExpanded((prev) => !prev)}
+            />
+          </TableCell>
+        )}
       </TableRow>
 
       {/* Story 4-1: Expanded inline panel */}

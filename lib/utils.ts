@@ -55,3 +55,30 @@ export function formatRelativeTime(timestamp: string): string {
   // Older: short date
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+/**
+ * Format timestamp with date and staff name for activity display
+ * Story 4-2: Enhanced activity display
+ *
+ * Format: "(Dec 10, 25 @ 1:35pm Wallace)"
+ */
+export function formatActivityTimestamp(timestamp: string, staffName: string): string {
+  const date = new Date(timestamp);
+
+  // Format date as "Dec 10, 25"
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  const day = date.getDate();
+  const year = date.getFullYear().toString().slice(-2);
+
+  // Format time as "1:35pm"
+  const time = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).toLowerCase().replace(' ', '');
+
+  // Get last name from staff name (assumes "First Last" format)
+  const lastName = staffName.split(' ').pop() || staffName;
+
+  return `(${month} ${day}, ${year} @ ${time} ${lastName})`;
+}

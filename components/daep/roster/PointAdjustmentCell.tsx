@@ -76,7 +76,7 @@ export function PointAdjustmentCell({
   };
 
   return (
-    <TableCell className={cn('text-center', className)}>
+    <TableCell className={cn('text-center', className)} onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-center gap-1">
         <TooltipProvider>
           <Tooltip>

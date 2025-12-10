@@ -863,6 +863,7 @@ export interface RecentActivityItem {
   period?: string;
   student_action?: string | null;
   teacher_action?: string | null;
+  category_type?: 'positive' | 'negative' | 'neutral' | 'bonus'; // Story 4-2
   staff_name: string;
 }
 

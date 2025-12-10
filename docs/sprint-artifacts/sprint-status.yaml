@@ -118,9 +118,9 @@ development_status:
   # Epic 4: Behavior Documentation (5 stories, 13 pts)
   # FRs: FR45-FR51
   # ============================================
-  epic-4: backlog
-  4-1-quick-behavior-note-modal: backlog
-  4-2-predefined-behavior-categories: backlog
+  epic-4: in-progress
+  4-1-quick-behavior-note-modal: done  # Story: docs/sprint-artifacts/daep/story-4-1.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-4-1.md
+  4-2-predefined-behavior-categories: done  # Implemented as part of 4-1: CategorySelect, CategoryBadge components
   4-3-behavior-notes-list-view: backlog
   4-4-attach-notes-to-incidents: backlog
   4-5-student-profile-timeline: backlog

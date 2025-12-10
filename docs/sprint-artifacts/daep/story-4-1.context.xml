@@ -1,0 +1,669 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story 4-1: Quick Behavior Note Entry
+  Context file for implementation
+
+  This file contains pre-assembled code snippets and patterns
+  needed to implement the inline expandable panel for behavior notes.
+-->
+<context>
+  <story>
+    <id>4-1</id>
+    <title>Quick Behavior Note Entry</title>
+    <epic>4 - Behavior Documentation</epic>
+    <points>3</points>
+    <frs>FR45, FR46, FR48</frs>
+  </story>
+
+  <!-- ============================================================ -->
+  <!-- FILES TO MODIFY -->
+  <!-- ============================================================ -->
+
+  <file path="components/daep/roster/RoomRosterTable.tsx" action="modify">
+    <description>Add "Adjust" column with chevron for expanding inline panel</description>
+    <current-structure>
+      <!-- Current column order: Checkbox, Student, Grade, Status, Attendance?, Rate?, Days Left, Extra -->
+      <!-- Need to add: Adjust column at the end with chevron button -->
+      <!-- Need to track: expanded state per student (Map&lt;placementId, boolean&gt;) -->
+    </current-structure>
+    <integration-points>
+      <point>Add extraColumns prop for Adjust column header</point>
+      <point>Add renderExtraCells to render InlineStudentPanel chevron</point>
+      <point>Track expanded state: useState&lt;Set&lt;string&gt;&gt;(new Set())</point>
+      <point>Fetch behavior categories once, pass to all InlineStudentPanels</point>
+    </integration-points>
+  </file>
+
+  <file path="components/daep/roster/RosterStudentRow.tsx" action="modify">
+    <description>Render InlineStudentPanel when expanded</description>
+    <current-render-props>
+      <![CDATA[
+export interface RosterStudentRowProps {
+  student: RosterStudent;
+  isSelected?: boolean;
+  onSelect?: (placementId: string) => void;
+  renderAttendanceCell?: (context: StudentRowContext) => ReactNode;
+  renderRateCell?: (context: StudentRowContext) => ReactNode;
+  renderExtraCells?: (context: StudentRowContext) => ReactNode;
+}
+      ]]>
+    </current-render-props>
+  </file>
+
+  <file path="components/daep/roster/BulkActionsToolbar.tsx" action="modify">
+    <description>Add quick point buttons: [-15] [-10] [-5] [0] [+5]</description>
+    <current-adjustment-options>
+      <![CDATA[
+const ADJUSTMENT_OPTIONS: AdjustmentOption[] = [
+  { value: 10, label: '+10 Exceptional', description: 'Outstanding behavior', icon: 'plus' },
+  { value: 5, label: '+5 Bonus', description: 'Good behavior', icon: 'plus' },
+  { value: -5, label: '-5 Deduction', description: 'Off task', icon: 'minus' },
+  { value: -10, label: '-10 Major', description: 'Disruptive', icon: 'minus' },
+  { value: -15, label: '-15 Critical', description: 'Major incident', icon: 'minus' },
+];
+      ]]>
+    </current-adjustment-options>
+    <add-quick-buttons>
+      <![CDATA[
+// Quick point buttons for bulk toolbar (Story 4-1)
+const QUICK_POINT_VALUES = [-15, -10, -5, 0, 5];
+
+// Add between selection count and "Bulk Actions" dropdown:
+<div className="flex items-center gap-1">
+  {QUICK_POINT_VALUES.map((value) => (
+    <Button
+      key={value}
+      size="sm"
+      variant="outline"
+      className={cn(
+        'h-7 px-2 text-xs font-medium',
+        value > 0 && 'text-green-600 hover:text-green-700',
+        value < 0 && 'text-red-600 hover:text-red-700'
+      )}
+      onClick={() => onQuickPoints(value)}
+    >
+      {value > 0 ? `+${value}` : value}
+    </Button>
+  ))}
+</div>
+      ]]>
+    </add-quick-buttons>
+  </file>
+
+  <file path="components/daep/StudentPointsLog.tsx" action="modify">
+    <description>Update to use compact single-line format (optional - can defer)</description>
+    <note>Replace card layout with CompactActivityItem for visual consistency</note>
+  </file>
+
+  <file path="lib/validation/schemas.ts" action="modify">
+    <description>Add BehaviorNoteSchema and RecentActivityItem types</description>
+    <add-schemas>
+      <![CDATA[
+// ============================================================================
+// BEHAVIOR NOTES SCHEMAS (Story 4-1)
+// ============================================================================
+
+export const BehaviorNoteSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  incident_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  incident_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid time format'),
+  category_id: z.string().uuid('Invalid category').nullable().optional(),
+  description: z.string().max(2000, 'Description too long').nullable().optional(),
+  action_taken: z.string().max(500, 'Action taken too long').nullable().optional(),
+  // Point adjustment fields
+  points: z.number().int().min(-15).max(10).optional(),
+  student_action: z.string().nullable().optional(),
+  teacher_action: z.string().nullable().optional(),
+});
+
+export type CreateBehaviorNoteInput = z.infer<typeof BehaviorNoteSchema>;
+
+// For compact Recent Activity display
+export interface RecentActivityItem {
+  id: string;
+  type: 'point_entry' | 'behavior_note' | 'attendance';
+  timestamp: string;
+  summary: string;
+  points?: number;
+  student_action?: string;
+  teacher_action?: string;
+  staff_name: string;
+}
+      ]]>
+    </add-schemas>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- NEW FILES TO CREATE -->
+  <!-- ============================================================ -->
+
+  <file path="components/daep/roster/InlineStudentPanel.tsx" action="create">
+    <description>Expandable inline panel with entry form and recent activity</description>
+    <structure>
+      <![CDATA[
+'use client';
+
+import { useState, useCallback } from 'react';
+import { ChevronDown, ChevronUp, Pencil, Circle, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { formatRelativeTime } from '@/lib/utils/date';
+import type { RecentActivityItem } from '@/lib/validation/schemas';
+import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
+
+interface InlineStudentPanelProps {
+  isExpanded: boolean;
+  onToggle: () => void;
+  placementId: string;
+  studentName: string;
+  schoolId: string;
+  recentActivity: RecentActivityItem[];
+  categories: BehaviorCategory[];
+  onSaveEntry: (data: EntryData) => Promise<void>;
+}
+
+interface EntryData {
+  points: number;
+  student_action: string | null;
+  teacher_action: string | null;
+  notes: string;
+}
+
+// Point adjustments (hardcoded for now, future: from settings)
+const POINT_ADJUSTMENTS = [
+  { value: 10, label: '+10' },
+  { value: 5, label: '+5' },
+  { value: 0, label: '0 (Note Only)' },
+  { value: -5, label: '-5' },
+  { value: -10, label: '-10' },
+  { value: -15, label: '-15' },
+];
+
+export function InlineStudentPanel({
+  isExpanded,
+  onToggle,
+  placementId,
+  studentName,
+  schoolId,
+  recentActivity,
+  categories,
+  onSaveEntry,
+}: InlineStudentPanelProps) {
+  // Entry form state
+  const [points, setPoints] = useState(10);
+  const [studentAction, setStudentAction] = useState<string>('');
+  const [teacherAction, setTeacherAction] = useState<string>('');
+  const [notes, setNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await onSaveEntry({
+        points,
+        student_action: studentAction || null,
+        teacher_action: teacherAction || null,
+        notes,
+      });
+      // Reset form
+      setPoints(10);
+      setStudentAction('');
+      setTeacherAction('');
+      setNotes('');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [points, studentAction, teacherAction, notes, onSaveEntry]);
+
+  // Filter categories by type
+  const studentActions = categories.filter(
+    c => c.category_type === 'positive' || c.category_type === 'negative'
+  );
+  const teacherActions = categories.filter(c => c.category_type === 'neutral');
+
+  return (
+    // ... Implementation follows tech spec
+  );
+}
+      ]]>
+    </structure>
+  </file>
+
+  <file path="components/daep/roster/CompactActivityItem.tsx" action="create">
+    <description>Reusable single-line activity display component</description>
+    <structure>
+      <![CDATA[
+'use client';
+
+import { Pencil, Circle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatRelativeTime } from '@/lib/utils/date';
+import type { RecentActivityItem } from '@/lib/validation/schemas';
+
+const getPointBadgeClass = (points: number) => {
+  if (points > 0) return 'bg-green-100 text-green-700';
+  if (points < 0) return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-600';
+};
+
+export function CompactActivityItem({ item }: { item: RecentActivityItem }) {
+  const Icon = item.type === 'attendance' ? Circle : Pencil;
+
+  return (
+    <div className="flex items-center justify-between text-xs py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+
+        {item.points !== undefined && (
+          <span className={cn(
+            'px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0',
+            getPointBadgeClass(item.points)
+          )}>
+            {item.points > 0 ? `+${item.points}` : item.points}
+          </span>
+        )}
+
+        <span className="text-foreground truncate">
+          {item.summary}
+        </span>
+      </div>
+
+      <span className="text-muted-foreground whitespace-nowrap ml-2 flex-shrink-0">
+        {formatRelativeTime(item.timestamp)}
+      </span>
+    </div>
+  );
+}
+      ]]>
+    </structure>
+  </file>
+
+  <file path="app/actions/daep/behavior-notes.ts" action="create">
+    <description>Server actions for behavior notes and recent activity</description>
+    <structure>
+      <![CDATA[
+'use server';
+
+import { createServerClient } from '@/lib/supabase/server';
+import { currentUser } from '@clerk/nextjs/server';
+import { revalidatePath } from 'next/cache';
+import {
+  BehaviorNoteSchema,
+  type CreateBehaviorNoteInput,
+  type RecentActivityItem,
+} from '@/lib/validation/schemas';
+
+// Standard helpers (copy from points.ts pattern)
+async function getTenantId(): Promise<string> { /* ... */ }
+async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> { /* ... */ }
+async function logDAEPAuditEvent(...) { /* ... */ }
+
+// ========== CREATE BEHAVIOR NOTE ==========
+export async function createBehaviorNote(
+  input: CreateBehaviorNoteInput
+): Promise<{ success: boolean; note?: any; error?: string }> {
+  // Validate, create note, create point entry if points provided, log audit
+}
+
+// ========== GET RECENT ACTIVITY FOR PLACEMENT ==========
+export async function getRecentActivityForPlacement(
+  placementId: string,
+  limit: number = 5
+): Promise<RecentActivityItem[]> {
+  // Fetch points, notes, attendance in parallel
+  // Combine, sort by timestamp, return top N
+}
+
+// ========== BULK ADD BEHAVIOR POINTS ==========
+export interface BulkAddBehaviorPointsInput {
+  placement_ids: string[];
+  date: string;
+  period: string;
+  points: number;
+  student_action?: string;
+  teacher_action?: string;
+  notes?: string;
+}
+
+export async function bulkAddBehaviorPoints(
+  input: BulkAddBehaviorPointsInput
+): Promise<{ success: boolean; count: number; error?: string }> {
+  // Upsert to daep_daily_points for all placements
+}
+      ]]>
+    </structure>
+  </file>
+
+  <file path="lib/utils/date.ts" action="create-or-modify">
+    <description>Add formatRelativeTime utility</description>
+    <add-function>
+      <![CDATA[
+/**
+ * Format timestamp as relative time for compact display
+ * - Today: show time (10:32 AM)
+ * - Yesterday: "Yesterday"
+ * - Within 7 days: day name (Monday)
+ * - Older: short date (Dec 5)
+ */
+export function formatRelativeTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Today: show time
+  if (diffDays === 0 && date.getDate() === now.getDate()) {
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  // Yesterday
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear()) {
+    return 'Yesterday';
+  }
+
+  // Within 7 days: day name
+  if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'long' });
+  }
+
+  // Older: short date
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+      ]]>
+    </add-function>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- DATABASE MIGRATION -->
+  <!-- ============================================================ -->
+
+  <file path="supabase/migrations/[timestamp]_behavior_notes_enhancements.sql" action="create">
+    <description>Add incident_date/time columns, category_id FK, indexes, RLS</description>
+    <migration>
+      <![CDATA[
+-- Story 4-1: Quick Behavior Note Entry
+-- Add incident timestamp fields (user-editable, separate from audit timestamps)
+
+-- Add columns to daep_behavior_notes
+ALTER TABLE daep_behavior_notes
+ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES daep_behavior_categories(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS incident_date DATE,
+ADD COLUMN IF NOT EXISTS incident_time TIME;
+
+-- Backfill: set incident_date/time from existing date/time columns
+UPDATE daep_behavior_notes
+SET incident_date = date, incident_time = time
+WHERE incident_date IS NULL;
+
+-- Add indexes for efficient queries
+CREATE INDEX IF NOT EXISTS idx_daep_behavior_notes_placement_date
+ON daep_behavior_notes(placement_id, date DESC, time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_daep_behavior_notes_category
+ON daep_behavior_notes(category_id);
+
+-- RLS policies (if not already exist)
+DO $$
+BEGIN
+  -- Read policy
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'daep_behavior_notes' AND policyname = 'behavior_notes_tenant_read'
+  ) THEN
+    CREATE POLICY behavior_notes_tenant_read ON daep_behavior_notes
+      FOR SELECT USING (tenant_id = get_my_tenant_id());
+  END IF;
+
+  -- Insert policy
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'daep_behavior_notes' AND policyname = 'behavior_notes_tenant_insert'
+  ) THEN
+    CREATE POLICY behavior_notes_tenant_insert ON daep_behavior_notes
+      FOR INSERT WITH CHECK (tenant_id = get_my_tenant_id());
+  END IF;
+
+  -- Update policy (original staff or admin)
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'daep_behavior_notes' AND policyname = 'behavior_notes_update'
+  ) THEN
+    CREATE POLICY behavior_notes_update ON daep_behavior_notes
+      FOR UPDATE USING (
+        tenant_id = get_my_tenant_id()
+        AND (
+          staff_member = auth.uid()::text
+          OR get_my_role() IN ('super_admin', 'district_admin', 'daep_admin_l1')
+        )
+      );
+  END IF;
+END $$;
+      ]]>
+    </migration>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- EXISTING PATTERNS TO FOLLOW -->
+  <!-- ============================================================ -->
+
+  <patterns>
+    <pattern name="server-action-helpers">
+      <description>Standard helper functions from points.ts</description>
+      <code>
+        <![CDATA[
+// getTenantId() - Get effective tenant from profile
+async function getTenantId(): Promise<string> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) throw new Error('User profile not found');
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) throw new Error('No tenant assigned');
+  return effectiveTenantId;
+}
+
+// checkDAEPStaffRole() - Verify DAEP staff permissions
+interface DAEPStaffInfo {
+  userId: string;
+  role: string;
+  tenantId: string;
+  displayName: string;
+  isApprovedTeacher: boolean;
+}
+
+async function checkDAEPStaffRole(): Promise<DAEPStaffInfo> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('role, tenant_id, active_tenant_id, display_name, approved_teacher')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) throw new Error('User profile not found');
+
+  const daepRoles = ['super_admin', 'district_admin', 'daep_admin_l1', 'daep_admin_l2', 'daep_staff'];
+  if (!daepRoles.includes(profile.role)) {
+    throw new Error('Insufficient permissions');
+  }
+
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) throw new Error('No tenant assigned');
+
+  const adminRoles = ['super_admin', 'district_admin', 'daep_admin_l1'];
+  const isApprovedTeacher = adminRoles.includes(profile.role) || profile.approved_teacher === true;
+
+  return {
+    userId: user.id,
+    role: profile.role,
+    tenantId: effectiveTenantId,
+    displayName: profile.display_name || user.firstName || 'Staff',
+    isApprovedTeacher,
+  };
+}
+        ]]>
+      </code>
+    </pattern>
+
+    <pattern name="behavior-categories">
+      <description>How to fetch and use behavior categories</description>
+      <code>
+        <![CDATA[
+// From behavior-categories.ts
+import { getActiveBehaviorCategories, type BehaviorCategory } from '@/app/actions/daep/behavior-categories';
+
+// In component:
+const categories = await getActiveBehaviorCategories();
+
+// Student Actions = positive + negative categories
+const studentActions = categories.filter(
+  c => c.category_type === 'positive' || c.category_type === 'negative'
+);
+
+// Teacher Actions = neutral categories
+const teacherActions = categories.filter(c => c.category_type === 'neutral');
+
+// Default categories (from Story 1.10):
+// Positive: On Task, Helped Peer, Showed Respect, Completed Work
+// Negative: Talk Back, Off Task, Disruptive, Incomplete Work
+// Neutral: Redirected, Conference, Parent Contact
+        ]]>
+      </code>
+    </pattern>
+
+    <pattern name="point-adjustment-styles">
+      <description>Color coding for point badges</description>
+      <code>
+        <![CDATA[
+// Point badge colors
+const getPointBadgeClass = (points: number) => {
+  if (points > 0) return 'bg-green-100 text-green-700';
+  if (points < 0) return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-600';
+};
+
+// Card styles (from StudentPointsLog)
+function getAdjustmentStyles(value: number): { badge: string; card: string } {
+  if (value > 0)
+    return {
+      badge: 'bg-emerald-500 text-white',
+      card: 'border-emerald-200 bg-emerald-50',
+    };
+  if (value < 0)
+    return {
+      badge: 'bg-red-500 text-white',
+      card: 'border-red-200 bg-red-50',
+    };
+  return {
+    badge: 'bg-gray-500 text-white',
+    card: 'border-gray-200 bg-gray-50',
+  };
+}
+        ]]>
+      </code>
+    </pattern>
+
+    <pattern name="bulk-points">
+      <description>Existing bulk points pattern from points.ts</description>
+      <code>
+        <![CDATA[
+// From bulkAddPoints() in points.ts
+export async function bulkAddPoints(input: BulkAddPointsInput): Promise<...> {
+  const { userId, tenantId, displayName, isApprovedTeacher } = await checkDAEPStaffRole();
+  const supabase = await createServerClient();
+
+  const { placementIds, date, period, adjustment, notes } = input;
+
+  // Verify placements exist
+  const { data: validPlacements } = await supabase
+    .from('daep_placements')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('id', placementIds);
+
+  // Determine approval status
+  const approvalStatus = isApprovedTeacher ? 'approved' : 'pending';
+  const isPublic = isApprovedTeacher;
+
+  // Build insert records
+  const entries = validPlacementIds.map((placementId) => ({
+    tenant_id: tenantId,
+    placement_id: placementId,
+    date,
+    period,
+    points_earned: adjustment,
+    is_base_points: false,
+    notes: notes || `Bulk: ${adjustment > 0 ? '+' : ''}${adjustment} points`,
+    entered_by: userId,
+    approval_status: approvalStatus,
+    public: isPublic,
+  }));
+
+  const { error } = await supabase.from('daep_daily_points').insert(entries);
+  // ...
+}
+        ]]>
+      </code>
+    </pattern>
+  </patterns>
+
+  <!-- ============================================================ -->
+  <!-- ACCEPTANCE CRITERIA CHECKLIST -->
+  <!-- ============================================================ -->
+
+  <acceptance-criteria>
+    <ac id="4.1.1">Click ▼ chevron expands inline panel</ac>
+    <ac id="4.1.2">Click ▲ chevron collapses panel</ac>
+    <ac id="4.1.3">Click student name navigates to profile</ac>
+    <ac id="4.1.4">Entry form shows Points, Student Action, Teacher Action, Notes</ac>
+    <ac id="4.1.5">Save creates point entry with actions</ac>
+    <ac id="4.1.6">Recent Activity shows last 5 items</ac>
+    <ac id="4.1.7">Recent Activity uses compact single-line style</ac>
+    <ac id="4.1.8">"View All" links to student profile Activity tab</ac>
+    <ac id="4.1.9">Bulk selection shows quick point buttons in toolbar</ac>
+    <ac id="4.1.10">Quick point button applies points to all selected</ac>
+    <ac id="4.1.11">Incident date/time auto-populated and editable</ac>
+    <ac id="4.1.12">Audit trail records created_at separately from incident_date</ac>
+  </acceptance-criteria>
+
+  <!-- ============================================================ -->
+  <!-- QUICK REFERENCE -->
+  <!-- ============================================================ -->
+
+  <quick-reference>
+    <item name="Quick Point Values">[-15, -10, -5, 0, +5]</item>
+    <item name="Point Adjustments Dropdown">[+10, +5, 0 (Note Only), -5, -10, -15]</item>
+    <item name="Student Actions">Behavior categories where type = positive OR negative</item>
+    <item name="Teacher Actions">Behavior categories where type = neutral</item>
+    <item name="Recent Activity Limit">5 items</item>
+    <item name="Timestamp Fields">
+      - incident_date/incident_time: User-editable (when behavior happened)
+      - created_at/updated_at: Auto (audit trail)
+    </item>
+  </quick-reference>
+</context>

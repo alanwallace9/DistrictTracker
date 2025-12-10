@@ -241,7 +241,7 @@ export function RoomRosterTable({
             <TableHead className="w-[40px] px-2">
               <SelectAllCheckbox />
             </TableHead>
-            <TableHead className="w-[250px]">
+            <TableHead className="w-[180px]">
               <SortButton
                 label="Student"
                 field="name"
@@ -295,6 +295,10 @@ export function RoomRosterTable({
                 {col.header}
               </TableHead>
             ))}
+            {/* Story 4-1: Expand button column header */}
+            {showExpandButton && (
+              <TableHead className="w-16 text-center">Expand</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -320,7 +324,8 @@ export function RoomRosterTable({
                 (showAttendanceColumn ? 1 : 0) +
                 (showRateColumn ? 1 : 0) +
                 1 + // Days Left
-                extraColumns.length
+                extraColumns.length +
+                (showExpandButton ? 1 : 0) // Expand button column
               }
             />
           ))}

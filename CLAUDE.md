@@ -393,7 +393,15 @@ When user accepts the commit prompt, follow this workflow:
    - Patch (`0.x.Y`) for stories/fixes
    - Minor (`0.X.0`) for epic completion
 
-3. **Stage and Commit** - Use the drafted message:
+3. **Update Epic Changelog** - Add entry to `docs/sprint-artifacts/daep/epic-{N}-changelog.md`:
+   - Add version section with Title, Description, Key Features, FRs
+   - Update Summary Table
+   - Update Remaining Stories section
+   - Update story count in header
+
+4. **Update sprint-status.yaml** - Mark story as `done`
+
+5. **Stage and Commit** - Use the drafted message:
    ```bash
    git add -A
    git commit -m "$(cat <<'EOF'
@@ -402,12 +410,12 @@ When user accepts the commit prompt, follow this workflow:
    )"
    ```
 
-4. **Push to staging** - Always push to staging branch:
+6. **Push to staging** - Always push to staging branch:
    ```bash
    git push origin staging
    ```
 
-5. **Remind about Changelog** - Tell user to create feedback entry at `/admin/feedback`
+7. **Remind about Changelog** - Tell user they can batch-add feedback entries when Epic is complete
 
 ### Versioning (Semantic Versioning)
 
