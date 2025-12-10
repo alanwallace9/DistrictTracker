@@ -50,6 +50,7 @@ import {
 } from '@/app/actions/daep/roster';
 import { getDailyPointsSummary, bulkAddPoints } from '@/app/actions/daep/points';
 import { getRoomAttendance, type AttendanceStatusType } from '@/app/actions/daep/attendance';
+import { bulkAddBehaviorPoints } from '@/app/actions/daep/behavior-notes';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
 import type { DailyPointsSummary, AttendanceEntry, AttendanceRateResult } from '@/lib/validation/schemas';
 import { AttendanceRateBadge } from '@/components/daep/roster/AttendanceRateBadge';
@@ -187,6 +188,47 @@ function RosterContent({ currentUserId }: { currentUserId: string }) {
     [selectedPlacements, date, currentPeriodName, toast, refreshDailyPoints]
   );
 
+  // Story 4-1: Handle quick point buttons
+  const handleQuickPoints = useCallback(
+    async (points: number) => {
+      if (selectedPlacements.size === 0) return;
+
+      const placementIds = Array.from(selectedPlacements);
+
+      const result = await bulkAddBehaviorPoints({
+        placement_ids: placementIds,
+        date,
+        period: currentPeriodName,
+        points,
+      });
+
+      if (result.success) {
+        if (result.isPending) {
+          toast({
+            title: 'Submitted for Approval',
+            description: `${points > 0 ? '+' : ''}${points} points submitted for ${result.count} student${result.count !== 1 ? 's' : ''}. An admin will review.`,
+          });
+        } else {
+          toast({
+            title: 'Points Applied',
+            description: `Added ${points > 0 ? '+' : ''}${points} points to ${result.count} student${result.count !== 1 ? 's' : ''}`,
+          });
+        }
+        // Clear selection after successful quick points
+        clearSelection();
+        // Refresh points data
+        await refreshDailyPoints();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to apply points',
+          variant: 'destructive',
+        });
+      }
+    },
+    [selectedPlacements, date, currentPeriodName, toast, clearSelection, refreshDailyPoints]
+  );
+
   // Handle room change - navigate to new room
   const handleRoomChange = useCallback((newRoomId: string) => {
     router.push(`/daep/rooms/${newRoomId}?date=${date}&period=${periodIndex}`);
@@ -312,16 +354,24 @@ function RosterContent({ currentUserId }: { currentUserId: string }) {
                 compact
               />
             )}
-            <BulkActionsToolbar onApplyAction={handleBulkAction} />
+            <BulkActionsToolbar
+              onApplyAction={handleBulkAction}
+              onQuickPoints={handleQuickPoints}
+            />
           </div>
           <PointsColorLegend />
         </div>
       )}
 
-      {/* Student Table with Story 3-2 and 3-9 columns */}
+      {/* Student Table with Story 3-2, 3-9, and 4-1 columns */}
       <RoomRosterTable
         students={students}
         isLoading={isLoading}
+        // Story 4-1: Expandable panel props
+        showExpandButton
+        behaviorCategories={behaviorCategories}
+        currentPeriod={currentPeriodName}
+        currentDate={date}
         showAttendanceColumn={attendanceStatusTypes.length > 0}
         attendanceColumnHeader={
           <div className="flex items-center gap-1">

@@ -5,6 +5,7 @@
  * Story 3-2: Point Entry Grid
  * Story 3-3: Bulk Point Entry
  * Story 3-9: Attendance Entry
+ * Story 4-1: Quick Behavior Note Entry
  *
  * Re-exports all roster-related components for easy imports.
  */
@@ -53,3 +54,9 @@ export type { OverrideData } from './OverrideReasonModal';
 
 // Story 3-11: Attendance Rate Components
 export { AttendanceRateBadge } from './AttendanceRateBadge';
+
+// Story 4-1: Quick Behavior Note Entry Components
+export { InlineStudentPanel, ChevronButton, ExpandedStudentRow } from './InlineStudentPanel';
+export type { InlineStudentPanelProps } from './InlineStudentPanel';
+export { CompactActivityItem, CompactActivityEmpty } from './CompactActivityItem';
+export type { CompactActivityItemProps } from './CompactActivityItem';

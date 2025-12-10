@@ -4,10 +4,12 @@
  * Bulk Actions Toolbar Component
  *
  * Story 3-3: Bulk Point Entry
+ * Story 4-1: Quick Point Buttons
  *
  * Toolbar that appears when students are selected, showing:
  * - Selection count
- * - Bulk actions dropdown (+10, +5, -5, -10, -15)
+ * - Quick point buttons: [-15] [-10] [-5] [0] [+5]
+ * - Bulk actions dropdown (detailed entry)
  * - Clear selection button
  */
 
@@ -19,11 +21,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { CheckSquare, ChevronDown, X, Plus, Minus } from 'lucide-react';
+import { CheckSquare, ChevronDown, X, Plus, Minus, MoreHorizontal } from 'lucide-react';
 import { useRoomRoster } from './RoomRosterContext';
 import { cn } from '@/lib/utils';
+import { QUICK_POINT_VALUES } from '@/lib/validation/schemas';
 
-// ========== ADJUSTMENT OPTIONS ==========
+// ========== ADJUSTMENT OPTIONS (for dropdown) ==========
 
 interface AdjustmentOption {
   value: number;
@@ -44,12 +47,13 @@ const ADJUSTMENT_OPTIONS: AdjustmentOption[] = [
 
 interface BulkActionsToolbarProps {
   onApplyAction: (adjustment: number) => void;
+  onQuickPoints?: (points: number) => void;
   className?: string;
 }
 
 // ========== COMPONENT ==========
 
-export function BulkActionsToolbar({ onApplyAction, className }: BulkActionsToolbarProps) {
+export function BulkActionsToolbar({ onApplyAction, onQuickPoints, className }: BulkActionsToolbarProps) {
   const { selectedPlacements, clearSelection, students } = useRoomRoster();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -75,6 +79,32 @@ export function BulkActionsToolbar({ onApplyAction, className }: BulkActionsTool
         <CheckSquare className="h-4 w-4 text-primary" />
         <span>{selectedCount} selected</span>
       </div>
+
+      {/* Quick point buttons - Story 4-1 */}
+      <div className="flex items-center gap-1">
+        {QUICK_POINT_VALUES.map((value) => (
+          <Button
+            key={value}
+            size="sm"
+            variant="outline"
+            className={cn(
+              'h-7 px-2 text-xs font-medium min-w-[40px]',
+              value > 0
+                ? 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300'
+                : value < 0
+                  ? 'text-red-700 hover:bg-red-50 hover:text-red-800 hover:border-red-300'
+                  : 'text-gray-600 hover:bg-gray-50'
+            )}
+            onClick={() => onQuickPoints?.(value)}
+            title={`Apply ${value > 0 ? '+' : ''}${value} points to ${selectedCount} student${selectedCount !== 1 ? 's' : ''}`}
+          >
+            {value > 0 ? `+${value}` : value}
+          </Button>
+        ))}
+      </div>
+
+      {/* Divider */}
+      <div className="h-4 w-px bg-border" />
 
       {/* Bulk actions dropdown */}
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>

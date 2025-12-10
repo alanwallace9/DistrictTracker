@@ -26,6 +26,7 @@ import { RosterStudentRow, type StudentRowContext } from './RosterStudentRow';
 import { SelectAllCheckbox, RowSelectionCheckbox } from './SelectionCheckbox';
 import { useRoomRoster } from './RoomRosterContext';
 import type { RosterStudent } from '@/app/actions/daep/roster';
+import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
 import { cn } from '@/lib/utils';
 
 // ========== TYPES ==========
@@ -58,6 +59,12 @@ export interface RoomRosterTableProps {
   // Extensibility props for future stories
   extraColumns?: ExtraColumn[];
   renderExtraCells?: (context: StudentRowContext) => ReactNode;
+
+  // Story 4-1: Expandable inline panel
+  showExpandButton?: boolean;
+  behaviorCategories?: BehaviorCategory[];
+  currentPeriod?: string;
+  currentDate?: string;
 }
 
 // ========== SORTING UTILITIES ==========
@@ -188,6 +195,10 @@ export function RoomRosterTable({
   renderRateCell,
   extraColumns = [],
   renderExtraCells,
+  showExpandButton = false,
+  behaviorCategories = [],
+  currentPeriod,
+  currentDate,
 }: RoomRosterTableProps) {
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('name');
@@ -296,6 +307,21 @@ export function RoomRosterTable({
               renderAttendanceCell={showAttendanceColumn ? renderAttendanceCell : undefined}
               renderRateCell={showRateColumn ? renderRateCell : undefined}
               renderExtraCells={renderExtraCells}
+              // Story 4-1: Expandable panel props
+              showExpandButton={showExpandButton}
+              behaviorCategories={behaviorCategories}
+              currentPeriod={currentPeriod}
+              currentDate={currentDate}
+              colSpan={
+                1 + // Selection checkbox
+                1 + // Name
+                1 + // Grade
+                1 + // Status
+                (showAttendanceColumn ? 1 : 0) +
+                (showRateColumn ? 1 : 0) +
+                1 + // Days Left
+                extraColumns.length
+              }
             />
           ))}
         </TableBody>

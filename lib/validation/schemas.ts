@@ -827,6 +827,58 @@ export interface StudentBelowThreshold {
 // HELPER FUNCTIONS
 // ============================================================================
 
+// ============================================================================
+// BEHAVIOR NOTES SCHEMAS (Story 4-1)
+// ============================================================================
+
+// Quick point values for bulk toolbar buttons
+export const QUICK_POINT_VALUES = [-15, -10, -5, 0, 5] as const;
+export type QuickPointValue = (typeof QUICK_POINT_VALUES)[number];
+
+// Behavior note schema for inline entry
+export const BehaviorNoteSchema = z.object({
+  placement_id: z.string().uuid('Invalid placement ID'),
+  incident_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  incident_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid time format').optional(),
+  category_id: z.string().uuid('Invalid category').nullable().optional(),
+  description: z.string().max(2000, 'Description too long').nullable().optional(),
+  action_taken: z.string().max(500, 'Action taken too long').nullable().optional(),
+  // Point adjustment fields (optional - for combined point+note entries)
+  points: z.number().int().min(-15).max(10).optional(),
+  period: z.string().min(1).optional(),
+  student_action: z.string().max(100).nullable().optional(),
+  teacher_action: z.string().max(100).nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+});
+
+export type CreateBehaviorNoteInput = z.infer<typeof BehaviorNoteSchema>;
+
+// Recent activity item for compact display in inline panel
+export interface RecentActivityItem {
+  id: string;
+  type: 'point_entry' | 'behavior_note' | 'attendance';
+  timestamp: string;
+  summary: string;
+  points?: number;
+  period?: string;
+  student_action?: string | null;
+  teacher_action?: string | null;
+  staff_name: string;
+}
+
+// Bulk add behavior points input (for quick point buttons)
+export const BulkAddBehaviorPointsSchema = z.object({
+  placement_ids: z.array(z.string().uuid()).min(1, 'At least one student required'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  period: z.string().min(1, 'Period is required'),
+  points: z.number().int().min(-15).max(10),
+  student_action: z.string().max(100).nullable().optional(),
+  teacher_action: z.string().max(100).nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+});
+
+export type BulkAddBehaviorPointsInput = z.infer<typeof BulkAddBehaviorPointsSchema>;
+
 /**
  * Validates data against a schema and returns validated data or error
  */
