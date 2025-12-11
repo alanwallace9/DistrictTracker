@@ -4,6 +4,33 @@
 
 ---
 
+## v0.4.2 - Behavior Notes List View
+
+**Category:** DAEP Management
+**Status:** Completed
+
+### What's New
+
+Administrators now have a dedicated page to review all behavior notes across students. Get instant situational awareness with summary stats, quick filters, and a searchable list.
+
+### Key Features
+
+- **Dedicated Notes Page**: New `/daep/behavior-notes` page in the sidebar navigation
+- **Summary Stats Bar**: See total notes, today's count, negative incidents, and unverified items at a glance
+- **Quick Filters**: One-click presets for Today, This Week, Negative, and My Notes
+- **Advanced Filters**: Search by description, filter by category type, campus, staff, or date range
+- **Sortable Table**: 7 columns (Date/Time, Student, Campus, Category, Description, Staff, Verified)
+- **Detail Panel**: Click any row to see the full note in a slide-out sheet
+- **CSV Export**: Download notes with 19 comprehensive columns for reporting
+- **Student Avatars**: Visual thumbnails with initials fallback
+- **"X New" Badge**: See how many notes have been added since your last visit
+
+### Admin Workflow
+
+Perfect for morning check-ins: Open the notes page, tap "Negative" to see incidents requiring attention, review details, and plan your day.
+
+---
+
 ## v0.4.1 - Roster UI Improvements
 
 **Category:** DAEP Management
@@ -49,6 +76,5 @@ Now: Click expand → Fill form → Save → Done (stay in roster)
 
 ## Coming Soon in Epic 4
 
-- Behavior Notes List View
-- Attach Notes to Incidents
-- Student Profile Timeline Enhancements
+- Attach Notes to Incidents (Story 4-4)
+- Student Profile Timeline (Story 4-5)
