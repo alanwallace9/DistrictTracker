@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story 4-3: Behavior Notes List View - Implementation Context
+
+  This file contains pre-assembled context for implementing Story 4-3.
+  Load this instead of reading multiple source files.
+
+  Created: 2025-12-10
+  Tech Spec: docs/sprint-artifacts/daep/tech-spec-story-4-3.md
+  Story: docs/sprint-artifacts/daep/story-4-3.md
+-->
+<story-context>
+  <metadata>
+    <story-id>4-3</story-id>
+    <title>Behavior Notes List View</title>
+    <epic>4 - Behavior Documentation</epic>
+    <points>3</points>
+    <frs>FR49</frs>
+    <status>ready-for-dev</status>
+  </metadata>
+
+  <summary>
+    Create a dedicated behavior notes list page at `/daep/behavior-notes` that allows
+    DAEP administrators to view, filter, sort, and export all behavior notes across students.
+
+    Key Features:
+    - 7-column sortable table with pagination (25/page)
+    - Filters: search, category type, campus, staff, date range
+    - Quick filter chips: Today, This Week, Negative, My Notes
+    - Summary stats bar: total, today, negative, unverified counts
+    - "X new" badge for notes since last visit
+    - Student photo thumbnails with initials fallback
+    - Hover tooltip on description for full text
+    - CSV export with 18 comprehensive columns
+    - Verified indicator column (future-ready)
+    - Detail slide-out sheet on row click
+  </summary>
+
+  <acceptance-criteria>
+    <core>
+      <ac id="4.3.1">Behavior notes page at `/daep/behavior-notes`</ac>
+      <ac id="4.3.2">List shows 7 columns: Date/Time, Student, Campus, Category, Description, Staff, Verified</ac>
+      <ac id="4.3.3">Filter by student (search by name, ID, or description)</ac>
+      <ac id="4.3.4">Filter by category type (All, Positive, Negative, Neutral)</ac>
+      <ac id="4.3.5">Filter by staff member (dropdown)</ac>
+      <ac id="4.3.6">Filter by date range (From/To)</ac>
+      <ac id="4.3.7">Filter by campus (dropdown)</ac>
+      <ac id="4.3.8">Sort by any column (click header toggles asc/desc)</ac>
+      <ac id="4.3.9">Default sort by date (newest first)</ac>
+      <ac id="4.3.10">Click row to view full note detail in sheet</ac>
+      <ac id="4.3.11">Pagination (25 per page)</ac>
+      <ac id="4.3.12">Export to CSV with 18 columns</ac>
+      <ac id="4.3.13">Student name links to profile</ac>
+      <ac id="4.3.14">Verified indicator column</ac>
+      <ac id="4.3.15">Admin access only (RLS)</ac>
+    </core>
+    <ux-quick-wins>
+      <ac id="4.3.16">Quick filter chips: Today, This Week, Negative, My Notes</ac>
+      <ac id="4.3.17">Summary stats bar: total, today, negative, unverified</ac>
+      <ac id="4.3.18">Hover preview tooltip on description</ac>
+      <ac id="4.3.19">"X new" badge showing notes since last visit</ac>
+      <ac id="4.3.20">Student photo thumbnail in table</ac>
+    </ux-quick-wins>
+  </acceptance-criteria>
+
+  <files-to-create>
+    <file path="supabase/migrations/*_add_behavior_notes_verification.sql">Add verified_by, verified_at columns</file>
+    <file path="app/daep/(main)/behavior-notes/page.tsx">Main page component</file>
+    <file path="components/daep/behavior-notes/BehaviorNotesFilters.tsx">Filter controls</file>
+    <file path="components/daep/behavior-notes/BehaviorNotesTable.tsx">Sortable table with pagination</file>
+    <file path="components/daep/behavior-notes/BehaviorNoteDetailSheet.tsx">Detail slide-out</file>
+    <file path="components/daep/behavior-notes/QuickFilterChips.tsx">One-click filter presets</file>
+    <file path="components/daep/behavior-notes/SummaryStatsBar.tsx">Stats display</file>
+    <file path="components/daep/behavior-notes/NewNotesBadge.tsx">"X new" badge</file>
+    <file path="components/daep/behavior-notes/StudentAvatar.tsx">Photo with initials fallback</file>
+    <file path="components/daep/behavior-notes/index.ts">Barrel export</file>
+  </files-to-create>
+
+  <files-to-modify>
+    <file path="lib/validation/schemas.ts">Add BehaviorNotesListQuery, BehaviorNoteListItem types</file>
+    <file path="app/actions/daep/behavior-notes.ts">Add 7 new server actions</file>
+    <file path="components/daep/navigation">Add "Behavior Notes" sidebar link</file>
+  </files-to-modify>
+
+  <database-migration>
+    <name>add_behavior_notes_verification</name>
+    <sql><![CDATA[
+-- Migration: add_behavior_notes_verification.sql
+-- Story 4-3: Behavior Notes List View - Admin verification support
+
+ALTER TABLE daep_behavior_notes
+ADD COLUMN IF NOT EXISTS verified_by TEXT,
+ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+COMMENT ON COLUMN daep_behavior_notes.verified_by IS 'Admin who verified this note';
+COMMENT ON COLUMN daep_behavior_notes.verified_at IS 'When the note was verified';
+
+-- Add index for verified filter (future)
+CREATE INDEX IF NOT EXISTS idx_daep_behavior_notes_verified
+ON daep_behavior_notes(tenant_id, verified_by) WHERE verified_by IS NOT NULL;
+
+-- Add index for date sorting
+CREATE INDEX IF NOT EXISTS idx_daep_behavior_notes_date_desc
+ON daep_behavior_notes(tenant_id, date DESC, time DESC);
+
+-- Add index for staff filter
+CREATE INDEX IF NOT EXISTS idx_daep_behavior_notes_staff
+ON daep_behavior_notes(tenant_id, staff_member);
+    ]]></sql>
+  </database-migration>
+
+  <validation-schemas>
+    <schema name="BehaviorNotesListQuery"><![CDATA[
+// Add to lib/validation/schemas.ts
+
+export const BEHAVIOR_NOTES_SORT_KEYS = [
+  'date',
+  'student_name',
+  'campus',
+  'category',
+  'staff',
+  'verified',
+] as const;
+
+export type BehaviorNotesSortKey = typeof BEHAVIOR_NOTES_SORT_KEYS[number];
+
+export const BehaviorNotesListQuerySchema = z.object({
+  // Search
+  query: z.string().max(200).optional(),
+  // Filters
+  category_type: z.enum(['positive', 'negative', 'neutral', 'all']).optional(),
+  campus_id: z.string().optional(),
+  staff_id: z.string().optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Sorting
+  sort_by: z.enum(BEHAVIOR_NOTES_SORT_KEYS).optional().default('date'),
+  sort_direction: z.enum(['asc', 'desc']).optional().default('desc'),
+  // Pagination
+  page: z.number().int().min(1).default(1),
+  per_page: z.number().int().min(10).max(100).default(25),
+});
+
+export type BehaviorNotesListQuery = z.infer<typeof BehaviorNotesListQuerySchema>;
+    ]]></schema>
+    <schema name="BehaviorNoteListItem"><![CDATA[
+export interface BehaviorNoteListItem {
+  id: string;
+  incident_date: string;
+  incident_time: string;
+  category: string | null;
+  category_id: string | null;
+  category_type: 'positive' | 'negative' | 'neutral' | null;
+  description: string;
+  description_snippet: string; // Truncated to 40 chars
+  action_taken: string | null;
+  // Staff info
+  staff_member: string;
+  staff_name: string;
+  staff_last_name: string;
+  // Student info via placement
+  placement_id: string;
+  student_school_id: string;
+  student_first_name: string;
+  student_last_name: string;
+  student_photo_url: string | null;
+  // Campus info
+  home_campus_id: string | null;
+  home_campus_name: string | null;
+  // Point adjustment (if associated)
+  points: number | null;
+  student_action: string | null;
+  teacher_action: string | null;
+  // Verification (future feature)
+  verified_by: string | null;
+  verified_at: string | null;
+  is_verified: boolean;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BehaviorNotesListResult {
+  notes: BehaviorNoteListItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+export interface BehaviorNotesStats {
+  total: number;
+  today: number;
+  negative: number;
+  unverified: number;
+}
+    ]]></schema>
+  </validation-schemas>
+
+  <server-actions-to-add>
+    <action name="getBehaviorNotesList">Paginated, sortable list with filters and joins</action>
+    <action name="getBehaviorNotesStaffList">Staff dropdown options (sorted by lastName)</action>
+    <action name="getBehaviorNotesCampusList">Campus dropdown options (unique from notes)</action>
+    <action name="getBehaviorNoteById">Full detail for single note</action>
+    <action name="getBehaviorNotesStats">Summary counts (total, today, negative, unverified)</action>
+    <action name="getNewNotesCountSince">Count of notes after timestamp (for "X new" badge)</action>
+    <action name="exportBehaviorNotesToCSV">18-column CSV with proper escaping</action>
+  </server-actions-to-add>
+
+  <existing-patterns>
+    <pattern name="getTenantId-helper">
+      <description>Standard tenant ID helper with active_tenant_id support</description>
+      <code><![CDATA[
+async function getTenantId(): Promise<string> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) throw new Error('User profile not found');
+
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) throw new Error('No tenant assigned');
+
+  return effectiveTenantId;
+}
+      ]]></code>
+    </pattern>
+
+    <pattern name="filter-component">
+      <description>StudentFilters.tsx pattern for filter controls</description>
+      <code><![CDATA[
+// See components/daep/StudentFilters.tsx for full implementation
+// Key elements:
+// - Search input with Search icon prefix
+// - Select dropdowns for categorical filters
+// - Date inputs with From:/To: labels
+// - Clear Filters button (ghost variant) when hasActiveFilters
+// - Flex wrap layout for responsive filters
+      ]]></code>
+    </pattern>
+
+    <pattern name="sortable-table-header">
+      <description>StudentListTable.tsx pattern for sortable headers</description>
+      <code><![CDATA[
+const renderSortableHeader = (label: string, key: SortKey) => {
+  const isActive = sortConfig.key === key;
+  return (
+    <button
+      className="flex items-center gap-1 hover:text-foreground"
+      onClick={() => onSort(key)}
+    >
+      <span>{label}</span>
+      {isActive ? (
+        <span className="text-xs">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+      ) : (
+        <ArrowUpDown className="w-3 h-3 opacity-50" />
+      )}
+    </button>
+  );
+};
+      ]]></code>
+    </pattern>
+
+    <pattern name="tooltip-usage">
+      <description>Tooltip pattern from TodaysTotalCell.tsx</description>
+      <code><![CDATA[
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span className="truncate block cursor-help">
+        {truncatedText}
+      </span>
+    </TooltipTrigger>
+    <TooltipContent side="top" className="max-w-md">
+      <p className="text-sm whitespace-pre-wrap">{fullText}</p>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+      ]]></code>
+    </pattern>
+
+    <pattern name="avatar-component">
+      <description>Avatar with image and initials fallback</description>
+      <code><![CDATA[
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
+<Avatar className="h-6 w-6 text-xs">
+  {photoUrl && <AvatarImage src={photoUrl} alt={name} />}
+  <AvatarFallback className="bg-muted text-muted-foreground">
+    {initials}
+  </AvatarFallback>
+</Avatar>
+      ]]></code>
+    </pattern>
+
+    <pattern name="category-badge">
+      <description>CategoryBadge from Story 4-1</description>
+      <code><![CDATA[
+// components/daep/roster/CategoryBadge.tsx
+const BADGE_STYLES: Record<CategoryType, string> = {
+  positive: 'bg-green-100 text-green-700 border-green-200',
+  negative: 'bg-red-100 text-red-700 border-red-200',
+  neutral: 'bg-blue-100 text-blue-600 border-blue-200',
+  bonus: 'bg-amber-100 text-amber-700 border-amber-200',
+};
+
+// For list view, use simplified version:
+const CATEGORY_TYPE_STYLES = {
+  positive: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  negative: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  neutral: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+};
+      ]]></code>
+    </pattern>
+  </existing-patterns>
+
+  <csv-export-columns>
+    <column>Student Name</column>
+    <column>Student ID</column>
+    <column>Date</column>
+    <column>Time</column>
+    <column>Home Campus</column>
+    <column>Category</column>
+    <column>Category Type</column>
+    <column>Student Action</column>
+    <column>Teacher Action</column>
+    <column>Points</column>
+    <column>Description</column>
+    <column>Action Taken</column>
+    <column>Staff Last Name</column>
+    <column>Staff Full Name</column>
+    <column>Verified (Yes/No)</column>
+    <column>Verified At</column>
+    <column>Recorded At</column>
+    <column>Last Updated</column>
+  </csv-export-columns>
+
+  <quick-filter-presets>
+    <preset label="Today" filter="date_from=today, date_to=today" />
+    <preset label="This Week" filter="date_from=weekStart, date_to=today" />
+    <preset label="Negative" filter="category_type=negative" />
+    <preset label="My Notes" filter="staff_id=currentUserId" />
+  </quick-filter-presets>
+
+  <local-storage-keys>
+    <key name="daep_behavior_notes_last_visit">ISO timestamp of user's last visit to page</key>
+  </local-storage-keys>
+
+  <ui-layout-mockup><![CDATA[
+/daep/behavior-notes
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 🗒️ Behavior Notes  [12 new]                                        [Refresh] [Export CSV] │
+│ Review all behavior notes across DAEP students                                             │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 142 total • 23 today • 45 negative • 12 unverified                                         │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [Today] [This Week] [Negative] [My Notes]                                                  │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 🔍 [Search by student name, ID, or description...                                       ]  │
+│                                                                                            │
+│ Category: [All ▾]  Campus: [All ▾]  Staff: [All ▾]  From: [____] To: [____]  [Clear]      │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ │ Date/Time ↕│ 👤 Student ↕  │ Campus ↕  │ Category ↕ │ Description    │ Staff ↕│ ✓  │
+│ ├────────────┼───────────────┼───────────┼────────────┼────────────────┼────────┼────┤
+│ │ Dec 9 3:45p│ [📷] Smiley, S│ Central HS│ 🔴 Negative│ Student was d… │ J.Doe  │    │
+│ │ Dec 9 2:30p│ [📷] Jones, M │ North HS  │ 🟢 Positive│ Helped anothe… │ A.Smith│ ✓  │
+│ │ Dec 9 11:15│ [JW] Williams │ Central HS│ 🟡 Neutral │ Conference wi… │ J.Doe  │    │
+│ │ Dec 8 4:00p│ [📷] Smiley, S│ South HS  │ 🔴 Negative│ Off task, nee… │ M.Lee  │ ✓  │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Showing 1-25 of 142                                   [◀ Prev] [1] [2] [3] [Next ▶]       │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
+  ]]></ui-layout-mockup>
+
+  <dependencies>
+    <dependency status="done">Story 4-1: Quick Behavior Note Modal</dependency>
+    <dependency status="done">Story 4-2: Predefined Behavior Categories (part of 4-1)</dependency>
+    <dependency status="done">Epic 1: Core Schema &amp; Security</dependency>
+    <dependency status="done">Epic 2: Placement Management</dependency>
+  </dependencies>
+
+  <implementation-notes>
+    <note>Use existing CategoryBadge from components/daep/roster/CategoryBadge.tsx</note>
+    <note>Follow StudentFilters.tsx pattern for filter layout</note>
+    <note>Follow StudentListTable.tsx pattern for sortable headers</note>
+    <note>Date sorting is server-side; other columns sorted client-side via sortNotes() helper</note>
+    <note>Student photo comes from trespass_records.photo_url via placement join</note>
+    <note>verified_by/verified_at columns are future-ready - no verification UI in this story</note>
+    <note>Use localStorage for last visit tracking (key: daep_behavior_notes_last_visit)</note>
+  </implementation-notes>
+</story-context>

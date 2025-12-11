@@ -880,6 +880,91 @@ export const BulkAddBehaviorPointsSchema = z.object({
 
 export type BulkAddBehaviorPointsInput = z.infer<typeof BulkAddBehaviorPointsSchema>;
 
+// ============================================================================
+// BEHAVIOR NOTES LIST SCHEMAS (Story 4-3)
+// ============================================================================
+
+export const BEHAVIOR_NOTES_SORT_KEYS = [
+  'date',
+  'student_name',
+  'campus',
+  'category',
+  'staff',
+  'verified',
+] as const;
+
+export type BehaviorNotesSortKey = (typeof BEHAVIOR_NOTES_SORT_KEYS)[number];
+
+export const BehaviorNotesListQuerySchema = z.object({
+  // Search
+  query: z.string().max(200).optional(),
+  // Filters
+  category_type: z.enum(['positive', 'negative', 'neutral', 'all']).optional(),
+  campus_id: z.string().optional(),
+  staff_id: z.string().optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Sorting
+  sort_by: z.enum(BEHAVIOR_NOTES_SORT_KEYS).optional().default('date'),
+  sort_direction: z.enum(['asc', 'desc']).optional().default('desc'),
+  // Pagination
+  page: z.number().int().min(1).default(1),
+  per_page: z.number().int().min(10).max(100).default(25),
+});
+
+export type BehaviorNotesListQuery = z.infer<typeof BehaviorNotesListQuerySchema>;
+
+export interface BehaviorNoteListItem {
+  id: string;
+  incident_date: string;
+  incident_time: string | null;
+  category: string | null;
+  category_id: string | null;
+  category_type: 'positive' | 'negative' | 'neutral' | null;
+  description: string | null;
+  description_snippet: string; // Truncated to 40 chars
+  action_taken: string | null;
+  // Staff info
+  staff_member: string;
+  staff_name: string;
+  staff_last_name: string;
+  // Student info via placement
+  placement_id: string;
+  student_school_id: string;
+  student_first_name: string;
+  student_last_name: string;
+  student_photo_url: string | null;
+  // Campus info
+  home_campus_id: string | null;
+  home_campus_name: string | null;
+  // Point adjustment (if associated)
+  points: number | null;
+  student_action: string | null;
+  teacher_action: string | null;
+  // Verification (future feature)
+  verified_by: string | null;
+  verified_at: string | null;
+  is_verified: boolean;
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BehaviorNotesListResult {
+  notes: BehaviorNoteListItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+export interface BehaviorNotesStats {
+  total: number;
+  today: number;
+  negative: number;
+  unverified: number;
+}
+
 /**
  * Validates data against a schema and returns validated data or error
  */

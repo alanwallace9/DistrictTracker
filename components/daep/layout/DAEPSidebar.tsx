@@ -19,6 +19,7 @@ import {
   BarChart3,
   Building2,
   CheckCircle,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getUserProfile } from '@/app/actions/users';
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { href: '/daep', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/daep/rooms', label: 'Room Rosters', icon: Building2 },
   { href: '/daep/students', label: 'Students', icon: Users },
+  { href: '/daep/behavior-notes', label: 'Behavior Notes', icon: FileText },
   { href: '/daep/placements', label: 'Placements', icon: ClipboardList },
   { href: '/daep/attendance', label: 'Attendance', icon: Calendar },
   { href: '/daep/reconciliation', label: 'Reconciliation', icon: FileSpreadsheet },
