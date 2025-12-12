@@ -4,10 +4,12 @@
  * BehaviorNoteDetailSheet
  *
  * Story 4-3: Behavior Notes List View
+ * Story 4-4: Added placement context section showing linked incident
  *
  * Slide-out sheet showing full details of a behavior note:
  * - Student info with link to profile
  * - Date/time
+ * - Placement/incident context (Story 4-4)
  * - Category with type badge
  * - Full description
  * - Action taken
@@ -17,7 +19,7 @@
  */
 
 import Link from 'next/link';
-import { CheckCircle, User, Calendar, Clock, Building2, Tag, FileText, MessageSquare } from 'lucide-react';
+import { CheckCircle, User, Calendar, Clock, Building2, Tag, FileText, MessageSquare, AlertCircle, Link2 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -41,6 +43,14 @@ const CATEGORY_TYPE_STYLES: Record<string, string> = {
   positive: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   negative: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   neutral: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+};
+
+// Story 4-4: Placement status badge styles
+const PLACEMENT_STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  active: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  met: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+  complete: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
 };
 
 function formatDate(dateStr: string): string {
@@ -133,6 +143,46 @@ export function BehaviorNoteDetailSheet({
           </div>
 
           <Separator />
+
+          {/* Story 4-4: Placement Context */}
+          {note.placement_id && note.incident_number ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Link2 className="w-4 h-4" />
+                Linked Placement
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Incident:</span>
+                  <Link
+                    href={`/daep/students/${note.student_school_id}?tab=history&placement=${note.placement_id}`}
+                    className="font-mono text-sm text-primary hover:underline"
+                  >
+                    {note.incident_number}
+                  </Link>
+                </div>
+                {note.placement_status && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Status:</span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-xs capitalize',
+                        PLACEMENT_STATUS_STYLES[note.placement_status] || 'bg-gray-100 text-gray-700'
+                      )}
+                    >
+                      {note.placement_status}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm">No active placement when note was created</span>
+            </div>
+          )}
 
           {/* Category */}
           <div className="space-y-2">

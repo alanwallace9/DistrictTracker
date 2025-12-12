@@ -17,8 +17,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Download, RefreshCw, FileText } from 'lucide-react';
+import { Download, RefreshCw, FileText, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import {
   BehaviorNotesFilters,
@@ -36,6 +42,7 @@ import {
   getBehaviorNotesStats,
   getNewNotesCountSince,
   exportBehaviorNotesToCSV,
+  exportBehaviorNotesToPDF,
 } from '@/app/actions/daep/behavior-notes';
 import type {
   BehaviorNoteListItem,
@@ -246,8 +253,8 @@ export default function BehaviorNotesPage() {
     setDetailSheetOpen(true);
   };
 
-  // Handle export
-  const handleExport = async () => {
+  // Handle CSV export
+  const handleExportCSV = async () => {
     setExporting(true);
     try {
       const filters = buildQuery();
@@ -289,6 +296,74 @@ export default function BehaviorNotesPage() {
     }
   };
 
+  // Handle PDF export (opens in new window for print)
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const filters = buildQuery();
+
+      // Build filter display info for PDF header
+      const filterDisplay: {
+        searchQuery?: string;
+        categoryType?: string;
+        campusName?: string;
+        staffName?: string;
+        dateFrom?: string;
+        dateTo?: string;
+      } = {};
+
+      if (searchQuery) filterDisplay.searchQuery = searchQuery;
+      if (categoryType !== 'all') filterDisplay.categoryType = categoryType;
+      if (campusId !== 'all') {
+        const campus = campusList.find((c) => c.id === campusId);
+        if (campus) filterDisplay.campusName = campus.name;
+      }
+      if (staffId !== 'all') {
+        const staff = staffList.find((s) => s.id === staffId);
+        if (staff) filterDisplay.staffName = staff.name;
+      }
+      if (dateFrom) filterDisplay.dateFrom = dateFrom;
+      if (dateTo) filterDisplay.dateTo = dateTo;
+
+      const result = await exportBehaviorNotesToPDF(filters, filterDisplay);
+
+      if (!result.success || !result.html) {
+        toast({
+          title: 'Export Failed',
+          description: result.error || 'Failed to generate PDF',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Open HTML in new window for print/PDF
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(result.html);
+        printWindow.document.close();
+        // Trigger print dialog after content loads
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      } else {
+        toast({
+          title: 'Popup Blocked',
+          description: 'Please allow popups to export PDF',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'An error occurred during PDF export',
+        variant: 'destructive',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Handle refresh
   const handleRefresh = () => {
     loadNotes();
@@ -309,10 +384,23 @@ export default function BehaviorNotesPage() {
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting || loading}>
-            <Download className="w-4 h-4 mr-2" />
-            {exporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={exporting || loading}>
+                <Download className="w-4 h-4 mr-2" />
+                {exporting ? 'Exporting...' : 'Export'}
+                <ChevronDown className="w-3 h-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportCSV}>
+                CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPDF}>
+                PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

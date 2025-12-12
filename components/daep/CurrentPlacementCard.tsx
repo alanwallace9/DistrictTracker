@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,33 +73,45 @@ export function CurrentPlacementCard({
   const needs90DayAssessment =
     placement.assessment_90day_required && !placement.assessment_90day_date;
 
+  // Format short date for collapsed summary
+  const formatShortDate = (dateStr: string | null) =>
+    dateStr ? format(new Date(dateStr), 'MMM d, yyyy') : '';
+
+  // Build collapsed summary: "X days remaining • End: Jan 16, 2026"
+  const collapsedSummary = `${placement.days_remaining} days remaining • End: ${formatShortDate(placement.expected_end_date)}`;
+
+  // Header right content: badges and edit button
+  const headerRightContent = (
+    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      {/* Story 3-7: Milestone Badges */}
+      {milestoneRules.length > 0 && (
+        <MilestoneBadges
+          rules={milestoneRules}
+          achievements={milestoneAchievements}
+          currentPoints={cumulativePoints?.totalPointsEarned || 0}
+          newlyEarnedIds={newlyEarnedBadgeIds}
+        />
+      )}
+      <PlacementStatusBadge status={placement.status as PlacementStatus} />
+      {/* Edit Button - Story 2-8: AC 2.8.1 */}
+      <Button variant="outline" size="sm" asChild>
+        <Link href={`/daep/placements/${placement.id}/edit`}>
+          <Edit className="w-4 h-4 mr-1" />
+          Edit
+        </Link>
+      </Button>
+    </div>
+  );
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div className="flex items-center gap-3">
-          <CardTitle className="text-base font-medium">Current Placement</CardTitle>
-          {/* Story 3-7: Milestone Badges */}
-          {milestoneRules.length > 0 && (
-            <MilestoneBadges
-              rules={milestoneRules}
-              achievements={milestoneAchievements}
-              currentPoints={cumulativePoints?.totalPointsEarned || 0}
-              newlyEarnedIds={newlyEarnedBadgeIds}
-            />
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <PlacementStatusBadge status={placement.status as PlacementStatus} />
-          {/* Edit Button - Story 2-8: AC 2.8.1 */}
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/daep/placements/${placement.id}/edit`}>
-              <Edit className="w-4 h-4 mr-1" />
-              Edit
-            </Link>
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <CollapsibleCard
+      title="Current Placement"
+      icon={<FileText className="w-4 h-4" />}
+      headerRight={headerRightContent}
+      collapsedSummary={collapsedSummary}
+      defaultOpen={false}
+      storageKey="student-current-placement"
+      contentClassName="space-y-4">
         {/* 90-Day Assessment Alert */}
         {needs90DayAssessment && (
           <Alert className="bg-amber-50 border-amber-200">
@@ -266,26 +278,25 @@ export function CurrentPlacementCard({
           maxItems={3}
           onViewAll={() => setAuditSheetOpen(true)}
         />
-      </CardContent>
 
-      {/* Room Assignment Dialog (AC: 6.2) */}
-      <RoomAssignmentDialog
-        open={roomDialogOpen}
-        onOpenChange={setRoomDialogOpen}
-        placementId={placement.id}
-        schoolId={schoolId}
-        studentName={studentName}
-        currentRoomId={placement.assigned_room?.id}
-        onSuccess={() => router.refresh()}
-      />
+        {/* Room Assignment Dialog (AC: 6.2) */}
+        <RoomAssignmentDialog
+          open={roomDialogOpen}
+          onOpenChange={setRoomDialogOpen}
+          placementId={placement.id}
+          schoolId={schoolId}
+          studentName={studentName}
+          currentRoomId={placement.assigned_room?.id}
+          onSuccess={() => router.refresh()}
+        />
 
-      {/* Story 3-8: Full Audit Log Sheet */}
-      <PlacementAuditLog
-        placementId={placement.id}
-        placementLabel={`#${placement.incident_number || 'N/A'} (${placement.status})`}
-        open={auditSheetOpen}
-        onOpenChange={setAuditSheetOpen}
-      />
-    </Card>
+        {/* Story 3-8: Full Audit Log Sheet */}
+        <PlacementAuditLog
+          placementId={placement.id}
+          placementLabel={`#${placement.incident_number || 'N/A'} (${placement.status})`}
+          open={auditSheetOpen}
+          onOpenChange={setAuditSheetOpen}
+        />
+    </CollapsibleCard>
   );
 }

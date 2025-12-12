@@ -147,6 +147,7 @@ async function logDAEPAuditEvent(
  * If points are provided, also creates a point entry.
  *
  * Story 4-1: Quick Behavior Note Entry
+ * Story 4-4: Now supports notes without active placement (uses student_school_id)
  */
 export async function createBehaviorNote(
   input: CreateBehaviorNoteInput
@@ -165,6 +166,7 @@ export async function createBehaviorNote(
 
     const {
       placement_id,
+      student_school_id,
       incident_date,
       incident_time,
       category_id,
@@ -179,16 +181,38 @@ export async function createBehaviorNote(
 
     const supabase = await createServerClient();
 
-    // Verify placement exists and belongs to tenant
-    const { data: placement, error: placementError } = await supabase
-      .from('daep_placements')
-      .select('id')
-      .eq('id', placement_id)
-      .eq('tenant_id', tenantId)
-      .single();
+    // Story 4-4: Handle both placement-linked and student-only notes
+    let verifiedPlacementId: string | null = null;
+    let verifiedStudentSchoolId: string | null = null;
 
-    if (placementError || !placement) {
-      return { success: false, error: 'Placement not found' };
+    if (placement_id) {
+      // Verify placement exists and belongs to tenant
+      const { data: placement, error: placementError } = await supabase
+        .from('daep_placements')
+        .select('id')
+        .eq('id', placement_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (placementError || !placement) {
+        return { success: false, error: 'Placement not found' };
+      }
+      verifiedPlacementId = placement_id;
+    } else if (student_school_id) {
+      // Story 4-4: Verify student exists in trespass_records
+      const { data: student, error: studentError } = await supabase
+        .from('trespass_records')
+        .select('school_id')
+        .eq('school_id', student_school_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (studentError || !student) {
+        return { success: false, error: 'Student not found' };
+      }
+      verifiedStudentSchoolId = student_school_id;
+    } else {
+      return { success: false, error: 'Either placement_id or student_school_id is required' };
     }
 
     let noteId: string | undefined;
@@ -200,7 +224,8 @@ export async function createBehaviorNote(
         .from('daep_behavior_notes')
         .insert({
           tenant_id: tenantId,
-          placement_id,
+          placement_id: verifiedPlacementId,
+          student_school_id: verifiedStudentSchoolId, // Story 4-4
           date: incident_date,
           time: incident_time || new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
           incident_date,
@@ -226,8 +251,8 @@ export async function createBehaviorNote(
         supabase,
         'behavior_note.created',
         userId,
-        placement_id,
-        `Created behavior note`,
+        verifiedPlacementId || verifiedStudentSchoolId || 'unknown',
+        `Created behavior note${!verifiedPlacementId ? ' (no active placement)' : ''}`,
         tenantId,
         {
           note_id: noteId,
@@ -235,12 +260,16 @@ export async function createBehaviorNote(
           category_id,
           description: description?.substring(0, 100),
           entered_by_name: displayName,
+          student_school_id: verifiedStudentSchoolId,
+          has_placement: !!verifiedPlacementId,
         }
       );
     }
 
-    // Create point entry if points provided
-    if (points !== undefined && period) {
+    // Create point entry if points provided (only if we have a placement)
+    // Story 4-G: Default period to 'General' when not specified (e.g., from profile page)
+    const effectivePeriod = period || 'General';
+    if (points !== undefined && verifiedPlacementId) {
       const approvalStatus = isApprovedTeacher ? 'approved' : 'pending';
       const isPublic = isApprovedTeacher;
 
@@ -248,9 +277,9 @@ export async function createBehaviorNote(
         .from('daep_daily_points')
         .insert({
           tenant_id: tenantId,
-          placement_id,
+          placement_id: verifiedPlacementId,
           date: incident_date,
-          period,
+          period: effectivePeriod,
           points_earned: points,
           is_base_points: false,
           student_action: student_action || null,
@@ -281,13 +310,13 @@ export async function createBehaviorNote(
         supabase,
         eventType,
         userId,
-        placement_id,
+        verifiedPlacementId,
         `Added ${points >= 0 ? '+' : ''}${points} point adjustment (${approvalStatus})`,
         tenantId,
         {
           entry_id: pointEntryId,
           date: incident_date,
-          period,
+          period: effectivePeriod,
           points,
           student_action,
           teacher_action,
@@ -295,10 +324,14 @@ export async function createBehaviorNote(
           from_behavior_note: !!noteId,
         }
       );
+    } else if (points !== undefined && !verifiedPlacementId) {
+      // Story 4-4: Points require a placement - warn but don't fail
+      console.warn('Points cannot be added without a placement - note created without points');
     }
 
     revalidatePath('/daep/rooms');
     revalidatePath('/daep/students');
+    revalidatePath('/daep/behavior-notes');
 
     return { success: true, noteId, pointEntryId };
   } catch (error) {
@@ -625,6 +658,7 @@ function escapeCSV(value: string | null | undefined): string {
  * Joins with placements, trespass_records, and campuses for full context.
  *
  * Story 4-3: Behavior Notes List View
+ * Story 4-4: Now uses left join for placements to include notes without placement
  */
 export async function getBehaviorNotesList(
   queryInput: Partial<BehaviorNotesListQuery> = {}
@@ -637,7 +671,9 @@ export async function getBehaviorNotesList(
     const query = BehaviorNotesListQuerySchema.parse(queryInput);
     const { page, per_page, sort_by, sort_direction, query: searchQuery, category_type, campus_id, staff_id, date_from, date_to } = query;
 
-    // Build base query - fetch all fields we need
+    // Story 4-4: Use left join for placements to include notes without placement
+    // Note: daep_placements.school_id links to trespass_records.school_id but there's no FK,
+    // so we can't use nested joins. We'll fetch student info separately.
     let dbQuery = supabase
       .from('daep_behavior_notes')
       .select(
@@ -655,14 +691,12 @@ export async function getBehaviorNotesList(
         created_at,
         updated_at,
         placement_id,
-        daep_placements!inner (
+        student_school_id,
+        daep_placements (
           id,
-          trespass_records!inner (
-            school_id,
-            first_name,
-            last_name,
-            photo_url
-          ),
+          incident_number,
+          status,
+          school_id,
           home_campus_id
         ),
         daep_behavior_categories (
@@ -687,9 +721,12 @@ export async function getBehaviorNotesList(
       dbQuery = dbQuery.eq('staff_member', staff_id);
     }
 
-    // Apply search filter (description or student name via ilike)
+    // Note: Student name search is done client-side after fetching student info
+    // because student names come from trespass_records which we can't join in Supabase
+    // We still filter by description at DB level for efficiency
     if (searchQuery && searchQuery.trim()) {
-      dbQuery = dbQuery.ilike('description', `%${searchQuery}%`);
+      // Don't filter at DB level - we'll filter client-side to include student names
+      // dbQuery = dbQuery.ilike('description', `%${searchQuery}%`);
     }
 
     // Apply date sorting at DB level for pagination correctness
@@ -748,13 +785,71 @@ export async function getBehaviorNotesList(
       });
     }
 
+    // Collect ALL student school IDs (from placement.school_id or note.student_school_id)
+    // Since there's no FK between daep_placements and trespass_records, we fetch student info separately
+    const allStudentSchoolIds = new Set<string>();
+    (data || []).forEach((note: Record<string, unknown>) => {
+      const placement = note.daep_placements as Record<string, unknown> | null;
+      if (placement?.school_id) {
+        allStudentSchoolIds.add(placement.school_id as string);
+      }
+      if (note.student_school_id) {
+        allStudentSchoolIds.add(note.student_school_id as string);
+      }
+    });
+
+    // Fetch student info for all school IDs
+    // Note: trespass_records uses 'cached_image_url' not 'photo_url'
+    const studentInfoMap = new Map<string, { first_name: string; last_name: string; photo_url: string | null; campus_id: string | null }>();
+    if (allStudentSchoolIds.size > 0) {
+      const { data: students, error: studentsError } = await supabase
+        .from('trespass_records')
+        .select('school_id, first_name, last_name, cached_image_url, campus_id')
+        .eq('tenant_id', tenantId)
+        .in('school_id', Array.from(allStudentSchoolIds));
+
+      if (studentsError) {
+        console.error('Student lookup error:', studentsError);
+      }
+
+      students?.forEach((s) => {
+        studentInfoMap.set(s.school_id, {
+          first_name: s.first_name,
+          last_name: s.last_name,
+          photo_url: s.cached_image_url,
+          campus_id: s.campus_id,
+        });
+      });
+    }
+
+    // Also fetch campus names for student campus_ids (fallback when no placement)
+    const studentCampusIds = new Set<string>();
+    studentInfoMap.forEach((info) => {
+      if (info.campus_id) {
+        studentCampusIds.add(info.campus_id);
+      }
+    });
+    // Merge with placement campus IDs already collected
+    studentCampusIds.forEach((id) => campusIds.add(id));
+
     // Transform data to BehaviorNoteListItem[]
     let notes: BehaviorNoteListItem[] = (data || []).map((note: Record<string, unknown>) => {
       const placement = note.daep_placements as Record<string, unknown> | null;
-      const student = placement?.trespass_records as Record<string, unknown> | null;
       const categoryData = note.daep_behavior_categories as Record<string, unknown> | null;
       const staffInfo = staffMap.get(note.staff_member as string) || { displayName: 'Staff', lastName: 'Staff' };
       const description = (note.description as string) || '';
+
+      // Get student school ID from placement or note
+      const studentSchoolIdFromPlacement = placement?.school_id as string | null;
+      const studentSchoolIdFromNote = note.student_school_id as string | null;
+      const effectiveStudentSchoolId = studentSchoolIdFromPlacement || studentSchoolIdFromNote || '';
+
+      // Look up student info
+      const studentInfo = studentInfoMap.get(effectiveStudentSchoolId);
+      const studentSchoolId = effectiveStudentSchoolId;
+      const studentFirstName = studentInfo?.first_name ?? '';
+      const studentLastName = studentInfo?.last_name ?? '';
+      const studentPhotoUrl = studentInfo?.photo_url ?? null;
 
       return {
         id: note.id as string,
@@ -769,13 +864,17 @@ export async function getBehaviorNotesList(
         staff_member: note.staff_member as string,
         staff_name: staffInfo.displayName,
         staff_last_name: staffInfo.lastName,
-        placement_id: note.placement_id as string,
-        student_school_id: student?.school_id as string ?? '',
-        student_first_name: student?.first_name as string ?? '',
-        student_last_name: student?.last_name as string ?? '',
-        student_photo_url: student?.photo_url as string | null ?? null,
-        home_campus_id: placement?.home_campus_id as string | null ?? null,
-        home_campus_name: campusMap.get(placement?.home_campus_id as string) || null,
+        placement_id: note.placement_id as string | null,
+        student_school_id: studentSchoolId,
+        student_first_name: studentFirstName,
+        student_last_name: studentLastName,
+        student_photo_url: studentPhotoUrl,
+        // Story 4-4: Include incident number and placement status
+        incident_number: placement?.incident_number as string | null ?? null,
+        placement_status: placement?.status as string | null ?? null,
+        // Use placement campus if available, otherwise fall back to student's campus
+        home_campus_id: (placement?.home_campus_id as string | null) || studentInfo?.campus_id || null,
+        home_campus_name: campusMap.get(placement?.home_campus_id as string) || campusMap.get(studentInfo?.campus_id || '') || null,
         points: null, // Would need to join with point entries if we want this
         student_action: null,
         teacher_action: null,
@@ -786,6 +885,26 @@ export async function getBehaviorNotesList(
         updated_at: note.updated_at as string,
       };
     });
+
+    // Apply search filter (client-side to include student name, ID, and description)
+    if (searchQuery && searchQuery.trim()) {
+      const searchLower = searchQuery.toLowerCase().trim();
+      notes = notes.filter((n) => {
+        const fullName = `${n.student_first_name} ${n.student_last_name}`.toLowerCase();
+        const lastFirst = `${n.student_last_name}, ${n.student_first_name}`.toLowerCase();
+        const studentId = (n.student_school_id || '').toLowerCase();
+        const description = (n.description || '').toLowerCase();
+        const incidentNumber = (n.incident_number || '').toLowerCase();
+
+        return (
+          fullName.includes(searchLower) ||
+          lastFirst.includes(searchLower) ||
+          studentId.includes(searchLower) ||
+          description.includes(searchLower) ||
+          incidentNumber.includes(searchLower)
+        );
+      });
+    }
 
     // Apply campus filter (client-side since it's a join)
     if (campus_id) {
@@ -918,6 +1037,7 @@ export async function getBehaviorNotesCampusList(): Promise<{ id: string; name: 
  * Used for the detail sheet.
  *
  * Story 4-3: Behavior Notes List View
+ * Story 4-4: Now uses left join for placements to handle notes without placement
  */
 export async function getBehaviorNoteById(
   noteId: string
@@ -926,6 +1046,7 @@ export async function getBehaviorNoteById(
     const tenantId = await getTenantId();
     const supabase = await createServerClient();
 
+    // Story 4-4: Use left join for placements (no !inner)
     const { data: note, error } = await supabase
       .from('daep_behavior_notes')
       .select(
@@ -943,14 +1064,12 @@ export async function getBehaviorNoteById(
         created_at,
         updated_at,
         placement_id,
-        daep_placements!inner (
+        student_school_id,
+        daep_placements (
           id,
-          trespass_records!inner (
-            school_id,
-            first_name,
-            last_name,
-            photo_url
-          ),
+          incident_number,
+          status,
+          school_id,
           home_campus_id
         ),
         daep_behavior_categories (
@@ -970,21 +1089,19 @@ export async function getBehaviorNoteById(
     // Define types for the joined data
     interface PlacementData {
       id: string;
+      incident_number: string | null;
+      status: string | null;
+      school_id: string | null;
       home_campus_id: string | null;
-      trespass_records: {
-        school_id: string;
-        first_name: string;
-        last_name: string;
-        photo_url: string | null;
-      };
     }
     interface CategoryData {
       name: string;
       category_type: string;
     }
 
+    const placement = note.daep_placements as unknown as PlacementData | null;
+
     // Fetch campus name
-    const placement = note.daep_placements as unknown as PlacementData;
     let campusName: string | null = null;
     if (placement?.home_campus_id) {
       const { data: campus } = await supabase
@@ -1013,7 +1130,31 @@ export async function getBehaviorNoteById(
       }
     }
 
-    const student = placement?.trespass_records;
+    // Get student school ID from placement or note
+    const effectiveStudentSchoolId = placement?.school_id || note.student_school_id || '';
+
+    // Fetch student info
+    let studentSchoolId = effectiveStudentSchoolId;
+    let studentFirstName = '';
+    let studentLastName = '';
+    let studentPhotoUrl: string | null = null;
+
+    if (effectiveStudentSchoolId) {
+      // Fetch student info from trespass_records
+      const { data: studentData } = await supabase
+        .from('trespass_records')
+        .select('school_id, first_name, last_name, photo_url')
+        .eq('school_id', effectiveStudentSchoolId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (studentData) {
+        studentFirstName = studentData.first_name;
+        studentLastName = studentData.last_name;
+        studentPhotoUrl = studentData.photo_url;
+      }
+    }
+
     const categoryData = note.daep_behavior_categories as unknown as CategoryData | null;
     const description = (note.description as string) || '';
 
@@ -1031,11 +1172,14 @@ export async function getBehaviorNoteById(
       staff_name: staffName,
       staff_last_name: staffLastName,
       placement_id: note.placement_id,
-      student_school_id: student?.school_id as string ?? '',
-      student_first_name: student?.first_name as string ?? '',
-      student_last_name: student?.last_name as string ?? '',
-      student_photo_url: student?.photo_url as string | null ?? null,
-      home_campus_id: placement?.home_campus_id as string | null ?? null,
+      student_school_id: studentSchoolId,
+      student_first_name: studentFirstName,
+      student_last_name: studentLastName,
+      student_photo_url: studentPhotoUrl,
+      // Story 4-4: Include incident number and placement status
+      incident_number: placement?.incident_number ?? null,
+      placement_status: placement?.status ?? null,
+      home_campus_id: placement?.home_campus_id ?? null,
       home_campus_name: campusName,
       points: null,
       student_action: null,
@@ -1149,13 +1293,195 @@ export async function getNewNotesCountSince(timestamp: string): Promise<number> 
   }
 }
 
+// ========== GET NOTES FOR PLACEMENT ==========
+
+/**
+ * Get all behavior notes for a specific placement.
+ * Used by student profile to display notes grouped by placement.
+ *
+ * Story 4-4: Attach Notes to Incidents
+ */
+export async function getNotesForPlacement(
+  placementId: string
+): Promise<BehaviorNoteListItem[]> {
+  try {
+    const tenantId = await getTenantId();
+    const supabase = await createServerClient();
+
+    const { data: notes, error } = await supabase
+      .from('daep_behavior_notes')
+      .select(
+        `
+        id,
+        incident_date,
+        incident_time,
+        category,
+        category_id,
+        description,
+        action_taken,
+        staff_member,
+        verified_by,
+        verified_at,
+        created_at,
+        updated_at,
+        placement_id,
+        student_school_id,
+        daep_placements (
+          id,
+          incident_number,
+          status,
+          school_id,
+          home_campus_id
+        ),
+        daep_behavior_categories (
+          name,
+          category_type
+        )
+      `
+      )
+      .eq('tenant_id', tenantId)
+      .eq('placement_id', placementId)
+      .order('incident_date', { ascending: false })
+      .order('incident_time', { ascending: false });
+
+    if (error || !notes) {
+      console.error('getNotesForPlacement error:', error);
+      return [];
+    }
+
+    // Fetch staff names
+    const staffIds = new Set<string>();
+    notes.forEach((note) => {
+      if (note.staff_member) staffIds.add(note.staff_member);
+    });
+
+    const staffMap = new Map<string, { displayName: string; lastName: string }>();
+    if (staffIds.size > 0) {
+      const { data: staff } = await supabase
+        .from('user_profiles')
+        .select('id, display_name')
+        .in('id', Array.from(staffIds));
+
+      staff?.forEach((s) => {
+        const parts = (s.display_name || 'Staff').split(' ');
+        const lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+        staffMap.set(s.id, { displayName: s.display_name || 'Staff', lastName });
+      });
+    }
+
+    // Define types for joined data
+    interface PlacementData {
+      id: string;
+      incident_number: string | null;
+      status: string | null;
+      school_id: string | null;
+      home_campus_id: string | null;
+    }
+    interface CategoryData {
+      name: string;
+      category_type: string;
+    }
+
+    // Collect student school IDs and fetch student info
+    const studentSchoolIds = new Set<string>();
+    notes.forEach((note) => {
+      const placement = note.daep_placements as unknown as PlacementData | null;
+      if (placement?.school_id) {
+        studentSchoolIds.add(placement.school_id);
+      }
+    });
+
+    const studentInfoMap = new Map<string, { first_name: string; last_name: string; photo_url: string | null }>();
+    if (studentSchoolIds.size > 0) {
+      const { data: students } = await supabase
+        .from('trespass_records')
+        .select('school_id, first_name, last_name, photo_url')
+        .eq('tenant_id', tenantId)
+        .in('school_id', Array.from(studentSchoolIds));
+
+      students?.forEach((s) => {
+        studentInfoMap.set(s.school_id, {
+          first_name: s.first_name,
+          last_name: s.last_name,
+          photo_url: s.photo_url,
+        });
+      });
+    }
+
+    // Fetch campus names
+    const campusIds = new Set<string>();
+    notes.forEach((note) => {
+      const placement = note.daep_placements as unknown as PlacementData | null;
+      if (placement?.home_campus_id) {
+        campusIds.add(placement.home_campus_id);
+      }
+    });
+
+    const campusMap = new Map<string, string>();
+    if (campusIds.size > 0) {
+      const { data: campuses } = await supabase
+        .from('campuses')
+        .select('id, name')
+        .eq('tenant_id', tenantId)
+        .in('id', Array.from(campusIds));
+
+      campuses?.forEach((c) => campusMap.set(c.id, c.name));
+    }
+
+    // Transform to BehaviorNoteListItem[]
+    return notes.map((note) => {
+      const placement = note.daep_placements as unknown as PlacementData | null;
+      const categoryData = note.daep_behavior_categories as unknown as CategoryData | null;
+      const staffInfo = staffMap.get(note.staff_member) || { displayName: 'Staff', lastName: 'Staff' };
+      const description = (note.description as string) || '';
+      const studentInfo = placement?.school_id ? studentInfoMap.get(placement.school_id) : null;
+
+      return {
+        id: note.id,
+        incident_date: note.incident_date,
+        incident_time: note.incident_time,
+        category: categoryData?.name ?? note.category,
+        category_id: note.category_id,
+        category_type: categoryData?.category_type as 'positive' | 'negative' | 'neutral' | null,
+        description,
+        description_snippet: description.length > 40 ? description.substring(0, 37) + '...' : description,
+        action_taken: note.action_taken,
+        staff_member: note.staff_member,
+        staff_name: staffInfo.displayName,
+        staff_last_name: staffInfo.lastName,
+        placement_id: note.placement_id,
+        student_school_id: placement?.school_id ?? '',
+        student_first_name: studentInfo?.first_name ?? '',
+        student_last_name: studentInfo?.last_name ?? '',
+        student_photo_url: studentInfo?.photo_url ?? null,
+        incident_number: placement?.incident_number ?? null,
+        placement_status: placement?.status ?? null,
+        home_campus_id: placement?.home_campus_id ?? null,
+        home_campus_name: campusMap.get(placement?.home_campus_id as string) || null,
+        points: null,
+        student_action: null,
+        teacher_action: null,
+        verified_by: note.verified_by,
+        verified_at: note.verified_at,
+        is_verified: !!note.verified_by,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+      };
+    });
+  } catch (error) {
+    console.error('getNotesForPlacement error:', error);
+    return [];
+  }
+}
+
 // ========== EXPORT BEHAVIOR NOTES TO CSV ==========
 
 /**
  * Export behavior notes to CSV format.
- * Returns CSV string with 18 columns.
+ * Returns CSV string with 19 columns (includes Incident Number).
  *
  * Story 4-3: Behavior Notes List View
+ * Story 4-4: Added Incident Number column
  */
 export async function exportBehaviorNotesToCSV(
   filters?: Partial<BehaviorNotesListQuery>
@@ -1164,7 +1490,8 @@ export async function exportBehaviorNotesToCSV(
     const tenantId = await getTenantId();
     const supabase = await createServerClient();
 
-    // Fetch all notes matching filters (no pagination for export)
+    // Story 4-4: Use left join for placements to include notes without placement
+    // Note: No nested trespass_records join - we fetch student info separately
     let query = supabase
       .from('daep_behavior_notes')
       .select(
@@ -1182,13 +1509,11 @@ export async function exportBehaviorNotesToCSV(
         created_at,
         updated_at,
         placement_id,
-        daep_placements!inner (
+        student_school_id,
+        daep_placements (
           id,
-          trespass_records!inner (
-            school_id,
-            first_name,
-            last_name
-          ),
+          incident_number,
+          school_id,
           home_campus_id
         ),
         daep_behavior_categories (
@@ -1223,19 +1548,45 @@ export async function exportBehaviorNotesToCSV(
       return { success: false, error: 'No notes found matching filters' };
     }
 
-    // Define types for joined data in CSV export
+    // Story 4-4: Define types for joined data in CSV export
     interface CSVPlacementData {
       id: string;
+      incident_number: string | null;
+      school_id: string | null;
       home_campus_id: string | null;
-      trespass_records: {
-        school_id: string;
-        first_name: string;
-        last_name: string;
-      };
     }
     interface CSVCategoryData {
       name: string;
       category_type: string;
+    }
+
+    // Collect ALL student school IDs (from placement.school_id or note.student_school_id)
+    const allStudentSchoolIds = new Set<string>();
+    notes.forEach((n) => {
+      const placement = n.daep_placements as unknown as CSVPlacementData | null;
+      if (placement?.school_id) {
+        allStudentSchoolIds.add(placement.school_id);
+      }
+      if (n.student_school_id) {
+        allStudentSchoolIds.add(n.student_school_id as string);
+      }
+    });
+
+    // Fetch student info for all school IDs
+    const studentInfoMap = new Map<string, { first_name: string; last_name: string }>();
+    if (allStudentSchoolIds.size > 0) {
+      const { data: students } = await supabase
+        .from('trespass_records')
+        .select('school_id, first_name, last_name')
+        .eq('tenant_id', tenantId)
+        .in('school_id', Array.from(allStudentSchoolIds));
+
+      students?.forEach((s) => {
+        studentInfoMap.set(s.school_id, {
+          first_name: s.first_name,
+          last_name: s.last_name,
+        });
+      });
     }
 
     // Fetch campus names
@@ -1277,10 +1628,11 @@ export async function exportBehaviorNotesToCSV(
       });
     }
 
-    // CSV headers (18 columns)
+    // Story 4-4: CSV headers (19 columns - added Incident Number)
     const headers = [
       'Student Name',
       'Student ID',
+      'Incident Number', // Story 4-4
       'Date',
       'Time',
       'Home Campus',
@@ -1301,14 +1653,20 @@ export async function exportBehaviorNotesToCSV(
 
     // Build CSV rows
     const rows = notes.map((note) => {
-      const placement = note.daep_placements as unknown as CSVPlacementData;
-      const student = placement?.trespass_records;
+      const placement = note.daep_placements as unknown as CSVPlacementData | null;
       const categoryData = note.daep_behavior_categories as unknown as CSVCategoryData | null;
       const staffInfo = staffMap.get(note.staff_member) || { displayName: 'Staff', lastName: 'Staff' };
 
+      // Story 4-4: Get student info from studentInfoMap (fetched separately since no FK to trespass_records)
+      const effectiveStudentId = placement?.school_id || (note.student_school_id as string) || '';
+      const studentInfo = studentInfoMap.get(effectiveStudentId);
+      const studentName = studentInfo ? `${studentInfo.last_name || ''}, ${studentInfo.first_name || ''}` : '';
+      const studentId = effectiveStudentId;
+
       return [
-        escapeCSV(`${student?.last_name || ''}, ${student?.first_name || ''}`),
-        escapeCSV(student?.school_id as string),
+        escapeCSV(studentName),
+        escapeCSV(studentId),
+        escapeCSV(placement?.incident_number || ''), // Story 4-4
         escapeCSV(note.incident_date),
         escapeCSV(note.incident_time),
         escapeCSV(campusMap.get(placement?.home_campus_id as string) || ''),
@@ -1338,4 +1696,424 @@ export async function exportBehaviorNotesToCSV(
       error: error instanceof Error ? error.message : 'Failed to export notes',
     };
   }
+}
+
+// ========== EXPORT BEHAVIOR NOTES TO PDF ==========
+
+/**
+ * Filter display info for PDF header
+ */
+interface PDFFilterDisplay {
+  searchQuery?: string;
+  categoryType?: string;
+  campusName?: string;
+  staffName?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+/**
+ * Generate PDF-ready HTML for behavior notes export.
+ * Returns HTML string formatted for print/PDF generation.
+ *
+ * Story 4-3: Behavior Notes List View - PDF Export
+ */
+export async function exportBehaviorNotesToPDF(
+  filters?: Partial<BehaviorNotesListQuery>,
+  filterDisplay?: PDFFilterDisplay
+): Promise<{ success: boolean; html?: string; error?: string; meta?: { total: number; dateRange: string } }> {
+  try {
+    const tenantId = await getTenantId();
+    const supabase = await createServerClient();
+
+    // Get tenant name for header
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', tenantId)
+      .single();
+
+    // Query notes with joins
+    let query = supabase
+      .from('daep_behavior_notes')
+      .select(
+        `
+        id,
+        incident_date,
+        incident_time,
+        category,
+        category_id,
+        description,
+        action_taken,
+        staff_member,
+        verified_by,
+        verified_at,
+        created_at,
+        placement_id,
+        student_school_id,
+        daep_placements (
+          id,
+          incident_number,
+          school_id,
+          home_campus_id
+        ),
+        daep_behavior_categories (
+          name,
+          category_type
+        )
+      `
+      )
+      .eq('tenant_id', tenantId)
+      .order('incident_date', { ascending: false })
+      .order('incident_time', { ascending: false });
+
+    // Apply filters
+    if (filters?.date_from) {
+      query = query.gte('incident_date', filters.date_from);
+    }
+    if (filters?.date_to) {
+      query = query.lte('incident_date', filters.date_to);
+    }
+    if (filters?.staff_id) {
+      query = query.eq('staff_member', filters.staff_id);
+    }
+
+    const { data: notes, error } = await query;
+
+    if (error) {
+      console.error('exportBehaviorNotesToPDF query error:', error);
+      return { success: false, error: 'Failed to fetch notes for export' };
+    }
+
+    if (!notes || notes.length === 0) {
+      return { success: false, error: 'No notes found matching filters' };
+    }
+
+    // Define types for joined data
+    interface PDFPlacementData {
+      id: string;
+      incident_number: string | null;
+      school_id: string | null;
+      home_campus_id: string | null;
+    }
+    interface PDFCategoryData {
+      name: string;
+      category_type: string;
+    }
+
+    // Collect student school IDs
+    const allStudentSchoolIds = new Set<string>();
+    notes.forEach((n) => {
+      const placement = n.daep_placements as unknown as PDFPlacementData | null;
+      if (placement?.school_id) {
+        allStudentSchoolIds.add(placement.school_id);
+      }
+      if (n.student_school_id) {
+        allStudentSchoolIds.add(n.student_school_id as string);
+      }
+    });
+
+    // Fetch student info
+    const studentInfoMap = new Map<string, { first_name: string; last_name: string }>();
+    if (allStudentSchoolIds.size > 0) {
+      const { data: students } = await supabase
+        .from('trespass_records')
+        .select('school_id, first_name, last_name')
+        .eq('tenant_id', tenantId)
+        .in('school_id', Array.from(allStudentSchoolIds));
+
+      students?.forEach((s) => {
+        studentInfoMap.set(s.school_id, {
+          first_name: s.first_name,
+          last_name: s.last_name,
+        });
+      });
+    }
+
+    // Fetch campus names
+    const campusIds = Array.from(
+      new Set(
+        notes
+          .map((n) => {
+            const p = n.daep_placements as unknown as PDFPlacementData;
+            return p?.home_campus_id;
+          })
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    const campusMap = new Map<string, string>();
+    if (campusIds.length > 0) {
+      const { data: campuses } = await supabase
+        .from('campuses')
+        .select('id, name')
+        .eq('tenant_id', tenantId)
+        .in('id', campusIds);
+
+      campuses?.forEach((c) => campusMap.set(c.id, c.name));
+    }
+
+    // Fetch staff names
+    const staffIds = Array.from(new Set(notes.map((n) => n.staff_member).filter((id): id is string => Boolean(id))));
+    const staffMap = new Map<string, string>();
+    if (staffIds.length > 0) {
+      const { data: staff } = await supabase
+        .from('user_profiles')
+        .select('id, display_name')
+        .in('id', staffIds);
+
+      staff?.forEach((s) => {
+        staffMap.set(s.id, s.display_name || 'Staff');
+      });
+    }
+
+    // Build date range string for header
+    const dates = notes.map((n) => n.incident_date).sort();
+    const dateRange = dates.length > 1
+      ? `${formatDateForPDF(dates[dates.length - 1])} - ${formatDateForPDF(dates[0])}`
+      : formatDateForPDF(dates[0]);
+
+    // Build report title based on filters
+    let reportTitle = 'Behavior Notes Report';
+    const filterParts: string[] = [];
+
+    if (filterDisplay?.searchQuery) {
+      reportTitle = `Behavior Notes - ${filterDisplay.searchQuery}`;
+    }
+    if (filterDisplay?.staffName) {
+      filterParts.push(`Staff: ${filterDisplay.staffName}`);
+    }
+    if (filterDisplay?.campusName) {
+      filterParts.push(`Campus: ${filterDisplay.campusName}`);
+    }
+    if (filterDisplay?.categoryType && filterDisplay.categoryType !== 'all') {
+      const typeLabel = filterDisplay.categoryType.charAt(0).toUpperCase() + filterDisplay.categoryType.slice(1);
+      filterParts.push(`Category: ${typeLabel}`);
+    }
+    if (filterDisplay?.dateFrom || filterDisplay?.dateTo) {
+      const fromStr = filterDisplay.dateFrom ? formatDateForPDF(filterDisplay.dateFrom) : 'Start';
+      const toStr = filterDisplay.dateTo ? formatDateForPDF(filterDisplay.dateTo) : 'Present';
+      filterParts.push(`${fromStr} - ${toStr}`);
+    }
+
+    const filtersHtml = filterParts.length > 0
+      ? `<div class="filters">Filters: ${escapeHTML(filterParts.join(' | '))}</div>`
+      : '';
+
+    // Build HTML table rows
+    const tableRows = notes.map((note) => {
+      const placement = note.daep_placements as unknown as PDFPlacementData | null;
+      const categoryData = note.daep_behavior_categories as unknown as PDFCategoryData | null;
+      const staffName = staffMap.get(note.staff_member) || 'Staff';
+
+      const effectiveStudentId = placement?.school_id || (note.student_school_id as string) || '';
+      const studentInfo = studentInfoMap.get(effectiveStudentId);
+      const studentName = studentInfo ? `${studentInfo.last_name}, ${studentInfo.first_name}` : '—';
+      const campusName = campusMap.get(placement?.home_campus_id as string) || '—';
+
+      const categoryType = categoryData?.category_type || '';
+      const categoryClass = categoryType === 'negative' ? 'negative' : categoryType === 'positive' ? 'positive' : '';
+
+      return `
+        <tr>
+          <td>${formatDateForPDF(note.incident_date)}${note.incident_time ? ` ${formatTimeForPDF(note.incident_time)}` : ''}</td>
+          <td>${escapeHTML(studentName)}</td>
+          <td>${escapeHTML(campusName)}</td>
+          <td>${escapeHTML(placement?.incident_number || '—')}</td>
+          <td class="${categoryClass}">${escapeHTML(categoryData?.name || note.category || '—')}</td>
+          <td>${escapeHTML(note.description || '—')}</td>
+          <td>${escapeHTML(staffName)}</td>
+          <td class="center">${note.verified_by ? '✓' : '—'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Build full HTML document
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Behavior Notes Report</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11px;
+      line-height: 1.4;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #333;
+    }
+    .header-left h1 {
+      margin: 0 0 5px 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .header-left p {
+      margin: 0;
+      color: #666;
+      font-size: 12px;
+    }
+    .filters {
+      margin: -10px 0 15px 0;
+      padding: 8px 12px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #555;
+    }
+    .header-right {
+      text-align: right;
+      font-size: 11px;
+      color: #666;
+    }
+    .summary {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 15px;
+      padding: 10px 15px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+    .summary-item {
+      display: flex;
+      gap: 5px;
+    }
+    .summary-label { color: #666; }
+    .summary-value { font-weight: 600; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th {
+      background: #333;
+      color: white;
+      padding: 8px 6px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 6px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: top;
+    }
+    tr:nth-child(even) { background: #fafafa; }
+    tr:hover { background: #f0f0f0; }
+    .positive { color: #16a34a; font-weight: 500; }
+    .negative { color: #dc2626; font-weight: 500; }
+    .center { text-align: center; }
+    .footer {
+      margin-top: 20px;
+      padding-top: 10px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 10px;
+      color: #999;
+      text-align: center;
+    }
+    @media print {
+      body { padding: 0; }
+      .header { page-break-after: avoid; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>${escapeHTML(reportTitle)}</h1>
+      <p>${escapeHTML(tenant?.name || 'District')}</p>
+    </div>
+    <div class="header-right">
+      <div>Generated: ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+      <div>Date Range: ${dateRange}</div>
+    </div>
+  </div>
+
+  ${filtersHtml}
+
+  <div class="summary">
+    <div class="summary-item">
+      <span class="summary-label">Total Notes:</span>
+      <span class="summary-value">${notes.length}</span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 90px;">Date/Time</th>
+        <th style="width: 120px;">Student</th>
+        <th style="width: 110px;">Campus</th>
+        <th style="width: 100px;">Incident</th>
+        <th style="width: 80px;">Category</th>
+        <th>Description</th>
+        <th style="width: 80px;">Staff</th>
+        <th style="width: 30px;">✓</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Behavior Notes Report • ${escapeHTML(tenant?.name || 'District')} • Page 1
+  </div>
+</body>
+</html>
+    `;
+
+    return {
+      success: true,
+      html,
+      meta: {
+        total: notes.length,
+        dateRange,
+      }
+    };
+  } catch (error) {
+    console.error('exportBehaviorNotesToPDF error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to export notes',
+    };
+  }
+}
+
+// Helper: Format date for PDF
+function formatDateForPDF(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Helper: Format time for PDF
+function formatTimeForPDF(timeStr: string): string {
+  const [hours, minutes] = timeStr.split(':');
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${minutes} ${ampm}`;
+}
+
+// Helper: Escape HTML for PDF output
+function escapeHTML(str: string | null | undefined): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

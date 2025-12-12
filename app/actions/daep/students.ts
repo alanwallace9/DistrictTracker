@@ -676,3 +676,51 @@ export async function getTrespassTrackerStatus(
     },
   };
 }
+
+// ========== UPDATE STUDENT DEMOGRAPHICS (Story 4-H) ==========
+
+export interface UpdateStudentDemographicsInput {
+  school_id: string;
+  guardian_first_name?: string | null;
+  guardian_last_name?: string | null;
+  guardian_phone?: string | null;
+  parent_email?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+}
+
+export async function updateStudentDemographics(
+  input: UpdateStudentDemographicsInput
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Build update object with only provided fields
+  const updateData: Record<string, string | null | undefined> = {};
+
+  if ('guardian_first_name' in input) updateData.guardian_first_name = input.guardian_first_name;
+  if ('guardian_last_name' in input) updateData.guardian_last_name = input.guardian_last_name;
+  if ('guardian_phone' in input) updateData.guardian_phone = input.guardian_phone;
+  if ('parent_email' in input) updateData.parent_email = input.parent_email;
+  if ('emergency_contact_name' in input) updateData.emergency_contact_name = input.emergency_contact_name;
+  if ('emergency_contact_phone' in input) updateData.emergency_contact_phone = input.emergency_contact_phone;
+
+  if (Object.keys(updateData).length === 0) {
+    return { success: false, error: 'No fields to update' };
+  }
+
+  // Update the trespass_records table for this student
+  // We update ALL records for this school_id to keep data consistent
+  const { error } = await supabase
+    .from('trespass_records')
+    .update(updateData)
+    .eq('tenant_id', tenantId)
+    .eq('school_id', input.school_id);
+
+  if (error) {
+    console.error('Error updating student demographics:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}

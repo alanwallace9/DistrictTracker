@@ -1551,3 +1551,97 @@ export async function getAttendanceThreshold(): Promise<number> {
   const settings = data?.daep_settings as any;
   return settings?.attendance_threshold ?? 85;
 }
+
+// ============================================================================
+// DAILY ATTENDANCE SUMMARY (Story 4-B)
+// ============================================================================
+
+export interface DailyAttendanceSummary {
+  date: string;
+  status: 'present' | 'absent' | 'partial' | 'excused';
+  summary: string;
+  percentage: number;
+}
+
+/**
+ * Get daily attendance summaries for a placement.
+ * Returns one entry per day showing final state (not every period change).
+ * Used in the Attendance tab of roster inline panel.
+ */
+export async function getDailyAttendanceSummary(
+  placementId: string,
+  limit: number = 10
+): Promise<DailyAttendanceSummary[]> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Get all attendance entries for this placement, ordered by date desc
+  const { data: entries, error } = await supabase
+    .from('daep_attendance')
+    .select('date, period, status, excused')
+    .eq('tenant_id', tenantId)
+    .eq('placement_id', placementId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching attendance summary:', error);
+    return [];
+  }
+
+  if (!entries || entries.length === 0) {
+    return [];
+  }
+
+  // Group by date
+  const byDate = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const existing = byDate.get(entry.date) || [];
+    existing.push(entry);
+    byDate.set(entry.date, existing);
+  }
+
+  // Convert to daily summaries (most recent first)
+  const summaries: DailyAttendanceSummary[] = [];
+  const sortedDates = Array.from(byDate.keys()).sort((a, b) => b.localeCompare(a));
+
+  for (const date of sortedDates.slice(0, limit)) {
+    const dayEntries = byDate.get(date) || [];
+    const totalPeriods = dayEntries.length;
+    const presentCount = dayEntries.filter((e) => e.status === 'present').length;
+    const absentCount = dayEntries.filter((e) => e.status === 'absent').length;
+    const excusedCount = dayEntries.filter((e) => e.excused).length;
+
+    let status: DailyAttendanceSummary['status'];
+    let summary: string;
+
+    if (presentCount === totalPeriods) {
+      status = 'present';
+      summary = 'Present (all periods)';
+    } else if (absentCount === totalPeriods && excusedCount === totalPeriods) {
+      status = 'excused';
+      summary = 'Excused absence';
+    } else if (absentCount === totalPeriods) {
+      status = 'absent';
+      summary = 'Absent (unexcused)';
+    } else {
+      status = 'partial';
+      // Find which periods were missed
+      const missingPeriods = dayEntries
+        .filter((e) => e.status !== 'present')
+        .map((e) => e.period)
+        .sort()
+        .join(', ');
+      if (presentCount > absentCount) {
+        summary = `Present (${missingPeriods ? `missed: ${missingPeriods}` : 'partial'})`;
+      } else {
+        summary = `Partial (${presentCount}/${totalPeriods} periods)`;
+      }
+    }
+
+    const percentage = totalPeriods > 0 ? Math.round((presentCount / totalPeriods) * 100) : 0;
+
+    summaries.push({ date, status, summary, percentage });
+  }
+
+  return summaries;
+}

@@ -836,8 +836,11 @@ export const QUICK_POINT_VALUES = [-15, -10, -5, 0, 5] as const;
 export type QuickPointValue = (typeof QUICK_POINT_VALUES)[number];
 
 // Behavior note schema for inline entry
+// Story 4-4: placement_id is now optional - notes can be linked to student only
 export const BehaviorNoteSchema = z.object({
-  placement_id: z.string().uuid('Invalid placement ID'),
+  // Either placement_id OR student_school_id must be provided
+  placement_id: z.string().uuid('Invalid placement ID').nullable().optional(),
+  student_school_id: z.string().min(1, 'Student ID is required').optional(),
   incident_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   incident_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid time format').optional(),
   category_id: z.string().uuid('Invalid category').nullable().optional(),
@@ -849,7 +852,10 @@ export const BehaviorNoteSchema = z.object({
   student_action: z.string().max(100).nullable().optional(),
   teacher_action: z.string().max(100).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
-});
+}).refine(
+  (data) => data.placement_id || data.student_school_id,
+  { message: 'Either placement_id or student_school_id is required' }
+);
 
 export type CreateBehaviorNoteInput = z.infer<typeof BehaviorNoteSchema>;
 
@@ -928,12 +934,15 @@ export interface BehaviorNoteListItem {
   staff_member: string;
   staff_name: string;
   staff_last_name: string;
-  // Student info via placement
-  placement_id: string;
+  // Student info via placement (Story 4-4: placement_id now nullable)
+  placement_id: string | null;
   student_school_id: string;
   student_first_name: string;
   student_last_name: string;
   student_photo_url: string | null;
+  // Placement context (Story 4-4)
+  incident_number: string | null; // From placement if linked
+  placement_status: string | null; // active, completed, etc.
   // Campus info
   home_campus_id: string | null;
   home_campus_name: string | null;

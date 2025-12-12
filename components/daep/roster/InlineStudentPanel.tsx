@@ -4,28 +4,39 @@
  * Inline Student Panel Component
  *
  * Story 4-1: Quick Behavior Note Entry
+ * Story 4-B: Tabbed Activity Panel
  *
  * Expandable inline panel that appears below a student row in the roster.
  * Contains:
- * - Entry form (points, student action, teacher action, notes)
- * - Recent activity list (last 5 items)
- * - "View All" link to student profile
+ * - Manila folder tabs: Activity | Attendance | Behavior
+ * - Left: Entry form (points, student action, teacher action, notes)
+ * - Right: Tab-specific content (changes based on active tab)
  */
 
 import { useState, useCallback, useEffect, useTransition } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Loader2, ClipboardList, Calendar, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { TableCell } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { ManilaFolderTabs, ManilaFolderTabPanel } from '@/components/ui/manila-folder-tabs';
 import { CompactActivityItem, CompactActivityEmpty } from './CompactActivityItem';
 import { CategorySelect } from './CategorySelect';
 import { PointsSelect } from './PointsSelect';
-import { createBehaviorNote, getRecentActivityForPlacement } from '@/app/actions/daep/behavior-notes';
-import type { RecentActivityItem } from '@/lib/validation/schemas';
+import { createBehaviorNote, getRecentActivityForPlacement, getNotesForPlacement } from '@/app/actions/daep/behavior-notes';
+import { getDailyAttendanceSummary, type DailyAttendanceSummary } from '@/app/actions/daep/attendance';
+import type { RecentActivityItem, BehaviorNoteListItem } from '@/lib/validation/schemas';
 import type { BehaviorCategory } from '@/app/actions/daep/behavior-categories';
 import Link from 'next/link';
+
+// ========== TAB CONFIGURATION ==========
+
+const PANEL_TABS = [
+  { id: 'behavior', label: 'Behavior', icon: <FileText className="w-4 h-4" /> },
+  { id: 'activity', label: 'Activity', icon: <ClipboardList className="w-4 h-4" /> },
+  { id: 'attendance', label: 'Attendance', icon: <Calendar className="w-4 h-4" /> },
+];
 
 // ========== PROPS ==========
 
@@ -66,6 +77,73 @@ export function ChevronButton({ isExpanded, onToggle, className }: ChevronButton
   );
 }
 
+// ========== HELPER COMPONENTS ==========
+
+interface AttendanceSummaryItemProps {
+  item: DailyAttendanceSummary;
+}
+
+function AttendanceSummaryItem({ item }: AttendanceSummaryItemProps) {
+  const statusColors = {
+    present: 'text-green-600',
+    absent: 'text-red-600',
+    partial: 'text-yellow-600',
+    excused: 'text-blue-600',
+  };
+
+  const date = new Date(item.date + 'T00:00:00');
+  const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  return (
+    <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 transition-colors text-xs">
+      <div className="flex items-center gap-2">
+        <span className="font-medium w-12">{formatted}</span>
+        <span className={cn('flex-1', statusColors[item.status])}>{item.summary}</span>
+      </div>
+      <span className="text-muted-foreground">{item.percentage}%</span>
+    </div>
+  );
+}
+
+interface BehaviorNoteItemProps {
+  note: BehaviorNoteListItem;
+}
+
+function BehaviorNoteItem({ note }: BehaviorNoteItemProps) {
+  const date = new Date(note.incident_date + 'T00:00:00');
+  const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const typeColors = {
+    positive: 'bg-green-100 text-green-700',
+    negative: 'bg-red-100 text-red-700',
+    neutral: 'bg-yellow-100 text-yellow-700',
+  };
+
+  return (
+    <div className="flex items-start justify-between py-1.5 px-2 rounded hover:bg-muted/50 transition-colors text-xs gap-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        {note.category && (
+          <span
+            className={cn(
+              'px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0',
+              note.category_type ? typeColors[note.category_type as keyof typeof typeColors] : 'bg-gray-100 text-gray-700'
+            )}
+          >
+            {note.category}
+          </span>
+        )}
+        {note.description && (
+          <span className="truncate text-foreground">{note.description}</span>
+        )}
+      </div>
+      <span className="text-muted-foreground whitespace-nowrap flex-shrink-0">
+        {formatted} ({note.staff_last_name})
+      </span>
+    </div>
+  );
+}
+
 // ========== MAIN COMPONENT ==========
 
 export function InlineStudentPanel({
@@ -79,23 +157,48 @@ export function InlineStudentPanel({
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
+  // Tab state - default to Behavior (teachers care about this most)
+  const [activeTab, setActiveTab] = useState('behavior');
+
   // Form state
   const [points, setPoints] = useState<number>(0);
   const [studentAction, setStudentAction] = useState<string>('');
   const [teacherAction, setTeacherAction] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  // Recent activity state
+  // Data state for each tab
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
-  const [isLoadingActivity, setIsLoadingActivity] = useState(true);
+  const [attendanceSummary, setAttendanceSummary] = useState<DailyAttendanceSummary[]>([]);
+  const [behaviorNotes, setBehaviorNotes] = useState<BehaviorNoteListItem[]>([]);
 
-  // Categories are filtered by CategorySelect component based on variant
+  // Loading states
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
+  const [isLoadingBehavior, setIsLoadingBehavior] = useState(true); // Start loading behavior (default tab)
 
   // Get today's date in YYYY-MM-DD format
   const today = currentDate || new Date().toISOString().split('T')[0];
 
-  // Fetch recent activity on mount
+  // Fetch behavior notes on mount (default tab)
   useEffect(() => {
+    async function fetchBehavior() {
+      setIsLoadingBehavior(true);
+      try {
+        const notes = await getNotesForPlacement(placementId);
+        setBehaviorNotes(notes.slice(0, 5)); // Limit to 5 for inline panel
+      } catch (error) {
+        console.error('Error fetching behavior notes:', error);
+      } finally {
+        setIsLoadingBehavior(false);
+      }
+    }
+    fetchBehavior();
+  }, [placementId]);
+
+  // Fetch activity only when Activity tab is selected
+  useEffect(() => {
+    if (activeTab !== 'activity' || recentActivity.length > 0) return;
+
     async function fetchActivity() {
       setIsLoadingActivity(true);
       try {
@@ -108,7 +211,25 @@ export function InlineStudentPanel({
       }
     }
     fetchActivity();
-  }, [placementId]);
+  }, [activeTab, placementId, recentActivity.length]);
+
+  // Fetch attendance only when Attendance tab is selected
+  useEffect(() => {
+    if (activeTab !== 'attendance' || attendanceSummary.length > 0) return;
+
+    async function fetchAttendance() {
+      setIsLoadingAttendance(true);
+      try {
+        const summary = await getDailyAttendanceSummary(placementId, 5);
+        setAttendanceSummary(summary);
+      } catch (error) {
+        console.error('Error fetching attendance summary:', error);
+      } finally {
+        setIsLoadingAttendance(false);
+      }
+    }
+    fetchAttendance();
+  }, [activeTab, placementId, attendanceSummary.length]);
 
   // Handle save
   const handleSave = useCallback(() => {
@@ -137,9 +258,13 @@ export function InlineStudentPanel({
           setTeacherAction('');
           setNotes('');
 
-          // Refresh recent activity
-          const activity = await getRecentActivityForPlacement(placementId, 5);
+          // Refresh data for all tabs
+          const [activity, notes] = await Promise.all([
+            getRecentActivityForPlacement(placementId, 5),
+            getNotesForPlacement(placementId),
+          ]);
           setRecentActivity(activity);
+          setBehaviorNotes(notes.slice(0, 5));
         } else {
           toast({
             title: 'Error',
@@ -221,34 +346,104 @@ export function InlineStudentPanel({
           </Button>
         </div>
 
-        {/* Right: Recent Activity */}
+        {/* Right: Tabbed Content */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-muted-foreground">Recent Activity</h4>
-            <Link
-              href={`/daep/students/${schoolId}?tab=activity`}
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              View All
-              <ExternalLink className="h-3 w-3" />
-            </Link>
-          </div>
+          <ManilaFolderTabs
+            tabs={PANEL_TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          >
+            {/* Behavior Tab (Default) */}
+            <ManilaFolderTabPanel tabId="behavior" activeTab={activeTab}>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">Recent Notes</span>
+                  <Link
+                    href={`/daep/students/${schoolId}?tab=behavior`}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    View All
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+                {isLoadingBehavior ? (
+                  <div className="py-4 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : behaviorNotes.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    No behavior notes
+                  </div>
+                ) : (
+                  <div className="divide-y border rounded-md bg-background">
+                    {behaviorNotes.map((note) => (
+                      <BehaviorNoteItem key={note.id} note={note} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </ManilaFolderTabPanel>
 
-          <div className="border rounded-md bg-background">
-            {isLoadingActivity ? (
-              <div className="py-4 flex items-center justify-center">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            {/* Activity Tab */}
+            <ManilaFolderTabPanel tabId="activity" activeTab={activeTab}>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">Recent Activity</span>
+                  <Link
+                    href={`/daep/students/${schoolId}?tab=activity`}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    View All
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+                {isLoadingActivity ? (
+                  <div className="py-4 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : recentActivity.length === 0 ? (
+                  <CompactActivityEmpty />
+                ) : (
+                  <div className="divide-y border rounded-md bg-background">
+                    {recentActivity.map((item) => (
+                      <CompactActivityItem key={item.id} item={item} />
+                    ))}
+                  </div>
+                )}
               </div>
-            ) : recentActivity.length === 0 ? (
-              <CompactActivityEmpty />
-            ) : (
-              <div className="divide-y">
-                {recentActivity.map((item) => (
-                  <CompactActivityItem key={item.id} item={item} />
-                ))}
+            </ManilaFolderTabPanel>
+
+            {/* Attendance Tab */}
+            <ManilaFolderTabPanel tabId="attendance" activeTab={activeTab}>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">Daily Summary</span>
+                  <Link
+                    href={`/daep/students/${schoolId}?tab=attendance`}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    View All
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
+                {isLoadingAttendance ? (
+                  <div className="py-4 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : attendanceSummary.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    No attendance records
+                  </div>
+                ) : (
+                  <div className="divide-y border rounded-md bg-background">
+                    {attendanceSummary.map((item) => (
+                      <AttendanceSummaryItem key={item.date} item={item} />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </ManilaFolderTabPanel>
+          </ManilaFolderTabs>
         </div>
       </div>
     </div>

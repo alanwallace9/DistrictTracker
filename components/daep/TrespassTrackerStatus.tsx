@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -55,52 +56,43 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">TrespassTracker Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-8 w-full" />
-          </div>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        title="TrespassTracker Status"
+        icon={<Shield className="w-4 h-4" />}
+        storageKey="student-tt-status"
+      >
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      </CollapsibleCard>
     );
   }
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <ShieldOff className="w-4 h-4 text-muted-foreground" />
-            TrespassTracker Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-destructive">{error}</p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        title="TrespassTracker Status"
+        icon={<ShieldOff className="w-4 h-4" />}
+        storageKey="student-tt-status"
+      >
+        <p className="text-sm text-destructive">{error}</p>
+      </CollapsibleCard>
     );
   }
 
   if (!status?.hasRecord) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <ShieldOff className="w-4 h-4 text-muted-foreground" />
-            TrespassTracker Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No TrespassTracker records found for this student
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        title="TrespassTracker Status"
+        icon={<ShieldOff className="w-4 h-4" />}
+        storageKey="student-tt-status"
+      >
+        <p className="text-sm text-muted-foreground">
+          No TrespassTracker records found for this student
+        </p>
+      </CollapsibleCard>
     );
   }
 
@@ -112,18 +104,18 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
   };
 
   return (
-    <Card className={status.trespassStatus === 'active' ? 'border-destructive/50' : ''}>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Shield
-            className={`w-4 h-4 ${
-              status.trespassStatus === 'active' ? 'text-destructive' : 'text-muted-foreground'
-            }`}
-          />
-          TrespassTracker Status
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <CollapsibleCard
+      title="TrespassTracker Status"
+      icon={
+        <Shield
+          className={`w-4 h-4 ${
+            status.trespassStatus === 'active' ? 'text-destructive' : ''
+          }`}
+        />
+      }
+      storageKey="student-tt-status"
+      className={status.trespassStatus === 'active' ? 'border-destructive/50' : ''}
+      contentClassName="space-y-4">
         {/* Warning banner for active trespass - uses theme-compliant destructive colors */}
         {status.trespassStatus === 'active' && (
           <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
@@ -186,7 +178,6 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
             </Button>
           </Link>
         )}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }

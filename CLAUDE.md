@@ -74,6 +74,36 @@ const user = await currentUser();
 
 ---
 
+## Debugging Approach: Least Destructive First
+
+**When encountering bugs, check in this order BEFORE hitting database/MCP tools repeatedly:**
+
+1. **Field/column names** - Typos in SELECT statements, wrong column names (e.g., `photo_url` vs `cached_image_url`)
+2. **Data types** - String vs number mismatches, null handling
+3. **Query structure** - Missing JOINs, wrong table aliases
+4. **Application logic** - Fallback chains, conditional rendering
+5. **THEN** database queries to verify data exists
+
+**Example - WRONG approach:**
+```bash
+# Running 8 Supabase queries trying different RLS policies
+mcp__supabase__execute_sql "SELECT ..." # Query 1
+mcp__supabase__execute_sql "SELECT ..." # Query 2
+# ... repeatedly hitting the database
+```
+
+**Example - CORRECT approach:**
+```typescript
+// First: Check if the column name is correct
+// The error "column trespass_records.photo_url does not exist"
+// tells you the column name is wrong - fix it first!
+.select('school_id, first_name, last_name, cached_image_url') // Not photo_url
+```
+
+**Rule:** One well-placed console.log or reading the error message carefully often solves it faster than multiple database queries.
+
+---
+
 ## External Service IDs
 
 **IMPORTANT: Before using MCP tools, check `.env.local` or `.env` for correct project IDs:**
