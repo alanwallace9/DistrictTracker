@@ -1048,6 +1048,55 @@ export const OPTIONAL_CSV_FIELDS = [
 ] as const;
 
 // ============================================================================
+// FIELD MAPPING SCHEMAS (Story 5-2)
+// ============================================================================
+
+export const SIS_NAMES = ['Skyward', 'Focus', 'PowerSchool', 'Ascender', 'Other'] as const;
+export type SISName = (typeof SIS_NAMES)[number];
+
+// Required DAEP field keys
+export const REQUIRED_DAEP_FIELDS = [
+  'student_id',
+  'first_name',
+  'last_name',
+  'incident_number',
+  'start_date',
+  'days_assigned',
+  'offense_code',
+  'home_campus',
+] as const;
+
+export const FieldMappingSchema = z.object({
+  sisName: z.enum(SIS_NAMES),
+  sisNameOther: z.string().max(100).optional().nullable(),
+  mappings: z.record(z.string(), z.string()).refine(
+    (mappings) => {
+      return REQUIRED_DAEP_FIELDS.every(
+        (field) => mappings[field] && mappings[field].length > 0
+      );
+    },
+    { message: 'All required fields must be mapped' }
+  ),
+  sampleHeaders: z.array(z.string()),
+  sessionId: z.string().uuid().optional(),
+});
+
+export type FieldMappingInput = z.infer<typeof FieldMappingSchema>;
+
+// Field mapping record from database
+export interface FieldMappingRecord {
+  id: string;
+  tenant_id: string;
+  sis_name: SISName;
+  sis_name_other: string | null;
+  field_mappings: Record<string, string>;
+  sample_headers: string[] | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

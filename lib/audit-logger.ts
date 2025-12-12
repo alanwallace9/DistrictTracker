@@ -48,10 +48,11 @@ export type AuditEventType =
   | 'student.separation_removed'
   // System Events
   | 'system.batch_sync'
-  // Reconciliation Events (Story 5-1)
+  // Reconciliation Events (Story 5-1, 5-2)
   | 'reconciliation.session_created'
   | 'reconciliation.upload_failed'
-  | 'reconciliation.session_completed';
+  | 'reconciliation.session_completed'
+  | 'reconciliation.mapping_saved';
 
 interface AuditLogEntry {
   eventType: AuditEventType;

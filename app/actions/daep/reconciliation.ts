@@ -1,5 +1,6 @@
 'use server';
 
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { currentUser } from '@clerk/nextjs/server';
 import { logAuditEvent } from '@/lib/audit-logger';
@@ -13,6 +14,18 @@ import type { ReconciliationSession, SISGuide, SISGuideStep } from '@/lib/valida
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
+
+// Service role client for storage operations (bypasses RLS since we use Clerk auth)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
+);
 
 // SIS detection patterns
 const SIS_PATTERNS: Record<string, RegExp[]> = {
@@ -110,8 +123,8 @@ export async function uploadReconciliationCSV(formData: FormData): Promise<Uploa
   const detectedSIS = detectSISFromFilename(file.name);
 
   try {
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
+    // Upload to Supabase Storage using admin client (bypasses RLS)
+    const { error: uploadError } = await supabaseAdmin.storage
       .from('daep-uploads')
       .upload(storagePath, file, {
         contentType: 'text/csv',
@@ -126,14 +139,29 @@ export async function uploadReconciliationCSV(formData: FormData): Promise<Uploa
         actorId: user.id,
         actorEmail: user.emailAddresses[0]?.emailAddress,
         action: 'CSV upload failed - storage error',
-        details: { fileName: file.name, error: uploadError.message },
+        details: { fileName: file.name, error: uploadError.message, code: uploadError.name },
         tenantId,
       });
-      return { success: false, error: 'Failed to upload file. Please try again.' };
+
+      // Provide helpful error messages based on error type
+      let userMessage = 'Failed to upload file. ';
+      if (uploadError.message?.includes('mime type')) {
+        userMessage += 'Invalid file type. Please upload a CSV file (.csv extension).';
+      } else if (uploadError.message?.includes('size')) {
+        userMessage += 'File is too large. Maximum size is 10MB.';
+      } else if (uploadError.message?.includes('duplicate') || uploadError.message?.includes('already exists')) {
+        userMessage += 'A file with this name was recently uploaded. Please rename and try again.';
+      } else if (uploadError.message?.includes('bucket') || uploadError.message?.includes('not found')) {
+        userMessage += 'Storage configuration error. Please contact your administrator.';
+      } else {
+        userMessage += 'Please check your file and try again. If the problem persists, contact support.';
+      }
+
+      return { success: false, error: userMessage };
     }
 
-    // Get signed URL for future access (7 days)
-    const { data: urlData } = await supabase.storage
+    // Get signed URL for future access (7 days) using admin client
+    const { data: urlData } = await supabaseAdmin.storage
       .from('daep-uploads')
       .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
 
@@ -155,9 +183,9 @@ export async function uploadReconciliationCSV(formData: FormData): Promise<Uploa
 
     if (sessionError) {
       console.error('[DAEP Reconciliation] Session creation failed:', sessionError);
-      // Attempt to delete uploaded file
-      await supabase.storage.from('daep-uploads').remove([storagePath]);
-      return { success: false, error: 'Failed to create reconciliation session.' };
+      // Attempt to delete uploaded file using admin client
+      await supabaseAdmin.storage.from('daep-uploads').remove([storagePath]);
+      return { success: false, error: 'Failed to create reconciliation session. Please try again.' };
     }
 
     // Check if field mapping exists for this tenant
@@ -196,7 +224,7 @@ export async function uploadReconciliationCSV(formData: FormData): Promise<Uploa
     // Build redirect URL
     const redirectTo = mapping
       ? `/daep/reconciliation/${session.id}`
-      : `/daep/reconciliation/mapping?session=${session.id}${detectedSIS ? `&detected_sis=${detectedSIS}` : ''}`;
+      : `/daep/settings/csv-mapping?session=${session.id}${detectedSIS ? `&detected_sis=${detectedSIS}` : ''}`;
 
     return {
       success: true,
@@ -399,5 +427,235 @@ export async function generateGuidePDF(
   return {
     success: true,
     pdfUrl: dataUrl,
+  };
+}
+
+// ============================================================================
+// FIELD MAPPING ACTIONS (Story 5-2)
+// ============================================================================
+
+import type { FieldMappingRecord, SISName } from '@/lib/validation/schemas';
+
+export interface FieldMappingInput {
+  sisName: SISName;
+  sisNameOther?: string | null;
+  mappings: Record<string, string>;
+  sampleHeaders: string[];
+  sessionId?: string;
+}
+
+/**
+ * Extract CSV column headers AND sample data from uploaded file
+ * Returns first 3 data rows for preview
+ */
+export async function extractCSVHeadersAndSample(sessionId: string): Promise<{
+  success: boolean;
+  headers: string[];
+  sampleData: Record<string, string>[];
+  fileName?: string;
+  error?: string;
+}> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Get session to find file URL and storage path
+  const { data: session } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('file_url, file_name, storage_path')
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (!session) {
+    return { success: false, error: 'Session not found. Please upload your CSV file again.', headers: [], sampleData: [] };
+  }
+
+  try {
+    // Try to download file content from stored URL
+    let response = await fetch(session.file_url);
+
+    // If stored URL fails (expired), generate a fresh signed URL
+    if (!response.ok && session.storage_path) {
+      const { data: urlData } = await supabaseAdmin.storage
+        .from('daep-uploads')
+        .createSignedUrl(session.storage_path, 60 * 60); // 1 hour
+
+      if (urlData?.signedUrl) {
+        response = await fetch(urlData.signedUrl);
+
+        // Update session with new URL if successful
+        if (response.ok) {
+          await supabase
+            .from('daep_reconciliation_sessions')
+            .update({ file_url: urlData.signedUrl })
+            .eq('id', sessionId);
+        }
+      }
+    }
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: 'Could not access the uploaded file. The file may have expired. Please upload your CSV again.',
+        headers: [],
+        sampleData: [],
+      };
+    }
+
+    const text = await response.text();
+    const lines = text.split('\n').slice(0, 4); // header + 3 data rows
+
+    // Parse using PapaParse
+    const Papa = await import('papaparse');
+    const parsed = Papa.parse(lines.join('\n'), { header: true });
+
+    // Clean headers (trim whitespace, handle BOM)
+    const rawHeaders = Object.keys(parsed.data[0] || {});
+    const headers = rawHeaders
+      .map((h) => h.replace(/^\uFEFF/, '').trim())
+      .filter((h) => h.length > 0);
+
+    // Sample data: first 3 rows with cleaned keys
+    const sampleData = (parsed.data as Record<string, string>[]).slice(0, 3).map((row) => {
+      const cleanRow: Record<string, string> = {};
+      for (const key of Object.keys(row)) {
+        const cleanKey = key.replace(/^\uFEFF/, '').trim();
+        if (cleanKey) {
+          cleanRow[cleanKey] = row[key];
+        }
+      }
+      return cleanRow;
+    });
+
+    return {
+      success: true,
+      headers,
+      sampleData,
+      fileName: session.file_name,
+    };
+  } catch (error) {
+    console.error('[DAEP Mapping] Failed to extract headers:', error);
+    return {
+      success: false,
+      error: 'Failed to parse CSV file. Please ensure your file is a valid CSV with column headers in the first row.',
+      headers: [],
+      sampleData: [],
+    };
+  }
+}
+
+/**
+ * Get existing field mapping for tenant
+ */
+export async function getFieldMapping(): Promise<FieldMappingRecord | null> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data, error } = await supabase
+    .from('daep_csv_field_mappings')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('[DAEP Mapping] Error fetching mapping:', error);
+    return null;
+  }
+
+  return data as FieldMappingRecord | null;
+}
+
+/**
+ * Save or update field mapping for tenant
+ */
+export async function saveFieldMapping(input: FieldMappingInput): Promise<{
+  success: boolean;
+  mappingId?: string;
+  redirectTo?: string;
+  error?: string;
+}> {
+  const supabase = await createServerClient();
+  const user = await currentUser();
+  const tenantId = await getTenantId();
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  // Validate required fields are mapped
+  const requiredFields = [
+    'student_id',
+    'first_name',
+    'last_name',
+    'incident_number',
+    'start_date',
+    'days_assigned',
+    'offense_code',
+    'home_campus',
+  ];
+
+  const missingFields = requiredFields.filter((f) => !input.mappings[f]);
+  if (missingFields.length > 0) {
+    return {
+      success: false,
+      error: `Missing required mappings: ${missingFields.join(', ')}`,
+    };
+  }
+
+  // Upsert mapping (one per tenant)
+  const { data, error } = await supabase
+    .from('daep_csv_field_mappings')
+    .upsert(
+      {
+        tenant_id: tenantId,
+        sis_name: input.sisName,
+        sis_name_other: input.sisNameOther || null,
+        field_mappings: input.mappings,
+        sample_headers: input.sampleHeaders,
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'tenant_id',
+      }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[DAEP Mapping] Save failed:', error);
+    return { success: false, error: 'Failed to save field mapping' };
+  }
+
+  // Log audit event
+  await logAuditEvent({
+    eventType: 'reconciliation.mapping_saved',
+    module: 'daep_management',
+    actorId: user.id,
+    actorEmail: user.emailAddresses[0]?.emailAddress,
+    targetId: data.id,
+    action: 'Saved CSV field mapping',
+    details: { sisName: input.sisName, fieldCount: Object.keys(input.mappings).length },
+    tenantId,
+  });
+
+  // If session provided, update its status
+  if (input.sessionId) {
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({ status: 'parsing' })
+      .eq('id', input.sessionId)
+      .eq('tenant_id', tenantId);
+  }
+
+  revalidatePath('/daep/settings/csv-mapping');
+  revalidatePath('/daep/reconciliation');
+
+  return {
+    success: true,
+    mappingId: data.id,
+    redirectTo: input.sessionId
+      ? `/daep/reconciliation/${input.sessionId}`
+      : '/daep/settings/csv-mapping',
   };
 }

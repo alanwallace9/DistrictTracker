@@ -1,8 +1,40 @@
 # Epic 5: SIS Reconciliation - Changelog
 
-**Epic Status:** In Progress (1 of 10 stories)
+**Epic Status:** In Progress (2 of 10 stories)
 **Version Range:** v0.4.6 - TBD
-**FRs Covered:** FR105-FR114
+**FRs Covered:** FR52-FR62
+
+---
+
+## v0.5.0 - One-Time CSV Field Mapping Setup
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | One-Time CSV Field Mapping Setup |
+| **Story** | 5-2 |
+| **FRs** | FR53 |
+
+**Description:**
+Configure how your Student Information System CSV columns map to DAEP fields with smart auto-suggest. Set it up once and all future uploads will use your saved mapping automatically - no repeated configuration needed.
+
+**Key Features:**
+- Smart auto-suggest matches common column names to DAEP fields automatically
+- Sample data preview shows first 3 values for each mapped column
+- SIS provider selection (Skyward, Focus, PowerSchool, Ascender, or custom)
+- Visual "Suggested" badges highlight auto-matched fields
+- Required fields validation ensures all 8 critical fields are mapped
+- Optional fields section for additional data capture
+- One mapping per district - saved and reused across all uploads
+- CSV Mapping tab added to DAEP Settings for easy access
+
+**Database Changes:**
+- Added columns to `daep_csv_field_mappings`: sis_name_other, sample_headers, created_by
+- Fixed RLS policies to work with Clerk authentication
+- Added UNIQUE constraint for one mapping per tenant
+
+**Audit Events:**
+- `reconciliation.mapping_saved`
 
 ---
 
@@ -46,20 +78,20 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.5.0 | Feature | One-Time CSV Field Mapping Setup | 5-2 |
 | v0.4.6 | Feature | CSV Upload to Supabase Storage | 5-1 |
 
 ---
 
 ## Remaining Stories
 
-- 5-2: CSV Field Mapping UI
-- 5-3: Parse CSV and Extract Records
-- 5-4: Match Algorithm (Student ID + Incident)
-- 5-5: Discrepancy Detection
-- 5-6: Review Dashboard
-- 5-7: Accept/Reject Actions
-- 5-8: Batch Operations
-- 5-9: Session History and Audit
-- 5-10: Reconciliation Reports
+- 5-3: Parse CSV with PapaParse
+- 5-4: Comparison Engine
+- 5-5: Discrepancy Categorization
+- 5-6: Side-by-Side Comparison UI
+- 5-7: Resolution Actions
+- 5-8: Reconciliation Audit Trail
+- 5-9: Reconciliation Summary Report
+- 5-10: Unresolved Discrepancy Alerts
 
 ---
