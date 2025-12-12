@@ -28,14 +28,26 @@ import { getPendingApprovalsCount } from '@/app/actions/daep/points';
 // Admin roles that can access approvals
 const APPROVAL_ADMIN_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1'];
 
-const NAV_ITEMS = [
+// Admin roles that can access reconciliation (Story 5-1)
+const RECONCILIATION_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1', 'daep_admin_l2'];
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  adminOnly?: boolean;
+  allowedRoles?: string[];
+};
+
+const NAV_ITEMS: NavItem[] = [
   { href: '/daep', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/daep/rooms', label: 'Room Rosters', icon: Building2 },
   { href: '/daep/students', label: 'Students', icon: Users },
   { href: '/daep/behavior-notes', label: 'Behavior Notes', icon: FileText },
   { href: '/daep/placements', label: 'Placements', icon: ClipboardList },
   { href: '/daep/attendance', label: 'Attendance', icon: Calendar },
-  { href: '/daep/reconciliation', label: 'Reconciliation', icon: FileSpreadsheet },
+  { href: '/daep/reconciliation', label: 'Reconciliation', icon: FileSpreadsheet, allowedRoles: RECONCILIATION_ROLES },
   { href: '/daep/notifications', label: 'Notifications', icon: Bell },
   { href: '/daep/approvals', label: 'Approvals', icon: CheckCircle, adminOnly: true },
   { href: '/daep/settings', label: 'Settings', icon: Settings },
@@ -135,7 +147,13 @@ export function DAEPSidebar({ collapsed = false, onCollapsedChange }: DAEPSideba
 
       {/* Navigation */}
       <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-        {NAV_ITEMS.filter(item => !item.adminOnly || isAdmin).map((item) => {
+        {NAV_ITEMS.filter(item => {
+          // Check adminOnly flag (legacy)
+          if (item.adminOnly && !isAdmin) return false;
+          // Check allowedRoles if specified
+          if (item.allowedRoles && userRole && !item.allowedRoles.includes(userRole)) return false;
+          return true;
+        }).map((item) => {
           const active = isActive(item.href, item.exact);
           const Icon = item.icon;
           const showBadge = item.href === '/daep/approvals' && pendingCount > 0;

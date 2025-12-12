@@ -1,0 +1,4 @@
+student_id,first_name,last_name,incident_number,start_date,days_assigned,offense_code,home_campus,parent_email,guardian_phone,grade_level,assigning_campus,placement_reason,mandatory_placement
+12345,John,Smith,INC-2024-001,2024-12-01,30,26,Central Middle School,parent@email.com,555-123-4567,7,Central Middle School,Fighting - mutual combat,Yes
+12346,Jane,Doe,INC-2024-002,2024-12-05,15,34,Northside High School,jane.parent@email.com,555-234-5678,10,Northside High School,Tobacco possession,No
+12347,Bob,Johnson,INC-2024-003,2024-12-10,45,21,Eastside Elementary,bob.guardian@email.com,555-345-6789,5,Eastside Elementary,Assault on staff,Yes

@@ -974,6 +974,83 @@ export interface BehaviorNotesStats {
   unverified: number;
 }
 
+// ============================================================================
+// RECONCILIATION SCHEMAS (Story 5-1)
+// ============================================================================
+
+// Session status enum
+export const RECONCILIATION_STATUSES = [
+  'uploading',
+  'mapping_required',
+  'parsing',
+  'comparing',
+  'in_review',
+  'completed',
+  'failed',
+] as const;
+
+export type ReconciliationStatus = (typeof RECONCILIATION_STATUSES)[number];
+
+// Session type for list display
+export interface ReconciliationSession {
+  id: string;
+  file_name: string;
+  upload_date: string;
+  total_records: number;
+  matched_count: number;
+  discrepancy_count: number;
+  new_in_sis_count: number;
+  missing_from_sis_count: number;
+  status: ReconciliationStatus;
+  detected_sis: string | null;
+  completed_at: string | null;
+}
+
+// SIS Guide step interface
+export interface SISGuideStep {
+  order: number;
+  title: string;
+  content: string;
+  screenshot_url: string | null;
+  screenshot_placeholder: string;
+}
+
+// SIS Guide interface
+export interface SISGuide {
+  id: string;
+  sis_name: string;
+  title: string;
+  overview: string | null;
+  steps: SISGuideStep[];
+  pdf_url: string | null;
+}
+
+// Required CSV fields for reconciliation
+export const REQUIRED_CSV_FIELDS = [
+  { key: 'student_id', label: 'Student ID', description: 'Unique identifier (e.g., 12345)', example: '12345' },
+  { key: 'first_name', label: 'First Name', description: "Student's first name", example: 'John' },
+  { key: 'last_name', label: 'Last Name', description: "Student's last name", example: 'Smith' },
+  { key: 'incident_number', label: 'Incident Number', description: 'Unique incident ID from SIS', example: 'INC-2024-001' },
+  { key: 'start_date', label: 'Start Date', description: 'DAEP placement start date', example: '2024-12-01' },
+  { key: 'days_assigned', label: 'Days Assigned', description: 'Number of DAEP days (1-365)', example: '30' },
+  { key: 'offense_code', label: 'Offense Code', description: 'PEIMS discipline code', example: '26' },
+  { key: 'home_campus', label: 'Home Campus', description: "Student's home campus name", example: 'Central Middle School' },
+] as const;
+
+// Optional CSV fields for reconciliation
+export const OPTIONAL_CSV_FIELDS = [
+  { key: 'parent_email', label: 'Parent Email', description: 'Guardian email address', example: 'parent@email.com' },
+  { key: 'guardian_phone', label: 'Guardian Phone', description: 'Guardian phone number', example: '555-123-4567' },
+  { key: 'grade_level', label: 'Grade Level', description: 'Student grade (1-12)', example: '7' },
+  { key: 'assigning_campus', label: 'Assigning Campus', description: 'Campus that assigned placement', example: 'Central Middle School' },
+  { key: 'placement_reason', label: 'Placement Reason', description: 'Reason for DAEP placement', example: 'Fighting - mutual combat' },
+  { key: 'mandatory_placement', label: 'Mandatory Placement', description: 'Is placement mandatory?', example: 'Yes' },
+] as const;
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
 /**
  * Validates data against a schema and returns validated data or error
  */
