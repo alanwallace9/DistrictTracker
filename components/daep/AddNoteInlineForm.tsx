@@ -186,14 +186,12 @@ export function AddNoteInlineForm({
       </div>
 
       <div className="space-y-3">
-        {/* Placement Selector */}
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Link to Placement
-          </label>
+        {/* All fields on one row: Placement | Points | Student Action | Teacher Action */}
+        <div className="flex gap-2">
+          {/* Placement Selector */}
           <Select value={selectedPlacementId} onValueChange={setSelectedPlacementId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select placement..." />
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Link to Placement" />
             </SelectTrigger>
             <SelectContent>
               {placementOptions.map((opt) => (
@@ -207,15 +205,13 @@ export function AddNoteInlineForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
 
-        {/* Points + Actions row */}
-        <div className="grid grid-cols-3 gap-2">
           {/* Points selector */}
           <PointsSelect
             value={points}
             onValueChange={setPoints}
             placeholder="Points"
+            className="w-[100px]"
           />
 
           {/* Student Action */}
@@ -226,6 +222,7 @@ export function AddNoteInlineForm({
             placeholder="Student Action"
             variant="student"
             disabled={isLoadingCategories}
+            className="flex-1"
           />
 
           {/* Teacher Action */}
@@ -236,6 +233,7 @@ export function AddNoteInlineForm({
             placeholder="Teacher Action"
             variant="teacher"
             disabled={isLoadingCategories}
+            className="flex-1"
           />
         </div>
 
