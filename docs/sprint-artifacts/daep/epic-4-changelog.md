@@ -1,8 +1,55 @@
 # Epic 4: Behavior Documentation - Changelog
 
-**Epic Status:** In Progress (3 of 5 stories)
-**Version Range:** v0.4.0 - v0.4.2
+**Epic Status:** In Progress (4 of 5 stories)
+**Version Range:** v0.4.0 - v0.4.4
 **FRs Covered:** FR45-FR51
+
+---
+
+## v0.4.4 - Add Note from Profile UI Refinements
+
+| Field | Value |
+|-------|-------|
+| **Type** | Enhancement |
+| **Title** | Add Note from Profile UI Refinements |
+| **Story** | 4-G (continued) |
+| **FRs** | FR46 |
+
+**Description:**
+The Add Note form on the student profile page now matches the room roster's inline entry pattern with all fields on a single row. The Points selector shows "Points" placeholder initially and displays the full selection text when chosen. Field widths optimized for readability.
+
+**Key Features:**
+- Single-row layout matching room roster pattern
+- "Link to Placement" label above the field row
+- Points dropdown with "Points" placeholder (null state vs explicit 0 selection)
+- Placement selector (270px) shows full incident number + status
+- Points selector (145px) shows full "0 (Note Only)" when selected
+- Student Action and Teacher Action use flex-1 for dynamic sizing
+- Save Note enables when any valid selection made (including 0 points)
+
+---
+
+## v0.4.3 - Behavior Unification Plan (Stories 4-A to 4-H)
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Behavior Documentation Unification |
+| **Stories** | 4-A, 4-B, 4-C, 4-D, 4-E, 4-F, 4-G, 4-H |
+| **FRs** | FR45-FR51 |
+
+**Description:**
+Comprehensive UI unification across behavior documentation, student profiles, and room rosters. Introduces consistent components, collapsible cards, condensed timelines, and inline editing capabilities.
+
+**Key Features:**
+- **4-A:** Manila Folder Tab component for tabbed interfaces
+- **4-B:** Roster inline panel tabs (Activity/Attendance/Behavior)
+- **4-C:** Student Profile collapsible cards with localStorage persistence
+- **4-D:** Condensed activity timeline (single-line format)
+- **4-E:** View All expansion with export modal (WYSIWYG preview)
+- **4-F:** Slim profile header reducing visual bulk
+- **4-G:** Add Note from profile with placement selector dropdown
+- **4-H:** Inline demographics editing capability
 
 ---
 
@@ -92,6 +139,8 @@ DAEP staff can now add behavior notes and point adjustments directly from the ro
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.4.4 | Enhancement | Add Note from Profile UI Refinements | 4-G |
+| v0.4.3 | Feature | Behavior Documentation Unification | 4-A to 4-H |
 | v0.4.2 | Feature | Behavior Notes List View | 4-3 |
 | v0.4.1 | Enhancement | Roster UI Improvements & Clickable Rows | 4-2 |
 | v0.4.0 | Feature | Quick Behavior Note Entry & Predefined Categories | 4-1, 4-2 |
@@ -101,7 +150,6 @@ DAEP staff can now add behavior notes and point adjustments directly from the ro
 ## Remaining Stories
 
 Stories still to be implemented in Epic 4:
-- 4-4: Attach Notes to Incidents
-- 4-5: Student Profile Timeline
+- 4-I: Student List Page Room Format
 
 ---

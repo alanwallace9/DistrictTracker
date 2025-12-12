@@ -21,7 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 
 interface PointsSelectProps {
-  value: number;
+  value: number | null;
   onValueChange: (value: number) => void;
   placeholder?: string;
   className?: string;
@@ -56,13 +56,18 @@ export function PointsSelect({
   };
 
   // Find the selected option label
-  const selectedOption = POINT_ADJUSTMENTS.find((opt) => opt.value === value);
+  const selectedOption = value !== null ? POINT_ADJUSTMENTS.find((opt) => opt.value === value) : null;
+
+  // Show placeholder when value is null (unselected state)
+  const showPlaceholder = value === null;
 
   return (
-    <Select value={value.toString()} onValueChange={handleValueChange} disabled={disabled}>
+    <Select value={value !== null ? value.toString() : ''} onValueChange={handleValueChange} disabled={disabled}>
       <SelectTrigger className={cn('w-[120px] h-8', className)}>
-        {selectedOption ? (
-          <span className={cn(getPointsColor(value))}>
+        {showPlaceholder ? (
+          <span className="text-muted-foreground">{placeholder}</span>
+        ) : selectedOption ? (
+          <span className={cn(getPointsColor(value!))}>
             {selectedOption.label}
           </span>
         ) : (

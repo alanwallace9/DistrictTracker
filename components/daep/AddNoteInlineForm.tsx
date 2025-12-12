@@ -68,7 +68,7 @@ export function AddNoteInlineForm({
   const [selectedPlacementId, setSelectedPlacementId] = useState<string>(
     currentPlacementId || 'student_only'
   );
-  const [points, setPoints] = useState<number>(0);
+  const [points, setPoints] = useState<number | null>(null);
   const [studentAction, setStudentAction] = useState<string>('');
   const [teacherAction, setTeacherAction] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
@@ -132,7 +132,7 @@ export function AddNoteInlineForm({
           placement_id: placementId,
           student_school_id: placementId ? undefined : schoolId, // Only pass student_school_id if no placement
           incident_date: today,
-          points: points !== 0 ? points : undefined,
+          points: points !== null ? points : undefined,
           student_action: studentAction || undefined,
           teacher_action: teacherAction || undefined,
           notes: notes || undefined,
@@ -142,11 +142,11 @@ export function AddNoteInlineForm({
         if (result.success) {
           toast({
             title: 'Note saved',
-            description: `${points !== 0 ? `${points > 0 ? '+' : ''}${points} points` : 'Note'} added for ${studentName}`,
+            description: `${points !== null && points !== 0 ? `${points > 0 ? '+' : ''}${points} points` : 'Note'} added for ${studentName}`,
           });
 
           // Reset form and close
-          setPoints(0);
+          setPoints(null);
           setStudentAction('');
           setTeacherAction('');
           setNotes('');
@@ -186,55 +186,58 @@ export function AddNoteInlineForm({
       </div>
 
       <div className="space-y-3">
-        {/* All fields on one row: Placement | Points | Student Action | Teacher Action */}
-        <div className="flex gap-2">
-          {/* Placement Selector */}
-          <Select value={selectedPlacementId} onValueChange={setSelectedPlacementId}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Link to Placement" />
-            </SelectTrigger>
-            <SelectContent>
-              {placementOptions.map((opt) => (
-                <SelectItem
-                  key={opt.value}
-                  value={opt.value}
-                  className={cn(opt.isCurrent && 'font-medium')}
-                >
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Row 1: Link to Placement label + all fields */}
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">Link to Placement</label>
+          <div className="flex gap-2">
+            {/* Placement Selector - wide enough to show incident number + status */}
+            <Select value={selectedPlacementId} onValueChange={setSelectedPlacementId}>
+              <SelectTrigger className="w-[270px] h-8">
+                <SelectValue placeholder="Select placement..." />
+              </SelectTrigger>
+              <SelectContent>
+                {placementOptions.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={opt.value}
+                    className={cn(opt.isCurrent && 'font-medium')}
+                  >
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {/* Points selector */}
-          <PointsSelect
-            value={points}
-            onValueChange={setPoints}
-            placeholder="Points"
-            className="w-[100px]"
-          />
+            {/* Points selector */}
+            <PointsSelect
+              value={points}
+              onValueChange={setPoints}
+              placeholder="Points"
+              className="w-[145px]"
+            />
 
-          {/* Student Action */}
-          <CategorySelect
-            categories={categories}
-            value={studentAction}
-            onValueChange={setStudentAction}
-            placeholder="Student Action"
-            variant="student"
-            disabled={isLoadingCategories}
-            className="flex-1"
-          />
+            {/* Student Action */}
+            <CategorySelect
+              categories={categories}
+              value={studentAction}
+              onValueChange={setStudentAction}
+              placeholder="Student Action"
+              variant="student"
+              disabled={isLoadingCategories}
+              className="flex-1"
+            />
 
-          {/* Teacher Action */}
-          <CategorySelect
-            categories={categories}
-            value={teacherAction}
-            onValueChange={setTeacherAction}
-            placeholder="Teacher Action"
-            variant="teacher"
-            disabled={isLoadingCategories}
-            className="flex-1"
-          />
+            {/* Teacher Action */}
+            <CategorySelect
+              categories={categories}
+              value={teacherAction}
+              onValueChange={setTeacherAction}
+              placeholder="Teacher Action"
+              variant="teacher"
+              disabled={isLoadingCategories}
+              className="flex-1"
+            />
+          </div>
         </div>
 
         {/* Notes */}
@@ -257,7 +260,7 @@ export function AddNoteInlineForm({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isPending || (points === 0 && !notes.trim() && !studentAction && !teacherAction)}
+            disabled={isPending || (points === null && !notes.trim() && !studentAction && !teacherAction)}
             className="flex-1"
             size="sm"
           >
