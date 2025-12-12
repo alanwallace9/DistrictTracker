@@ -1,21 +1,47 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+/**
+ * DAEP Students Page
+ *
+ * Story 4-I: Student List Page - Room Format
+ *
+ * All DAEP students with expandable rows for quick note entry.
+ * Quick Wins:
+ * - Default to Active status filter
+ * - Student count badge in header
+ * - Quick stats bar with clickable chips
+ * - Home campus filter
+ * - Row avatars with initials
+ */
+
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Plus, Users } from 'lucide-react';
 import { StudentFilters } from '@/components/daep/StudentFilters';
 import { StudentListTable } from '@/components/daep/StudentListTable';
+import { cn } from '@/lib/utils';
 import {
   getDAEPStudents,
   getDAEPRoomsForFilter,
   type DAEPStudent,
   type DAEPStudentListResult,
 } from '@/app/actions/daep/students';
+import { getBehaviorCategories, type BehaviorCategory } from '@/app/actions/daep/behavior-categories';
 import type { PlacementStatus } from '@/lib/validation/schemas';
 
 type SortKey = 'name' | 'school_id' | 'status' | 'home_campus' | 'days_remaining' | 'room';
+
+// Story 4-I: Status counts for quick stats bar
+interface StatusCounts {
+  active: number;
+  pending: number;
+  met: number;
+  complete: number;
+  total: number;
+}
 
 export default function DAEPStudentsPage() {
   const router = useRouter();
@@ -27,10 +53,20 @@ export default function DAEPStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  // Story 4-I: Behavior categories for expansion panel
+  const [behaviorCategories, setBehaviorCategories] = useState<BehaviorCategory[]>([]);
+  // Story 4-I: Status counts for quick stats
+  const [statusCounts, setStatusCounts] = useState<StatusCounts>({
+    active: 0,
+    pending: 0,
+    met: 0,
+    complete: 0,
+    total: 0,
+  });
 
-  // Filter state
+  // Filter state - Story 4-I: Default to 'active' status
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<PlacementStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<PlacementStatus | 'all'>('active');
   const [roomFilter, setRoomFilter] = useState<string | 'all'>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -55,13 +91,39 @@ export default function DAEPStudentsPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch rooms for filter dropdown
-  const fetchRooms = useCallback(async () => {
+  // Fetch rooms and behavior categories for filter dropdown and expansion panel
+  const fetchInitialData = useCallback(async () => {
     try {
-      const data = await getDAEPRoomsForFilter();
-      setRooms(data);
+      const [roomsData, categoriesData] = await Promise.all([
+        getDAEPRoomsForFilter(),
+        getBehaviorCategories(),
+      ]);
+      setRooms(roomsData);
+      setBehaviorCategories(categoriesData);
     } catch (error: any) {
-      console.error('Failed to fetch rooms:', error);
+      console.error('Failed to fetch initial data:', error);
+    }
+  }, []);
+
+  // Story 4-I: Fetch status counts for quick stats bar (all statuses, no filter)
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      // Fetch all students without status filter to get accurate counts
+      const [activeResult, pendingResult, metResult, completeResult] = await Promise.all([
+        getDAEPStudents({ status: 'active', per_page: 1 }),
+        getDAEPStudents({ status: 'pending', per_page: 1 }),
+        getDAEPStudents({ status: 'met', per_page: 1 }),
+        getDAEPStudents({ status: 'complete', per_page: 1 }),
+      ]);
+      setStatusCounts({
+        active: activeResult.total,
+        pending: pendingResult.total,
+        met: metResult.total,
+        complete: completeResult.total,
+        total: activeResult.total + pendingResult.total + metResult.total + completeResult.total,
+      });
+    } catch (error: any) {
+      console.error('Failed to fetch status counts:', error);
     }
   }, []);
 
@@ -97,8 +159,9 @@ export default function DAEPStudentsPage() {
 
   // Initial load
   useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+    fetchInitialData();
+    fetchStatusCounts();
+  }, [fetchInitialData, fetchStatusCounts]);
 
   useEffect(() => {
     fetchStudents();
@@ -176,9 +239,10 @@ export default function DAEPStudentsPage() {
     setPage(1);
   };
 
+  // Story 4-I: hasActiveFilters - default status is 'active', so only count as active filter if not 'active' or 'all'
   const hasActiveFilters =
     searchQuery.length > 0 ||
-    statusFilter !== 'all' ||
+    (statusFilter !== 'all' && statusFilter !== 'active') ||
     roomFilter !== 'all' ||
     dateFrom.length > 0 ||
     dateTo.length > 0;
@@ -191,6 +255,10 @@ export default function DAEPStudentsPage() {
           <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
             <Users className="w-5 h-5" />
             DAEP Students
+            {/* Story 4-I: Student count badge */}
+            <Badge variant="secondary" className="ml-2 text-xs font-normal">
+              {statusCounts.active} Active / {statusCounts.total} Total
+            </Badge>
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             View and manage students with DAEP placements
@@ -200,7 +268,10 @@ export default function DAEPStudentsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchStudents}
+            onClick={() => {
+              fetchStudents();
+              fetchStatusCounts();
+            }}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
@@ -210,6 +281,85 @@ export default function DAEPStudentsPage() {
             New Placement
           </Button>
         </div>
+      </div>
+
+      {/* Story 4-I: Quick Stats Bar - clickable status chips */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('active');
+            setPage(1);
+          }}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+            statusFilter === 'active'
+              ? 'bg-[rgb(var(--daep-success))]/15 text-[rgb(var(--daep-success))] ring-1 ring-[rgb(var(--daep-success))]/30'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          )}
+        >
+          Active ({statusCounts.active})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('pending');
+            setPage(1);
+          }}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+            statusFilter === 'pending'
+              ? 'bg-[rgb(var(--daep-warning))]/15 text-[rgb(var(--daep-warning))] ring-1 ring-[rgb(var(--daep-warning))]/30'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          )}
+        >
+          Pending ({statusCounts.pending})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('met');
+            setPage(1);
+          }}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+            statusFilter === 'met'
+              ? 'bg-[rgb(var(--daep-info))]/15 text-[rgb(var(--daep-info))] ring-1 ring-[rgb(var(--daep-info))]/30'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          )}
+        >
+          Met ({statusCounts.met})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('complete');
+            setPage(1);
+          }}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+            statusFilter === 'complete'
+              ? 'bg-muted/80 text-foreground ring-1 ring-border'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          )}
+        >
+          Complete ({statusCounts.complete})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter('all');
+            setPage(1);
+          }}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+            statusFilter === 'all'
+              ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          )}
+        >
+          All ({statusCounts.total})
+        </button>
       </div>
 
       {/* Filters */}
@@ -252,6 +402,7 @@ export default function DAEPStudentsPage() {
         onPageChange={handlePageChange}
         sortConfig={sortConfig}
         onSort={handleSort}
+        behaviorCategories={behaviorCategories}
       />
     </div>
   );

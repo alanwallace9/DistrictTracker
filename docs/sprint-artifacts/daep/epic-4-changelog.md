@@ -1,8 +1,33 @@
 # Epic 4: Behavior Documentation - Changelog
 
-**Epic Status:** In Progress (4 of 5 stories)
-**Version Range:** v0.4.0 - v0.4.4
+**Epic Status:** Complete (5 of 5 stories)
+**Version Range:** v0.4.0 - v0.4.5
 **FRs Covered:** FR45-FR51
+
+---
+
+## v0.4.5 - Student List Page with Expandable Rows
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Student List Page with Expandable Rows |
+| **Story** | 4-I |
+| **FRs** | FR45, FR46 |
+
+**Description:**
+The DAEP Students page now features expandable rows for quick note entry without leaving the list. UX improvements include default Active status filter, student count badge, quick stats bar with clickable chips, and row avatars with initials.
+
+**Key Features:**
+- Expandable rows with inline entry panel (same as room roster)
+- Row avatars with initials and consistent color generation from student ID
+- Quick stats bar with clickable status chips (Active, Pending, Met, Complete, All)
+- Student count badge in header showing "X Active / Y Total"
+- Default status filter set to Active (most common use case)
+- Header row visually separated with border
+- Points dropdown shows "Points" placeholder until selection made
+- Click anywhere on row navigates to student profile
+- Chevron button toggles expansion without navigation
 
 ---
 
@@ -139,6 +164,7 @@ DAEP staff can now add behavior notes and point adjustments directly from the ro
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.4.5 | Feature | Student List Page with Expandable Rows | 4-I |
 | v0.4.4 | Enhancement | Add Note from Profile UI Refinements | 4-G |
 | v0.4.3 | Feature | Behavior Documentation Unification | 4-A to 4-H |
 | v0.4.2 | Feature | Behavior Notes List View | 4-3 |
@@ -147,9 +173,13 @@ DAEP staff can now add behavior notes and point adjustments directly from the ro
 
 ---
 
-## Remaining Stories
+## Epic 4 Complete! 🎉
 
-Stories still to be implemented in Epic 4:
+All stories in Epic 4 have been implemented:
+- 4-1: Quick Behavior Note Entry
+- 4-2: Predefined Behavior Categories
+- 4-3: Behavior Notes List View
+- 4-A to 4-H: Behavior Documentation Unification
 - 4-I: Student List Page Room Format
 
 ---

@@ -160,8 +160,8 @@ export function InlineStudentPanel({
   // Tab state - default to Behavior (teachers care about this most)
   const [activeTab, setActiveTab] = useState('behavior');
 
-  // Form state
-  const [points, setPoints] = useState<number>(0);
+  // Form state - null means no selection (shows placeholder)
+  const [points, setPoints] = useState<number | null>(null);
   const [studentAction, setStudentAction] = useState<string>('');
   const [teacherAction, setTeacherAction] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
@@ -238,7 +238,7 @@ export function InlineStudentPanel({
         const result = await createBehaviorNote({
           placement_id: placementId,
           incident_date: today,
-          points: points !== 0 ? points : undefined,
+          points: points !== null ? points : undefined,
           period: currentPeriod,
           student_action: studentAction || undefined,
           teacher_action: teacherAction || undefined,
@@ -249,11 +249,11 @@ export function InlineStudentPanel({
         if (result.success) {
           toast({
             title: 'Entry saved',
-            description: `${points !== 0 ? `${points > 0 ? '+' : ''}${points} points` : 'Note'} added for ${studentName}`,
+            description: `${points !== null && points !== 0 ? `${points > 0 ? '+' : ''}${points} points` : 'Note'} added for ${studentName}`,
           });
 
           // Reset form
-          setPoints(0);
+          setPoints(null);
           setStudentAction('');
           setTeacherAction('');
           setNotes('');
@@ -331,7 +331,7 @@ export function InlineStudentPanel({
           {/* Save button */}
           <Button
             onClick={handleSave}
-            disabled={isPending || (points === 0 && !notes.trim())}
+            disabled={isPending || (points === null && !notes.trim() && !studentAction && !teacherAction)}
             className="w-full"
             size="sm"
           >
