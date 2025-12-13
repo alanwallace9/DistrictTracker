@@ -1410,3 +1410,252 @@ export async function getSessionDiscrepancies(
     resolution: d.resolution as ComparisonRecord['resolution'],
   }));
 }
+
+// ============================================================================
+// RESOLVE DISCREPANCY (Story 5-5)
+// ============================================================================
+
+export async function resolveDiscrepancy(
+  sessionId: string,
+  discrepancyId: string,
+  resolution: 'accept_sis' | 'keep_daep',
+  note?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const user = await currentUser();
+  const tenantId = await getTenantId();
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  // Get the discrepancy
+  const { data: discrepancy, error: fetchError } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*')
+    .eq('id', discrepancyId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (fetchError || !discrepancy) {
+    return { success: false, error: 'Discrepancy not found' };
+  }
+
+  try {
+    // Apply changes based on resolution
+    if (resolution === 'accept_sis' && discrepancy.discrepancy_type !== 'missing_from_sis') {
+      await applyAcceptSIS(supabase, discrepancy, tenantId, user.id);
+    }
+
+    // Update discrepancy record
+    const { error: updateError } = await supabase
+      .from('daep_reconciliation_discrepancies')
+      .update({
+        resolution,
+        resolution_note: note || null,
+        resolved_by: user.id,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('id', discrepancyId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    // Log audit event
+    await logAuditEvent({
+      eventType: 'reconciliation.discrepancy_resolved',
+      module: 'daep_management',
+      actorId: user.id,
+      actorEmail: user.emailAddresses[0]?.emailAddress,
+      targetId: discrepancyId,
+      action: `Resolved discrepancy: ${resolution}`,
+      details: {
+        sessionId,
+        discrepancyType: discrepancy.discrepancy_type,
+        resolution,
+        hasNote: !!note,
+        studentId: discrepancy.student_id,
+        studentName: discrepancy.student_name,
+      },
+      tenantId,
+    });
+
+    // Check if session is complete
+    await checkSessionCompletion(supabase, sessionId, tenantId);
+
+    revalidatePath(`/daep/reconciliation/${sessionId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('[Resolution] Error:', error);
+    return { success: false, error: 'Failed to resolve discrepancy' };
+  }
+}
+
+/**
+ * Apply Accept SIS resolution - update DAEP data with SIS values
+ */
+async function applyAcceptSIS(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  discrepancy: any,
+  tenantId: string,
+  userId: string
+) {
+  const sisData = discrepancy.sis_data;
+  const daepData = discrepancy.daep_data;
+  const discrepancyType = discrepancy.discrepancy_type;
+
+  if (discrepancyType === 'new_in_sis') {
+    // Create new placement from SIS data
+    // First check if student exists
+    const { data: existingStudent } = await supabase
+      .from('trespass_records')
+      .select('id, school_id')
+      .eq('tenant_id', tenantId)
+      .eq('school_id', sisData.student_id)
+      .single();
+
+    if (!existingStudent) {
+      // Create student record
+      await supabase.from('trespass_records').insert({
+        tenant_id: tenantId,
+        school_id: sisData.student_id,
+        first_name: sisData.first_name,
+        last_name: sisData.last_name,
+        is_current_student: true,
+        is_daep: true,
+        trespassed_from: 'N/A',
+        incident_date: sisData.start_date,
+        incident_description: `DAEP Placement - ${sisData.incident_number}`,
+        police_notified: false,
+      });
+    }
+
+    // Create placement
+    await supabase.from('daep_placements').insert({
+      tenant_id: tenantId,
+      school_id: sisData.student_id,
+      incident_number: sisData.incident_number,
+      placement_date: sisData.start_date,
+      start_date: sisData.start_date,
+      days_assigned: sisData.days_assigned,
+      days_remaining: sisData.days_assigned,
+      offense_code: sisData.offense_code,
+      placement_reason: `Imported from SIS - ${sisData.offense_code}`,
+      status: 'pending',
+      intake_notes: `Created via SIS Reconciliation by ${userId}`,
+    });
+  } else if (discrepancyType === 'field_conflict' && daepData?.id) {
+    // Update existing placement
+    const conflicts = (discrepancy.conflicts || []) as FieldConflict[];
+    const updates: Record<string, any> = {};
+
+    for (const conflict of conflicts) {
+      if (conflict.field === 'start_date') {
+        updates.start_date = sisData.start_date;
+        updates.placement_date = sisData.start_date;
+      } else if (conflict.field === 'days_assigned') {
+        updates.days_assigned = sisData.days_assigned;
+      } else if (conflict.field === 'offense_code') {
+        updates.offense_code = sisData.offense_code;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updates.updated_at = new Date().toISOString();
+      await supabase
+        .from('daep_placements')
+        .update(updates)
+        .eq('id', daepData.id)
+        .eq('tenant_id', tenantId);
+    }
+  }
+}
+
+/**
+ * Check if all discrepancies are resolved and update session status
+ */
+async function checkSessionCompletion(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  sessionId: string,
+  tenantId: string
+) {
+  const { count } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+    .eq('resolution', 'pending')
+    .neq('discrepancy_type', 'matched');
+
+  if (count === 0) {
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId)
+      .eq('tenant_id', tenantId);
+  }
+}
+
+// ============================================================================
+// BULK ACCEPT MATCHES (Story 5-5)
+// ============================================================================
+
+export async function bulkAcceptMatches(
+  sessionId: string
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  const supabase = await createServerClient();
+  const user = await currentUser();
+  const tenantId = await getTenantId();
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  // Count matched records that are still pending
+  const { count, error: countError } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+    .eq('tenant_id', tenantId)
+    .eq('discrepancy_type', 'matched')
+    .eq('resolution', 'pending');
+
+  if (countError) {
+    return { success: false, error: 'Failed to count matches' };
+  }
+
+  // Update all matched records to resolved
+  const { error: updateError } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .update({
+      resolution: 'accepted',
+      resolved_by: user.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('session_id', sessionId)
+    .eq('tenant_id', tenantId)
+    .eq('discrepancy_type', 'matched')
+    .eq('resolution', 'pending');
+
+  if (updateError) {
+    return { success: false, error: 'Failed to accept matches' };
+  }
+
+  // Log audit event
+  await logAuditEvent({
+    eventType: 'reconciliation.bulk_accept',
+    module: 'daep_management',
+    actorId: user.id,
+    actorEmail: user.emailAddresses[0]?.emailAddress,
+    targetId: sessionId,
+    action: `Bulk accepted ${count || 0} matched records`,
+    details: { count: count || 0 },
+    tenantId,
+  });
+
+  revalidatePath(`/daep/reconciliation/${sessionId}`);
+  return { success: true, count: count || 0 };
+}

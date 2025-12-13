@@ -135,16 +135,26 @@ development_status:
   epic-5: in-progress
   5-1-csv-upload-supabase-storage: done  # Story: docs/sprint-artifacts/daep/story-5-1.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-1.md | Context: docs/sprint-artifacts/daep/story-5-1.context.xml
   5-2-one-time-field-mapping-setup: done  # Story: docs/sprint-artifacts/daep/story-5-2.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-2.md | Context: docs/sprint-artifacts/daep/story-5-2.context.xml
-  5-3-parse-csv-papaparse: backlog
-  5-4-comparison-engine: backlog
-  5-5-discrepancy-categorization: backlog
-  5-6-side-by-side-comparison-ui: backlog
-  5-7-resolution-actions: backlog
-  5-8-reconciliation-audit-trail: backlog
-  5-9-reconciliation-summary-report: backlog
-  5-10-unresolved-discrepancy-alerts: backlog
+  5-3-parse-csv-papaparse: done  # Story: docs/sprint-artifacts/daep/story-5-3.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-3.md
+  5-4-comparison-engine: done  # Story: docs/sprint-artifacts/daep/story-5-4.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-4.md
+  # NOTE: 5-5, 5-6, 5-7 COMBINED into single story 5-5 (Decision: 2025-12-13)
+  5-5-reconciliation-review-page: done  # COMBINED from 5-5/5-6/5-7 | Story: docs/sprint-artifacts/daep/story-5-5.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-5-combined.md | 8 pts, FR56-59
+  # 5-6: REMOVED - combined into 5-5
+  # 5-7: REMOVED - combined into 5-5
+  5-8-reconciliation-audit-trail: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-8.md
+  5-9-reconciliation-summary-report: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-9.md
+  5-10-unresolved-discrepancy-alerts: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-10.md
   5-11-sis-guide-admin-ui: backlog  # Admin UI for editing SIS guides (Skyward, Focus, etc.) - screenshots, steps, PDF
   epic-5-retrospective: optional
+
+  # ============================================
+  # Epic 5b: Intake & Placement Workflows (after Epic 5)
+  # Kanban-style pipeline views from ux-design-directions.html
+  # ============================================
+  epic-5b: backlog
+  5b-1-intake-pipeline-kanban: backlog  # Mockup: ux-design-directions.html "Intake Pipeline" | Columns: Approved → Scheduled → Arrived Today → No-Show
+  5b-2-placement-workflow-kanban: backlog  # Placement lifecycle kanban view (if needed)
+  epic-5b-retrospective: optional
 
   # ============================================
   # Epic 6: Dashboard & Reporting (12 stories, 34 pts)

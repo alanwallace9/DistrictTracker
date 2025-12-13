@@ -52,7 +52,9 @@ export type AuditEventType =
   | 'reconciliation.session_created'
   | 'reconciliation.upload_failed'
   | 'reconciliation.session_completed'
-  | 'reconciliation.mapping_saved';
+  | 'reconciliation.mapping_saved'
+  | 'reconciliation.discrepancy_resolved'
+  | 'reconciliation.bulk_accept';
 
 interface AuditLogEntry {
   eventType: AuditEventType;

@@ -16,12 +16,15 @@ import {
 } from 'lucide-react';
 import { ParseResults } from './components/parse-results';
 import { ComparisonResults } from './components/comparison-results';
+import { DiscrepancyReview } from './components/discrepancy-review';
 import {
   getReconciliationSession,
   parseCSVFile,
   runComparison,
+  getSessionDiscrepancies,
+  getFieldMapping,
 } from '@/app/actions/daep/reconciliation';
-import type { ReconciliationSession, ParseResult, ComparisonResult } from '@/lib/validation/schemas';
+import type { ReconciliationSession, ParseResult, ComparisonResult, ComparisonRecord } from '@/lib/validation/schemas';
 
 export default function ReconciliationSessionPage() {
   const params = useParams();
@@ -32,6 +35,8 @@ export default function ReconciliationSessionPage() {
   const [session, setSession] = useState<ReconciliationSession | null>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
+  const [discrepancies, setDiscrepancies] = useState<ComparisonRecord[]>([]);
+  const [sisName, setSisName] = useState<string>('SIS');
   const [loading, setLoading] = useState(true);
   const [parsing, setParsing] = useState(false);
   const [comparing, setComparing] = useState(false);
@@ -51,6 +56,24 @@ export default function ReconciliationSessionPage() {
       console.error('[Session] Error loading:', err);
       setError('Failed to load session');
       return null;
+    }
+  }, [sessionId]);
+
+  // Load discrepancies and SIS name
+  const loadDiscrepancies = useCallback(async () => {
+    try {
+      const [discData, mappingData] = await Promise.all([
+        getSessionDiscrepancies(sessionId),
+        getFieldMapping(),
+      ]);
+      setDiscrepancies(discData);
+      if (mappingData?.sis_name) {
+        setSisName(mappingData.sis_name === 'Other' && mappingData.sis_name_other
+          ? mappingData.sis_name_other
+          : mappingData.sis_name);
+      }
+    } catch (err) {
+      console.error('[Session] Error loading discrepancies:', err);
     }
   }, [sessionId]);
 
@@ -155,22 +178,31 @@ export default function ReconciliationSessionPage() {
       else if (sessionData && sessionData.status === 'comparing') {
         await runComparisonAction();
       }
+      // Auto-load discrepancies if status is 'in_review'
+      else if (sessionData && sessionData.status === 'in_review') {
+        await loadDiscrepancies();
+      }
 
       setLoading(false);
     };
 
     init();
-  }, [loadSession, runParsing, runComparisonAction]);
+  }, [loadSession, runParsing, runComparisonAction, loadDiscrepancies]);
 
   // Handle continue to comparison
   const handleContinue = async () => {
     await runComparisonAction();
   };
 
-  // Handle review discrepancies button
-  const handleReviewDiscrepancies = () => {
-    // Story 5-5 will implement the discrepancy review page
-    router.push(`/daep/reconciliation/${sessionId}/review`);
+  // Handle review discrepancies button - now loads discrepancies inline
+  const handleReviewDiscrepancies = async () => {
+    await loadDiscrepancies();
+  };
+
+  // Handle refresh after resolution
+  const handleRefresh = async () => {
+    await loadSession();
+    await loadDiscrepancies();
   };
 
   // Loading state
@@ -338,27 +370,41 @@ export default function ReconciliationSessionPage() {
           </Card>
         )}
 
-      {/* Session in review status but no comparison result loaded */}
+      {/* Session in review status - show discrepancy review or prompt to load */}
       {!parsing &&
         !comparing &&
-        !comparisonResult &&
         session.status === 'in_review' && (
-          <Card>
-            <CardContent className="py-8">
-              <div className="flex flex-col items-center justify-center gap-4">
-                <AlertCircle className="h-12 w-12 text-yellow-500" />
-                <div className="text-center">
-                  <p className="font-medium">Discrepancies Found</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    This session has {session.total_records || 0} discrepancies that require review.
-                  </p>
-                  <Button onClick={handleReviewDiscrepancies}>
-                    Review Discrepancies
-                  </Button>
+          discrepancies.length > 0 ? (
+            <DiscrepancyReview
+              sessionId={sessionId}
+              discrepancies={discrepancies}
+              sisName={sisName}
+              stats={{
+                matched: session.matched_count || 0,
+                fieldConflicts: session.discrepancy_count || 0,
+                newInSis: session.new_in_sis_count || 0,
+                missingFromSis: session.missing_from_sis_count || 0,
+              }}
+              onRefresh={handleRefresh}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <AlertCircle className="h-12 w-12 text-yellow-500" />
+                  <div className="text-center">
+                    <p className="font-medium">Discrepancies Found</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This session has discrepancies that require review.
+                    </p>
+                    <Button onClick={handleReviewDiscrepancies}>
+                      Review Discrepancies
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )
         )}
 
       {/* Session already processed */}
