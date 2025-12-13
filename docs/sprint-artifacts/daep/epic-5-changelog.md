@@ -1,8 +1,46 @@
 # Epic 5: SIS Reconciliation - Changelog
 
-**Epic Status:** In Progress (2 of 10 stories)
+**Epic Status:** In Progress (4 of 10 stories)
 **Version Range:** v0.4.6 - TBD
 **FRs Covered:** FR52-FR62
+
+---
+
+## v0.5.1 - CSV Parsing and Comparison Engine
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | CSV Parsing and Comparison Engine |
+| **Stories** | 5-3, 5-4 |
+| **FRs** | FR54, FR55, FR56 |
+
+**Description:**
+Parse uploaded SIS CSV files using saved field mappings and compare against existing DAEP placements. Automatically categorize records as matched, field conflicts, new in SIS, or missing from SIS. Store discrepancies for review.
+
+**Key Features:**
+- PapaParse integration for robust CSV parsing with error handling
+- Field mapping application transforms SIS columns to DAEP format
+- Date normalization handles multiple formats (MM/DD/YYYY, YYYY-MM-DD, etc.)
+- Composite key matching on student_id + incident_number
+- Field comparison with configurable normalization rules
+- Discrepancy categorization: matched, field_conflict, new_in_sis, missing_from_sis
+- Color-coded stats cards showing comparison results
+- Summary view with "All Synced!" celebration when no discrepancies
+- "Review Discrepancies" button navigates to resolution workflow
+
+**Database Changes:**
+- Made `sis_data` and `daep_data` columns nullable in `daep_reconciliation_discrepancies`
+- Fixed RLS policy to use `auth.jwt() ->> 'sub'` for Clerk compatibility
+
+**Server Actions:**
+- `parseCSVFile(sessionId)` - Parse CSV with field mapping
+- `runComparison(sessionId)` - Compare SIS vs DAEP records
+- `getSessionDiscrepancies(sessionId, filters)` - Fetch discrepancies for review
+
+**Components:**
+- `ParseResults` - Display parsing stats and errors
+- `ComparisonResults` - Display comparison stats with color-coded cards
 
 ---
 
@@ -78,6 +116,7 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.5.1 | Feature | CSV Parsing and Comparison Engine | 5-3, 5-4 |
 | v0.5.0 | Feature | One-Time CSV Field Mapping Setup | 5-2 |
 | v0.4.6 | Feature | CSV Upload to Supabase Storage | 5-1 |
 
@@ -85,8 +124,6 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 ## Remaining Stories
 
-- 5-3: Parse CSV with PapaParse
-- 5-4: Comparison Engine
 - 5-5: Discrepancy Categorization
 - 5-6: Side-by-Side Comparison UI
 - 5-7: Resolution Actions

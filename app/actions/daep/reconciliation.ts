@@ -6,7 +6,16 @@ import { currentUser } from '@clerk/nextjs/server';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { revalidatePath } from 'next/cache';
 import { getTenantId } from '@/lib/tenant';
-import type { ReconciliationSession, SISGuide, SISGuideStep } from '@/lib/validation/schemas';
+import type {
+  ReconciliationSession,
+  SISGuide,
+  SISGuideStep,
+  SISRecord,
+  ParseResult,
+  ParseError,
+  ParseWarning,
+} from '@/lib/validation/schemas';
+import { parseDate, parseCSVContent } from '@/lib/daep/csv-parser';
 
 // ============================================================================
 // CONSTANTS
@@ -658,4 +667,746 @@ export async function saveFieldMapping(input: FieldMappingInput): Promise<{
       ? `/daep/reconciliation/${input.sessionId}`
       : '/daep/settings/csv-mapping',
   };
+}
+
+// ============================================================================
+// CSV PARSING (Story 5-3)
+// ============================================================================
+
+/**
+ * Parse uploaded CSV file using saved field mapping
+ * Transforms SIS export data into normalized DAEP records
+ */
+export async function parseCSVFile(sessionId: string): Promise<ParseResult> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const emptyResult: ParseResult = {
+    success: false,
+    records: [],
+    errors: [],
+    warnings: [],
+    stats: { totalRows: 0, parsedRows: 0, errorRows: 0, skippedRows: 0 },
+  };
+
+  // Get session
+  const { data: session } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('id, file_url, storage_path, status')
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (!session) {
+    return {
+      ...emptyResult,
+      errors: [{ row: 0, field: '', value: '', message: 'Session not found' }],
+    };
+  }
+
+  // Get field mapping
+  const { data: mapping } = await supabase
+    .from('daep_csv_field_mappings')
+    .select('field_mappings')
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (!mapping) {
+    return {
+      ...emptyResult,
+      errors: [{ row: 0, field: '', value: '', message: 'Field mapping not configured' }],
+    };
+  }
+
+  // Update session status to 'parsing'
+  await supabase
+    .from('daep_reconciliation_sessions')
+    .update({ status: 'parsing' })
+    .eq('id', sessionId);
+
+  try {
+    // Download CSV file - try stored URL first, then generate fresh signed URL
+    let response = await fetch(session.file_url);
+
+    if (!response.ok && session.storage_path) {
+      const { data: urlData } = await supabaseAdmin.storage
+        .from('daep-uploads')
+        .createSignedUrl(session.storage_path, 60 * 60);
+
+      if (urlData?.signedUrl) {
+        response = await fetch(urlData.signedUrl);
+      }
+    }
+
+    if (!response.ok) {
+      await supabase
+        .from('daep_reconciliation_sessions')
+        .update({ status: 'failed', error_message: 'Could not access uploaded file' })
+        .eq('id', sessionId);
+
+      return {
+        ...emptyResult,
+        errors: [{ row: 0, field: '', value: '', message: 'Could not access uploaded file' }],
+      };
+    }
+
+    const csvText = await response.text();
+
+    // Parse CSV with encoding handling
+    const parseResult = parseCSVContent(csvText);
+
+    if (parseResult.errors.length > 0) {
+      console.error('[DAEP Parsing] PapaParse errors:', parseResult.errors);
+    }
+
+    const fieldMappings = mapping.field_mappings as Record<string, string>;
+    const records: SISRecord[] = [];
+    const errors: ParseError[] = [];
+    const warnings: ParseWarning[] = [];
+
+    // Process each row
+    parseResult.data.forEach((row, index) => {
+      // Skip completely empty rows
+      const hasAnyValue = Object.values(row).some((v) => v && v.trim());
+      if (!hasAnyValue) return;
+
+      const rowNumber = index + 2; // +2 for header row (1) and 0-indexing
+
+      try {
+        const record = transformRow(row, fieldMappings, rowNumber, errors, warnings);
+        if (record) {
+          records.push(record);
+        }
+      } catch (err) {
+        errors.push({
+          row: rowNumber,
+          field: 'row',
+          value: '',
+          message: `Failed to parse row: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        });
+      }
+    });
+
+    // Determine success - allow partial success if some records parsed
+    const success = records.length > 0;
+    const nextStatus = success ? 'comparing' : 'failed';
+
+    // Update session with parse results
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({
+        status: nextStatus,
+        total_records: records.length,
+        error_message: errors.length > 0 ? `${errors.length} parsing error(s)` : null,
+      })
+      .eq('id', sessionId);
+
+    revalidatePath(`/daep/reconciliation/${sessionId}`);
+
+    return {
+      success,
+      records,
+      errors,
+      warnings,
+      stats: {
+        totalRows: parseResult.data.length,
+        parsedRows: records.length,
+        errorRows: errors.filter((e) => e.row > 0).length,
+        skippedRows: parseResult.data.length - records.length - errors.filter((e) => e.row > 0).length,
+      },
+    };
+  } catch (error) {
+    console.error('[DAEP Parsing] Unexpected error:', error);
+
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({ status: 'failed', error_message: 'Unexpected parsing error' })
+      .eq('id', sessionId);
+
+    return {
+      ...emptyResult,
+      errors: [
+        {
+          row: 0,
+          field: '',
+          value: '',
+          message: `Parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        },
+      ],
+    };
+  }
+}
+
+/**
+ * Transform a single CSV row using field mapping
+ */
+function transformRow(
+  row: Record<string, string>,
+  mappings: Record<string, string>,
+  rowNumber: number,
+  errors: ParseError[],
+  warnings: ParseWarning[]
+): SISRecord | null {
+  // Helper to get value using mapping (DAEP field -> CSV column)
+  const getValue = (daepField: string): string => {
+    const csvColumn = mappings[daepField];
+    return csvColumn ? (row[csvColumn] || '').trim() : '';
+  };
+
+  // Get required field values
+  const studentId = getValue('student_id');
+  const firstName = getValue('first_name');
+  const lastName = getValue('last_name');
+  const incidentNumber = getValue('incident_number');
+  const startDateRaw = getValue('start_date');
+  const daysAssignedRaw = getValue('days_assigned');
+  const offenseCode = getValue('offense_code');
+  const homeCampus = getValue('home_campus');
+
+  // Build student name for error context
+  const studentName = `${firstName} ${lastName}`.trim() || `Row ${rowNumber}`;
+
+  // Validate required fields
+  const requiredFields = [
+    { field: 'student_id', value: studentId },
+    { field: 'first_name', value: firstName },
+    { field: 'last_name', value: lastName },
+    { field: 'incident_number', value: incidentNumber },
+    { field: 'start_date', value: startDateRaw },
+    { field: 'days_assigned', value: daysAssignedRaw },
+    { field: 'offense_code', value: offenseCode },
+    { field: 'home_campus', value: homeCampus },
+  ];
+
+  let hasError = false;
+  for (const { field, value } of requiredFields) {
+    if (!value) {
+      errors.push({
+        row: rowNumber,
+        studentName,
+        studentId: studentId || undefined,
+        field,
+        value: '',
+        message: `Missing required field: ${field.replace(/_/g, ' ')}`,
+      });
+      hasError = true;
+    }
+  }
+
+  if (hasError) return null;
+
+  // Parse and validate start_date
+  const startDate = parseDate(startDateRaw);
+  if (!startDate) {
+    errors.push({
+      row: rowNumber,
+      studentName,
+      studentId,
+      field: 'start_date',
+      value: startDateRaw,
+      message: `Invalid date format: "${startDateRaw}". Expected MM/DD/YYYY, YYYY-MM-DD, or M/D/YY`,
+    });
+    return null;
+  }
+
+  // Parse and validate days_assigned
+  const daysAssigned = parseInt(daysAssignedRaw, 10);
+  if (isNaN(daysAssigned) || daysAssigned < 1 || daysAssigned > 365) {
+    errors.push({
+      row: rowNumber,
+      studentName,
+      studentId,
+      field: 'days_assigned',
+      value: daysAssignedRaw,
+      message: `Invalid days assigned: "${daysAssignedRaw}". Must be a number between 1 and 365`,
+    });
+    return null;
+  }
+
+  // Parse optional grade_level
+  const gradeRaw = getValue('grade_level');
+  let gradeLevel: number | undefined;
+  if (gradeRaw) {
+    const parsed = parseInt(gradeRaw, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 12) {
+      gradeLevel = parsed;
+    } else {
+      warnings.push({
+        row: rowNumber,
+        studentName,
+        field: 'grade_level',
+        message: `Invalid grade level "${gradeRaw}" (expected 1-12), skipping field`,
+      });
+    }
+  }
+
+  // Parse optional mandatory_placement
+  const mandatoryRaw = getValue('mandatory_placement');
+  let mandatoryPlacement: boolean | undefined;
+  if (mandatoryRaw) {
+    const lower = mandatoryRaw.toLowerCase();
+    if (['yes', 'true', '1', 'y'].includes(lower)) {
+      mandatoryPlacement = true;
+    } else if (['no', 'false', '0', 'n'].includes(lower)) {
+      mandatoryPlacement = false;
+    }
+  }
+
+  return {
+    student_id: studentId,
+    first_name: firstName,
+    last_name: lastName,
+    incident_number: incidentNumber,
+    start_date: startDate,
+    days_assigned: daysAssigned,
+    offense_code: offenseCode,
+    home_campus: homeCampus,
+    parent_email: getValue('parent_email') || undefined,
+    guardian_phone: getValue('guardian_phone') || undefined,
+    grade_level: gradeLevel,
+    assigning_campus: getValue('assigning_campus') || undefined,
+    placement_reason: getValue('placement_reason') || undefined,
+    mandatory_placement: mandatoryPlacement,
+    _rowNumber: rowNumber,
+    _rawData: row,
+  };
+}
+
+// ============================================================================
+// COMPARISON ENGINE (Story 5-4)
+// ============================================================================
+
+import type {
+  ComparisonResult,
+  ComparisonRecord,
+  FieldConflict,
+  DAEPPlacementCompact,
+  DiscrepancyType,
+} from '@/lib/validation/schemas';
+
+/**
+ * Compare parsed SIS records against DAEP placements
+ * Identifies: matched, field_conflict, new_in_sis, missing_from_sis
+ */
+export async function runComparison(sessionId: string): Promise<ComparisonResult> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+  const user = await currentUser();
+
+  const emptyResult: ComparisonResult = {
+    sessionId,
+    success: false,
+    timestamp: new Date().toISOString(),
+    stats: {
+      totalSisRecords: 0,
+      totalDaepRecords: 0,
+      matched: 0,
+      fieldConflicts: 0,
+      newInSis: 0,
+      missingFromSis: 0,
+    },
+    records: [],
+    errors: [],
+  };
+
+  // Get session and verify status
+  const { data: session } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('id, status, file_url, storage_path')
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (!session) {
+    return { ...emptyResult, errors: ['Session not found'] };
+  }
+
+  // Update status to 'comparing'
+  await supabase
+    .from('daep_reconciliation_sessions')
+    .update({ status: 'comparing' })
+    .eq('id', sessionId);
+
+  try {
+    // Re-parse CSV to get SIS records (needed for comparison)
+    const parseResult = await parseCSVFile(sessionId);
+    if (!parseResult.success || parseResult.records.length === 0) {
+      await supabase
+        .from('daep_reconciliation_sessions')
+        .update({ status: 'failed', error_message: 'No valid SIS records to compare' })
+        .eq('id', sessionId);
+
+      return {
+        ...emptyResult,
+        errors: ['No valid SIS records found in CSV'],
+      };
+    }
+
+    const sisRecords = parseResult.records;
+
+    // Fetch active DAEP placements for tenant
+    // Note: daep_placements.school_id links to trespass_records.school_id but there's no FK,
+    // so we can't use nested joins. We'll fetch student info and campus info separately.
+    const { data: placements, error: placementError } = await supabase
+      .from('daep_placements')
+      .select(`
+        id,
+        school_id,
+        incident_number,
+        start_date,
+        days_assigned,
+        offense_code,
+        home_campus_id,
+        placement_reason,
+        mandatory_placement
+      `)
+      .eq('tenant_id', tenantId)
+      .in('status', ['pending', 'active']);
+
+    if (placementError) {
+      console.error('[Comparison] Failed to fetch placements:', placementError);
+      return { ...emptyResult, errors: ['Failed to fetch DAEP placements'] };
+    }
+
+    // Collect school_ids to fetch student names
+    const placementSchoolIds = new Set<string>();
+    (placements || []).forEach((p) => {
+      if (p.school_id) placementSchoolIds.add(p.school_id);
+    });
+
+    // Fetch student info from trespass_records
+    const studentInfoMap = new Map<string, { first_name: string; last_name: string }>();
+    if (placementSchoolIds.size > 0) {
+      const { data: students } = await supabase
+        .from('trespass_records')
+        .select('school_id, first_name, last_name')
+        .eq('tenant_id', tenantId)
+        .in('school_id', Array.from(placementSchoolIds));
+
+      (students || []).forEach((s) => {
+        studentInfoMap.set(s.school_id, { first_name: s.first_name, last_name: s.last_name });
+      });
+    }
+
+    // Transform placements to compact format
+    const daepRecords: DAEPPlacementCompact[] = (placements || []).map((p) => {
+      const studentRecord = studentInfoMap.get(p.school_id);
+
+      return {
+        id: p.id,
+        student_id: p.school_id,
+        incident_number: p.incident_number || '',
+        first_name: studentRecord?.first_name || '',
+        last_name: studentRecord?.last_name || '',
+        start_date: p.start_date,
+        days_assigned: p.days_assigned,
+        offense_code: p.offense_code,
+        home_campus_id: p.home_campus_id || '',
+        home_campus_name: '', // Skipped for MVP - not compared anyway
+        grade_level: undefined, // grade_level is on trespass_records, not placements - skip for MVP
+        placement_reason: p.placement_reason || undefined,
+        mandatory_placement: p.mandatory_placement || undefined,
+      };
+    });
+
+    // Build lookup maps by composite key
+    const sisMap = new Map<string, SISRecord>();
+    for (const record of sisRecords) {
+      const key = `${record.student_id}|${record.incident_number}`;
+      sisMap.set(key, record);
+    }
+
+    const daepMap = new Map<string, DAEPPlacementCompact>();
+    for (const record of daepRecords) {
+      if (!record.incident_number) {
+        console.warn('[Comparison] Skipping placement with null incident_number:', record.id);
+        continue;
+      }
+      const key = `${record.student_id}|${record.incident_number}`;
+      daepMap.set(key, record);
+    }
+
+    // Compare and categorize
+    const comparisonRecords: ComparisonRecord[] = [];
+    const processedKeys = new Set<string>();
+
+    // Check each SIS record
+    for (const [key, sisRecord] of Array.from(sisMap.entries())) {
+      processedKeys.add(key);
+      const daepPlacement = daepMap.get(key);
+
+      if (!daepPlacement) {
+        // New in SIS - not found in DAEP
+        comparisonRecords.push({
+          id: crypto.randomUUID(),
+          type: 'new_in_sis',
+          studentId: sisRecord.student_id,
+          studentName: `${sisRecord.first_name} ${sisRecord.last_name}`,
+          incidentNumber: sisRecord.incident_number,
+          sisRecord,
+          resolution: 'pending',
+        });
+      } else {
+        // Exists in both - compare fields
+        const conflicts = compareFields(sisRecord, daepPlacement);
+        const type: DiscrepancyType = conflicts.length > 0 ? 'field_conflict' : 'matched';
+
+        comparisonRecords.push({
+          id: crypto.randomUUID(),
+          type,
+          studentId: sisRecord.student_id,
+          studentName: `${sisRecord.first_name} ${sisRecord.last_name}`,
+          incidentNumber: sisRecord.incident_number,
+          sisRecord,
+          daepPlacement,
+          conflicts: conflicts.length > 0 ? conflicts : undefined,
+          resolution: type === 'matched' ? undefined : 'pending',
+        });
+      }
+    }
+
+    // Check for DAEP records not in SIS
+    for (const [key, daepPlacement] of Array.from(daepMap.entries())) {
+      if (!processedKeys.has(key)) {
+        comparisonRecords.push({
+          id: crypto.randomUUID(),
+          type: 'missing_from_sis',
+          studentId: daepPlacement.student_id,
+          studentName: `${daepPlacement.first_name} ${daepPlacement.last_name}`,
+          incidentNumber: daepPlacement.incident_number,
+          daepPlacement,
+          resolution: 'pending',
+        });
+      }
+    }
+
+    // Calculate stats
+    const stats = {
+      totalSisRecords: sisRecords.length,
+      totalDaepRecords: daepRecords.length,
+      matched: comparisonRecords.filter((r) => r.type === 'matched').length,
+      fieldConflicts: comparisonRecords.filter((r) => r.type === 'field_conflict').length,
+      newInSis: comparisonRecords.filter((r) => r.type === 'new_in_sis').length,
+      missingFromSis: comparisonRecords.filter((r) => r.type === 'missing_from_sis').length,
+    };
+
+    // Save discrepancies to database (only non-matched)
+    await saveDiscrepancies(sessionId, tenantId, comparisonRecords);
+
+    // Determine next status
+    const hasDiscrepancies = stats.fieldConflicts > 0 || stats.newInSis > 0 || stats.missingFromSis > 0;
+    const nextStatus = hasDiscrepancies ? 'in_review' : 'completed';
+
+    // Update session with comparison results
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({
+        status: nextStatus,
+        total_records: stats.totalSisRecords,
+        matched_count: stats.matched,
+        discrepancy_count: stats.fieldConflicts,
+        new_in_sis_count: stats.newInSis,
+        missing_from_sis_count: stats.missingFromSis,
+        completed_at: nextStatus === 'completed' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId);
+
+    // Log audit event
+    await logAuditEvent({
+      eventType: 'reconciliation.session_completed',
+      module: 'daep_management',
+      actorId: user?.id || 'system',
+      actorEmail: user?.emailAddresses[0]?.emailAddress,
+      targetId: sessionId,
+      action: 'Completed reconciliation comparison',
+      details: stats,
+      tenantId,
+    });
+
+    revalidatePath(`/daep/reconciliation/${sessionId}`);
+
+    return {
+      sessionId,
+      success: true,
+      timestamp: new Date().toISOString(),
+      stats,
+      records: comparisonRecords,
+      errors: [],
+    };
+  } catch (error) {
+    console.error('[Comparison] Unexpected error:', error);
+
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({
+        status: 'failed',
+        error_message: `Comparison failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      })
+      .eq('id', sessionId);
+
+    return {
+      ...emptyResult,
+      errors: [`Comparison failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+    };
+  }
+}
+
+/**
+ * Compare specific fields between SIS and DAEP records
+ * Returns array of conflicts (empty if all fields match)
+ */
+function compareFields(sis: SISRecord, daep: DAEPPlacementCompact): FieldConflict[] {
+  const conflicts: FieldConflict[] = [];
+
+  // Compare start_date (YYYY-MM-DD format, compare just date part)
+  const sisDate = sis.start_date.substring(0, 10);
+  const daepDate = daep.start_date?.substring(0, 10) || '';
+  if (sisDate !== daepDate) {
+    conflicts.push({
+      field: 'start_date',
+      fieldLabel: 'Start Date',
+      sisValue: sisDate,
+      daepValue: daepDate,
+    });
+  }
+
+  // Compare days_assigned (integer)
+  if (sis.days_assigned !== daep.days_assigned) {
+    conflicts.push({
+      field: 'days_assigned',
+      fieldLabel: 'Days Assigned',
+      sisValue: String(sis.days_assigned),
+      daepValue: String(daep.days_assigned),
+    });
+  }
+
+  // Compare offense_code (case-insensitive, trimmed)
+  const sisOffense = sis.offense_code.toUpperCase().trim();
+  const daepOffense = (daep.offense_code || '').toUpperCase().trim();
+  if (sisOffense !== daepOffense) {
+    conflicts.push({
+      field: 'offense_code',
+      fieldLabel: 'Offense Code',
+      sisValue: sis.offense_code,
+      daepValue: daep.offense_code || '',
+    });
+  }
+
+  // Compare grade_level (optional - only if both have values)
+  if (sis.grade_level !== undefined && daep.grade_level !== undefined) {
+    if (sis.grade_level !== daep.grade_level) {
+      conflicts.push({
+        field: 'grade_level',
+        fieldLabel: 'Grade Level',
+        sisValue: String(sis.grade_level),
+        daepValue: String(daep.grade_level),
+      });
+    }
+  }
+
+  // Compare mandatory_placement (boolean - only if both have values)
+  if (sis.mandatory_placement !== undefined && daep.mandatory_placement !== undefined) {
+    if (sis.mandatory_placement !== daep.mandatory_placement) {
+      conflicts.push({
+        field: 'mandatory_placement',
+        fieldLabel: 'Mandatory Placement',
+        sisValue: sis.mandatory_placement ? 'Yes' : 'No',
+        daepValue: daep.mandatory_placement ? 'Yes' : 'No',
+      });
+    }
+  }
+
+  // Note: home_campus skipped for MVP (would require fuzzy matching)
+
+  return conflicts;
+}
+
+/**
+ * Save discrepancies to database (only actual discrepancies, not matched records)
+ */
+async function saveDiscrepancies(
+  sessionId: string,
+  tenantId: string,
+  records: ComparisonRecord[]
+): Promise<void> {
+  const supabase = await createServerClient();
+
+  // Filter out matched records - only save actual discrepancies
+  const discrepancies = records.filter((r) => r.type !== 'matched');
+
+  if (discrepancies.length === 0) {
+    return;
+  }
+
+  // Prepare rows for insert
+  const rows = discrepancies.map((r) => ({
+    tenant_id: tenantId,
+    session_id: sessionId,
+    student_id: r.studentId,
+    student_name: r.studentName,
+    incident_number: r.incidentNumber,
+    discrepancy_type: r.type,
+    sis_data: r.sisRecord || null,
+    daep_data: r.daepPlacement || null,
+    daep_placement_id: r.daepPlacement?.id || null,
+    conflicts: r.conflicts || [],
+    resolution: 'pending',
+  }));
+
+  // Batch insert (Supabase handles batching internally)
+  const { error } = await supabase.from('daep_reconciliation_discrepancies').insert(rows);
+
+  if (error) {
+    console.error('[Comparison] Failed to save discrepancies:', error);
+    throw new Error(`Failed to save discrepancies: ${error.message}`);
+  }
+}
+
+/**
+ * Get discrepancies for a session with optional filtering
+ */
+export async function getSessionDiscrepancies(
+  sessionId: string,
+  filters?: {
+    type?: DiscrepancyType;
+    resolution?: string;
+  }
+): Promise<ComparisonRecord[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  let query = supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*')
+    .eq('session_id', sessionId)
+    .eq('tenant_id', tenantId)
+    .order('student_name');
+
+  if (filters?.type) {
+    query = query.eq('discrepancy_type', filters.type);
+  }
+
+  if (filters?.resolution) {
+    query = query.eq('resolution', filters.resolution);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[Comparison] Failed to fetch discrepancies:', error);
+    return [];
+  }
+
+  return (data || []).map((d) => ({
+    id: d.id,
+    type: d.discrepancy_type as DiscrepancyType,
+    studentId: d.student_id || '',
+    studentName: d.student_name || '',
+    incidentNumber: d.incident_number || '',
+    sisRecord: d.sis_data as SISRecord | undefined,
+    daepPlacement: d.daep_data as DAEPPlacementCompact | undefined,
+    conflicts: (d.conflicts || []) as FieldConflict[],
+    resolution: d.resolution as ComparisonRecord['resolution'],
+  }));
 }

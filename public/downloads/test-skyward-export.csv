@@ -1,0 +1,4 @@
+StudentNumber,FirstName,LastName,IncidentID,PlacementStartDate,DaysAssigned,OffenseCode,HomeCampusName,ParentEmail
+12345,John,Smith,INC-001,2024-01-15,30,37,Lincoln High,parent1@email.com
+12346,Jane,Doe,INC-002,2024-01-20,45,38,Washington MS,parent2@email.com
+12347,Bob,Johnson,INC-003,2024-02-01,15,41,Roosevelt ES,parent3@email.com

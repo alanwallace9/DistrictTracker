@@ -1097,6 +1097,148 @@ export interface FieldMappingRecord {
 }
 
 // ============================================================================
+// CSV PARSING TYPES (Story 5-3)
+// ============================================================================
+
+/**
+ * Normalized SIS record after CSV parsing
+ * All records are transformed to this structure regardless of source SIS format
+ */
+export interface SISRecord {
+  // Required fields
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  incident_number: string;
+  start_date: string; // ISO format YYYY-MM-DD
+  days_assigned: number;
+  offense_code: string;
+  home_campus: string;
+
+  // Optional fields
+  parent_email?: string;
+  guardian_phone?: string;
+  grade_level?: number;
+  assigning_campus?: string;
+  placement_reason?: string;
+  mandatory_placement?: boolean;
+
+  // Metadata for error reporting
+  _rowNumber: number; // Original CSV row number (1-indexed, excluding header)
+  _rawData: Record<string, string>; // Original CSV values
+}
+
+/**
+ * Error encountered during CSV parsing
+ */
+export interface ParseError {
+  row: number;
+  studentName?: string;
+  studentId?: string;
+  field: string;
+  value: string;
+  message: string;
+}
+
+/**
+ * Warning encountered during CSV parsing (non-fatal)
+ */
+export interface ParseWarning {
+  row: number;
+  studentName?: string;
+  field: string;
+  message: string;
+}
+
+/**
+ * Result of parsing a CSV file
+ */
+export interface ParseResult {
+  success: boolean;
+  records: SISRecord[];
+  errors: ParseError[];
+  warnings: ParseWarning[];
+  stats: {
+    totalRows: number;
+    parsedRows: number;
+    errorRows: number;
+    skippedRows: number;
+  };
+}
+
+// ============================================================================
+// COMPARISON ENGINE TYPES (Story 5-4)
+// ============================================================================
+
+/**
+ * Discrepancy category for comparison results
+ */
+export type DiscrepancyType = 'matched' | 'field_conflict' | 'new_in_sis' | 'missing_from_sis';
+
+/**
+ * Individual field conflict detail
+ */
+export interface FieldConflict {
+  field: string;        // Field name (e.g., 'days_assigned')
+  sisValue: string;     // Value from SIS CSV
+  daepValue: string;    // Value from DAEP database
+  fieldLabel: string;   // Human-readable label (e.g., 'Days Assigned')
+}
+
+/**
+ * Compact DAEP placement for comparison (subset of full placement)
+ */
+export interface DAEPPlacementCompact {
+  id: string;
+  student_id: string;
+  incident_number: string;
+  first_name: string;
+  last_name: string;
+  start_date: string;
+  days_assigned: number;
+  offense_code: string;
+  home_campus_id: string;
+  home_campus_name?: string;
+  grade_level?: number;
+  placement_reason?: string;
+  mandatory_placement?: boolean;
+}
+
+/**
+ * A single comparison result for one record
+ */
+export interface ComparisonRecord {
+  id: string;                           // UUID for this comparison record
+  type: DiscrepancyType;                // Category of comparison result
+  studentId: string;                    // Student ID (from SIS or DAEP)
+  studentName: string;                  // "First Last" format
+  incidentNumber: string;               // Incident number (composite key part 2)
+  sisRecord?: SISRecord;                // Original SIS record (if exists)
+  daepPlacement?: DAEPPlacementCompact; // DAEP placement data (if exists)
+  conflicts?: FieldConflict[];          // Field differences (for field_conflict type)
+  resolution?: 'pending' | 'accept_sis' | 'keep_daep' | 'skipped'; // Resolution status
+}
+
+/**
+ * Full comparison result for a session
+ */
+export interface ComparisonResult {
+  sessionId: string;
+  success: boolean;
+  timestamp: string;
+  stats: {
+    totalSisRecords: number;
+    totalDaepRecords: number;
+    matched: number;
+    fieldConflicts: number;
+    newInSis: number;
+    missingFromSis: number;
+  };
+  records: ComparisonRecord[];
+  errors: string[];
+}
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
