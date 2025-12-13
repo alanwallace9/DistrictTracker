@@ -1,8 +1,46 @@
 # Epic 5: SIS Reconciliation - Changelog
 
-**Epic Status:** In Progress (4 of 10 stories)
+**Epic Status:** In Progress (5 of 8 stories) - Combined 5-5/5-6/5-7 into single story
 **Version Range:** v0.4.6 - TBD
 **FRs Covered:** FR52-FR62
+
+---
+
+## v0.5.2 - Reconciliation Review Page
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Reconciliation Review Page |
+| **Stories** | 5-5 (combined from 5-5, 5-6, 5-7) |
+| **FRs** | FR56, FR57, FR58, FR59 |
+
+**Description:**
+Banking-style side-by-side discrepancy review UI for CSV reconciliation. Users can quickly resolve discrepancies using intuitive resolution buttons with smart labels based on discrepancy type.
+
+**Key Features:**
+- Side-by-side comparison (SIS Export vs DAEP Data)
+- Dynamic SIS label from field mapping (Skyward Export, Focus Export, etc.)
+- Smart resolution buttons per discrepancy type:
+  - New in SIS: "Create Placement" / "Dismiss"
+  - Missing from SIS: "Keep Record" only
+  - Field Conflict: "Accept SIS (value)" / "Keep DAEP (value)"
+- Keyboard shortcuts (S = Accept SIS, D = Keep DAEP, ← → = Navigate)
+- Auto-advance after resolution
+- Bulk accept for matched records
+- Summary cards at bottom (Matched, Conflicts, New in SIS, Missing)
+- Celebration screen when all discrepancies resolved
+
+**Server Actions:**
+- `resolveDiscrepancy(sessionId, discrepancyId, resolution, note)` - Resolve individual discrepancy
+- `bulkAcceptMatches(sessionId)` - Accept all matched records at once
+
+**Audit Events:**
+- `reconciliation.discrepancy_resolved`
+- `reconciliation.bulk_accept`
+
+**Components:**
+- `DiscrepancyReview` - Main banking-style review component
 
 ---
 
@@ -116,6 +154,7 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.5.2 | Feature | Reconciliation Review Page | 5-5 (combined 5-5/5-6/5-7) |
 | v0.5.1 | Feature | CSV Parsing and Comparison Engine | 5-3, 5-4 |
 | v0.5.0 | Feature | One-Time CSV Field Mapping Setup | 5-2 |
 | v0.4.6 | Feature | CSV Upload to Supabase Storage | 5-1 |
@@ -124,9 +163,6 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 ## Remaining Stories
 
-- 5-5: Discrepancy Categorization
-- 5-6: Side-by-Side Comparison UI
-- 5-7: Resolution Actions
 - 5-8: Reconciliation Audit Trail
 - 5-9: Reconciliation Summary Report
 - 5-10: Unresolved Discrepancy Alerts

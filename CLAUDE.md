@@ -25,15 +25,21 @@ grep NEXT_PUBLIC_SUPABASE_URL .env.local
 | 6 | **Implement** - Write the code | No |
 | 7 | **Test with Playwright** - Verify UI works | No |
 | 8 | **Confirm** - Show user the results | **YES - WAIT** |
-| 9 | **Commit** - Use `/bmad:bmm:agents:tech-writer` | No |
+| 9 | **Ready to Commit?** - Ask user before committing | **YES - WAIT** |
+| 10 | **Commit** - Use `/bmad:bmm:agents:tech-writer`, update changelog | No |
 
 **DO NOT skip steps. DO NOT proceed past "WAIT" steps without user approval.**
 
-### 3. Commit Workflow
+### 3. Commit Workflow (WAIT FOR USER APPROVAL)
 After story completion:
-1. Invoke `/bmad:bmm:agents:tech-writer` to draft commit message
-2. Follow the commit format from tech-writer output
-3. Push to staging branch
+1. **ASK USER**: "Story complete - ready to commit?" - **YES - WAIT**
+2. Invoke `/bmad:bmm:agents:tech-writer` to draft commit message AND changelog entry
+3. Update `docs/sprint-artifacts/daep/epic-{N}-changelog.md` with new entry
+4. Update `sprint-status.yaml` to mark story as `done`
+5. Bump version in `package.json`
+6. Stage, commit, and push to staging branch
+
+**DO NOT commit without user approval. The tech-writer agent ensures consistent formatting.**
 
 ---
 
@@ -101,6 +107,86 @@ mcp__supabase__execute_sql "SELECT ..." # Query 2
 ```
 
 **Rule:** One well-placed console.log or reading the error message carefully often solves it faster than multiple database queries.
+
+---
+
+## Performance Best Practices (Bundle Size)
+
+**CRITICAL: Large libraries must use dynamic imports to avoid bloating initial page load.**
+
+### Heavy Libraries - ALWAYS Dynamic Import
+
+These libraries are 7-30MB+ and should NEVER be statically imported:
+
+| Library | Size | Use Case |
+|---------|------|----------|
+| `xlsx` | ~7MB | Excel export |
+| `jspdf` | ~29MB | PDF generation |
+| `jspdf-autotable` | ~1MB | PDF tables |
+
+**WRONG - Static import (loads on page load):**
+```typescript
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+const exportToExcel = () => {
+  const ws = XLSX.utils.json_to_sheet(data);
+  // ...
+};
+```
+
+**CORRECT - Dynamic import (loads on demand):**
+```typescript
+// No static imports at top of file
+
+const exportToExcel = async () => {
+  // Dynamic import - only loads when user clicks export
+  const XLSX = await import('xlsx');
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  // ...
+};
+
+const exportToPDF = async () => {
+  // Dynamic imports for PDF generation
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF('landscape');
+  autoTable(doc, { /* ... */ });
+  // ...
+};
+```
+
+### Bundle Analysis
+
+Run bundle analysis to identify large dependencies:
+```bash
+npm run build:analyze
+```
+
+This opens an interactive visualization showing:
+- Which packages are bundled into which pages
+- The size contribution of each dependency
+- Opportunities for code splitting
+
+### Performance Checklist for New Features
+
+Before implementing export/report features:
+
+1. **Check if library is already used** - Search for existing patterns
+2. **Use dynamic imports** for any library > 100KB
+3. **Verify bundle size** after implementation with `npm run build`
+4. **Watch for First Load JS** - Keep pages under 200KB when possible
+
+### Current Bundle Targets
+
+| Page Type | Target First Load JS |
+|-----------|---------------------|
+| Dashboard pages | < 200KB |
+| Settings pages | < 150KB |
+| Admin pages | < 300KB (export features allowed) |
 
 ---
 
@@ -408,7 +494,11 @@ These files are large and should only be loaded via their sharded parts:
 
 ## Commit & Changelog Conventions
 
-**IMPORTANT:** After completing a story, prompt the user: "Story complete - ready to commit?"
+### ⚠️ MANDATORY: Ask Before Committing
+
+**STOP!** After completing a story, you MUST ask: **"Story complete - ready to commit?"**
+
+**DO NOT commit without explicit user approval.** Wait for user to say yes.
 
 ### Commit Workflow
 
@@ -419,9 +509,7 @@ When user accepts the commit prompt, follow this workflow:
    - Changelog entry content for feedback page
    - Appropriate version bump recommendation
 
-2. **Update package.json** - Bump version according to:
-   - Patch (`0.x.Y`) for stories/fixes
-   - Minor (`0.X.0`) for epic completion
+2. **Update sprint-status.yaml** - Mark story as `done`
 
 3. **Update Epic Changelog** - Add entry to `docs/sprint-artifacts/daep/epic-{N}-changelog.md`:
    - Add version section with Title, Description, Key Features, FRs
@@ -429,13 +517,15 @@ When user accepts the commit prompt, follow this workflow:
    - Update Remaining Stories section
    - Update story count in header
 
-4. **Update sprint-status.yaml** - Mark story as `done`
+4. **Update package.json** - Bump version according to:
+   - Patch (`0.x.Y`) for stories/fixes
+   - Minor (`0.X.0`) for epic completion
 
-5. **Stage and Commit** - Use the drafted message:
+5. **Stage and Commit** - Use the drafted message from tech-writer:
    ```bash
    git add -A
    git commit -m "$(cat <<'EOF'
-   [drafted commit message here]
+   [drafted commit message from tech-writer]
    EOF
    )"
    ```
