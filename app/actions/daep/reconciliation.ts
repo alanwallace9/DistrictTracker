@@ -1941,3 +1941,195 @@ export async function getSessionAuditCounts(sessionIds: string[]): Promise<Recor
 
   return counts;
 }
+
+// ============================================================================
+// RECONCILIATION SUMMARY (Story 5-9)
+// ============================================================================
+
+import type {
+  ReconciliationSummary,
+  ResolutionDetail,
+  MatchedRecordSummary,
+} from '@/lib/validation/schemas';
+
+/**
+ * Format duration as plain English
+ * Examples: "12 minutes", "1 hour", "1 hour 15 minutes", "2 hours 30 minutes"
+ */
+function formatDuration(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  const hourStr = `${hours} hour${hours !== 1 ? 's' : ''}`;
+  if (mins === 0) return hourStr;
+  return `${hourStr} ${mins} minute${mins !== 1 ? 's' : ''}`;
+}
+
+/**
+ * Get full reconciliation summary for a completed session
+ * Used for Summary Report display and PDF generation
+ */
+export async function getReconciliationSummary(
+  sessionId: string
+): Promise<ReconciliationSummary | null> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Get session data
+  const { data: session, error: sessionError } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (sessionError || !session) {
+    console.error('[Summary] Session not found:', sessionError);
+    return null;
+  }
+
+  // Get all discrepancies for this session
+  const { data: discrepancies, error: discError } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*')
+    .eq('session_id', sessionId)
+    .eq('tenant_id', tenantId)
+    .order('resolved_at', { ascending: true });
+
+  if (discError) {
+    console.error('[Summary] Failed to fetch discrepancies:', discError);
+    return null;
+  }
+
+  // Get user who completed the session (uploaded_by as fallback)
+  const completedByUserId = session.uploaded_by;
+  let completedByName = 'Unknown';
+  let completedByEmail = '';
+
+  if (completedByUserId) {
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('display_name, email')
+      .eq('user_id', completedByUserId)
+      .single();
+
+    if (userProfile) {
+      completedByName = userProfile.display_name || 'Unknown';
+      completedByEmail = userProfile.email || '';
+    }
+  }
+
+  // Calculate duration
+  const uploadTime = new Date(session.upload_date).getTime();
+  const completedTime = session.completed_at
+    ? new Date(session.completed_at).getTime()
+    : Date.now();
+  const durationMinutes = Math.max(1, Math.round((completedTime - uploadTime) / 60000));
+  const durationFormatted = formatDuration(durationMinutes);
+
+  // Build resolution details (one row per conflict field)
+  const resolutions: ResolutionDetail[] = [];
+  const matchedRecords: MatchedRecordSummary[] = [];
+
+  let acceptedSISCount = 0;
+  let keptDAEPCount = 0;
+  let newPlacementsCreated = 0;
+  let missingReviewed = 0;
+
+  for (const d of discrepancies || []) {
+    const discType = d.discrepancy_type as DiscrepancyType;
+    const resolution = d.resolution as string;
+
+    if (discType === 'matched') {
+      // Add to matched records list
+      const sisData = d.sis_data as SISRecord | null;
+      const daepData = d.daep_data as DAEPPlacementCompact | null;
+      matchedRecords.push({
+        studentId: d.student_id || '',
+        studentName: d.student_name || '',
+        homeCampus: sisData?.home_campus || daepData?.home_campus_name || 'Unknown',
+      });
+    } else if (discType === 'field_conflict') {
+      // One row per conflict field
+      const conflicts = (d.conflicts || []) as FieldConflict[];
+      const sisData = d.sis_data as SISRecord | null;
+      const daepData = d.daep_data as DAEPPlacementCompact | null;
+
+      for (const conflict of conflicts) {
+        const isAcceptSIS = resolution === 'accept_sis';
+        if (isAcceptSIS) acceptedSISCount++;
+        else keptDAEPCount++;
+
+        resolutions.push({
+          studentId: d.student_id || '',
+          studentName: d.student_name || '',
+          discrepancyType: discType,
+          field: conflict.fieldLabel || conflict.field,
+          sisValue: conflict.sisValue,
+          daepValue: conflict.daepValue,
+          accepted: isAcceptSIS
+            ? `SIS (${conflict.sisValue})`
+            : `DAEP (${conflict.daepValue})`,
+          resolution: isAcceptSIS ? 'accept_sis' : 'keep_daep',
+          note: d.resolution_note || null,
+          resolvedAt: d.resolved_at || '',
+        });
+      }
+    } else if (discType === 'new_in_sis') {
+      const isAccepted = resolution === 'accept_sis';
+      if (isAccepted) newPlacementsCreated++;
+
+      resolutions.push({
+        studentId: d.student_id || '',
+        studentName: d.student_name || '',
+        discrepancyType: discType,
+        field: null,
+        sisValue: null,
+        daepValue: null,
+        accepted: isAccepted ? 'Created' : 'Dismissed',
+        resolution: isAccepted ? 'accept_sis' : 'keep_daep',
+        note: d.resolution_note || null,
+        resolvedAt: d.resolved_at || '',
+      });
+    } else if (discType === 'missing_from_sis') {
+      missingReviewed++;
+      const isKept = resolution === 'keep_daep';
+
+      resolutions.push({
+        studentId: d.student_id || '',
+        studentName: d.student_name || '',
+        discrepancyType: discType,
+        field: null,
+        sisValue: null,
+        daepValue: null,
+        accepted: isKept ? 'Keep Record' : 'Removed',
+        resolution: isKept ? 'keep_daep' : 'flagged',
+        note: d.resolution_note || null,
+        resolvedAt: d.resolved_at || '',
+      });
+    }
+  }
+
+  return {
+    sessionId: session.id,
+    fileName: session.file_name,
+    uploadDate: session.upload_date,
+    completedAt: session.completed_at || new Date().toISOString(),
+    completedBy: completedByName,
+    completedByEmail,
+    durationFormatted,
+    totalRecords: session.total_records || 0,
+    matchedCount: session.matched_count || 0,
+    conflictCount: session.discrepancy_count || 0,
+    newInSISCount: session.new_in_sis_count || 0,
+    missingFromSISCount: session.missing_from_sis_count || 0,
+    acceptedSISCount,
+    keptDAEPCount,
+    newPlacementsCreated,
+    missingReviewed,
+    resolutions,
+    matchedRecords,
+  };
+}

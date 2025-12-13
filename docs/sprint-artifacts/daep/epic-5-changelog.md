@@ -1,8 +1,55 @@
 # Epic 5: SIS Reconciliation - Changelog
 
-**Epic Status:** In Progress (6 of 8 stories) - Combined 5-5/5-6/5-7 into single story
+**Epic Status:** In Progress (8 of 9 stories) - Combined 5-5/5-6/5-7 into single story
 **Version Range:** v0.4.6 - TBD
 **FRs Covered:** FR52-FR62
+
+---
+
+## v0.5.4 - Reconciliation Summary Report
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Reconciliation Summary Report |
+| **Story** | 5-9 |
+| **FRs** | FR61 |
+
+**Description:**
+When a reconciliation session is completed, display a professional summary report showing all results, resolution breakdown, and detailed discrepancy decisions. Export to PDF for compliance documentation.
+
+**Key Features:**
+- Success header with "Reconciliation Complete!" and checkmark icon
+- Session details card (File, Completed date, Completed By, Duration)
+- Duration displayed in plain English ("15 minutes", "1 hour 30 minutes")
+- Overall Results: 4 color-coded metric cards
+  - Matched (green), Conflicts Resolved (yellow), New Created (blue), Missing Reviewed (red)
+- Resolution Breakdown: Accept SIS vs Keep DAEP counts with descriptions
+- Discrepancies Resolved table with full detail:
+  - Student name + ID, Type, Field, SIS Value, DAEP Value, Accepted choice, Note
+  - One row per field for multi-field conflicts
+- Matched Records table (Student name, Campus)
+- PDF download with dynamic import (jsPDF ~29MB loaded on-demand only)
+- View Audit Log and Back to Reconciliation navigation buttons
+
+**Performance:**
+- jsPDF and jspdf-autotable use dynamic imports to avoid bundle bloat
+- PDF generator only loads when user clicks "Download PDF"
+
+**Server Actions:**
+- `getReconciliationSummary(sessionId)` - Fetch complete summary data with calculated metrics
+
+**New Types:**
+- `ReconciliationSummary` - Full session summary with metrics and records
+- `ResolutionDetail` - Per-field resolution decision
+- `MatchedRecordSummary` - Simple name + campus for matched records
+
+**Components:**
+- `SummaryReport` - Complete summary display with PDF export
+
+**Files:**
+- `lib/daep/pdf-generator.ts` - PDF generation with dynamic imports
+- `app/daep/(main)/reconciliation/[sessionId]/components/summary-report.tsx`
 
 ---
 
@@ -196,6 +243,7 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.5.4 | Feature | Reconciliation Summary Report | 5-9 |
 | v0.5.3 | Feature | Reconciliation Audit Trail | 5-8 |
 | v0.5.2 | Feature | Reconciliation Review Page | 5-5 (combined 5-5/5-6/5-7) |
 | v0.5.1 | Feature | CSV Parsing and Comparison Engine | 5-3, 5-4 |
@@ -206,7 +254,6 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 ## Remaining Stories
 
-- 5-9: Reconciliation Summary Report
 - 5-10: Unresolved Discrepancy Alerts
 
 ---

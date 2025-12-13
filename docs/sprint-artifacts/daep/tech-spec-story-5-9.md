@@ -4,7 +4,22 @@
 **Points:** 3
 **Status:** Drafted
 **FRs:** FR61
-**Dependencies:** Story 5-7 (Resolution Actions), Story 5-8 (Audit Trail)
+**Dependencies:** Story 5-5 (Reconciliation Review - Combined), Story 5-8 (Audit Trail)
+
+---
+
+## Decisions (2025-12-13 Validation)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **File paths** | Use `(main)` route group | Matches existing reconciliation routes |
+| **PDF library** | jsPDF with dynamic import | CLAUDE.md requires dynamic imports for 29MB library |
+| **CategoryBadge** | Create simple inline version using Badge | Avoid new component dependency |
+| **Email (AC 5.9.6)** | Deferred to backlog | No email service configured yet |
+| **Duration format** | Plain English: "12 minutes", "1 hour 15 minutes" | User preference |
+| **PDF discrepancy detail** | Show SIS value, DAEP value, Accepted choice, value | Full audit trail |
+| **PDF matched records** | Single row per matched record: name, campus | Complete but concise |
+| **Multiple field conflicts** | One row per field (student may appear multiple times) | Clear per-field tracking |
 
 ---
 
@@ -317,10 +332,11 @@ export async function emailReconciliationSummary(
 ### Summary Report Component
 
 ```typescript
-// app/daep/reconciliation/[sessionId]/components/summary-report.tsx
+// app/daep/(main)/reconciliation/[sessionId]/components/summary-report.tsx
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -334,18 +350,28 @@ import {
 } from '@/components/ui/table';
 import {
   Download,
-  Mail,
   CheckCircle,
   AlertTriangle,
   PlusCircle,
   MinusCircle,
   History,
+  ArrowLeft,
 } from 'lucide-react';
-import { generateSummaryPDF } from '@/app/actions/daep/reconciliation';
-import { CategoryBadge } from '@/components/daep/reconciliation/category-badge';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import type { ReconciliationSummary } from '@/lib/types/daep';
+import type { ReconciliationSummary, DiscrepancyType } from '@/lib/validation/schemas';
+
+// Inline helper for discrepancy type badges (avoids separate component dependency)
+function getTypeBadge(type: DiscrepancyType) {
+  const config: Record<DiscrepancyType, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    matched: { label: 'Matched', variant: 'default' },
+    field_conflict: { label: 'Conflict', variant: 'secondary' },
+    new_in_sis: { label: 'New in SIS', variant: 'outline' },
+    missing_from_sis: { label: 'Missing', variant: 'destructive' },
+  };
+  const { label, variant } = config[type] || { label: type, variant: 'secondary' };
+  return <Badge variant={variant}>{label}</Badge>;
+}
 
 interface Props {
   summary: ReconciliationSummary;
@@ -353,18 +379,32 @@ interface Props {
 
 export function SummaryReport({ summary }: Props) {
   const [downloading, setDownloading] = useState(false);
+  const router = useRouter();
 
   const handleDownloadPDF = async () => {
     setDownloading(true);
-    const result = await generateSummaryPDF(summary.sessionId);
+    try {
+      // Dynamic import PDF generator (29MB library - only load on demand)
+      const { generateReconciliationPDF } = await import('@/lib/utils/daep/pdf-generator');
+      const blob = await generateReconciliationPDF(summary);
 
-    if (result.success && result.url) {
-      window.open(result.url, '_blank');
-      toast.success('PDF generated successfully');
-    } else {
-      toast.error(result.error || 'Failed to generate PDF');
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reconciliation-summary-${summary.sessionId.slice(0, 8)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('[PDF] Generation failed:', error);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setDownloading(false);
     }
-    setDownloading(false);
   };
 
   return (
@@ -522,7 +562,7 @@ export function SummaryReport({ summary }: Props) {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <CategoryBadge type={r.discrepancyType} size="sm" />
+                      {getTypeBadge(r.discrepancyType)}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -565,15 +605,20 @@ export function SummaryReport({ summary }: Props) {
 
 ## PDF Generation
 
-### Using jsPDF (Client-Side Option)
+### Using jsPDF with Dynamic Import (Performance-Critical)
+
+**IMPORTANT:** jsPDF (~29MB) MUST use dynamic imports per CLAUDE.md performance guidelines.
 
 ```typescript
 // lib/utils/daep/pdf-generator.ts
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import type { ReconciliationSummary } from '@/lib/types/daep';
+// NO STATIC IMPORTS for jsPDF - dynamic import only!
+import type { ReconciliationSummary } from '@/lib/validation/schemas';
 
-export function generateReconciliationPDF(summary: ReconciliationSummary): Blob {
+export async function generateReconciliationPDF(summary: ReconciliationSummary): Promise<Blob> {
+  // Dynamic imports - only load when user clicks "Download PDF"
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
   const doc = new jsPDF();
 
   // Header

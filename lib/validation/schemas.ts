@@ -1239,6 +1239,66 @@ export interface ComparisonResult {
 }
 
 // ============================================================================
+// RECONCILIATION SUMMARY TYPES (Story 5-9)
+// ============================================================================
+
+/**
+ * Detail of a single resolution decision
+ * For field conflicts with multiple fields, one entry per field
+ */
+export interface ResolutionDetail {
+  studentId: string;
+  studentName: string;
+  discrepancyType: DiscrepancyType;
+  field: string | null;        // Field name for conflicts, null for new_in_sis/missing
+  sisValue: string | null;     // SIS value for the field
+  daepValue: string | null;    // DAEP value for the field
+  accepted: string;            // "SIS (value)" or "DAEP (value)" or "Created" or "Keep Record"
+  resolution: 'accept_sis' | 'keep_daep' | 'flagged';
+  note: string | null;
+  resolvedAt: string;
+}
+
+/**
+ * Matched record for simple list display (name + campus)
+ */
+export interface MatchedRecordSummary {
+  studentId: string;
+  studentName: string;
+  homeCampus: string;
+}
+
+/**
+ * Full reconciliation summary for completed sessions
+ */
+export interface ReconciliationSummary {
+  sessionId: string;
+  fileName: string;
+  uploadDate: string;
+  completedAt: string;
+  completedBy: string;
+  completedByEmail: string;
+  durationFormatted: string;  // "12 minutes" or "1 hour 15 minutes"
+
+  // Overall counts
+  totalRecords: number;
+  matchedCount: number;
+  conflictCount: number;
+  newInSISCount: number;
+  missingFromSISCount: number;
+
+  // Resolution breakdown
+  acceptedSISCount: number;
+  keptDAEPCount: number;
+  newPlacementsCreated: number;
+  missingReviewed: number;
+
+  // Detailed records
+  resolutions: ResolutionDetail[];        // All discrepancy resolutions (one row per field)
+  matchedRecords: MatchedRecordSummary[]; // All matched records (name + campus)
+}
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

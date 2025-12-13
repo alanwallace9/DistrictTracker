@@ -17,14 +17,16 @@ import {
 import { ParseResults } from './components/parse-results';
 import { ComparisonResults } from './components/comparison-results';
 import { DiscrepancyReview } from './components/discrepancy-review';
+import { SummaryReport } from './components/summary-report';
 import {
   getReconciliationSession,
   parseCSVFile,
   runComparison,
   getSessionDiscrepancies,
   getFieldMapping,
+  getReconciliationSummary,
 } from '@/app/actions/daep/reconciliation';
-import type { ReconciliationSession, ParseResult, ComparisonResult, ComparisonRecord } from '@/lib/validation/schemas';
+import type { ReconciliationSession, ParseResult, ComparisonResult, ComparisonRecord, ReconciliationSummary } from '@/lib/validation/schemas';
 
 export default function ReconciliationSessionPage() {
   const params = useParams();
@@ -36,6 +38,7 @@ export default function ReconciliationSessionPage() {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [discrepancies, setDiscrepancies] = useState<ComparisonRecord[]>([]);
+  const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
   const [sisName, setSisName] = useState<string>('SIS');
   const [loading, setLoading] = useState(true);
   const [parsing, setParsing] = useState(false);
@@ -74,6 +77,16 @@ export default function ReconciliationSessionPage() {
       }
     } catch (err) {
       console.error('[Session] Error loading discrepancies:', err);
+    }
+  }, [sessionId]);
+
+  // Load summary for completed sessions
+  const loadSummary = useCallback(async () => {
+    try {
+      const summaryData = await getReconciliationSummary(sessionId);
+      setSummary(summaryData);
+    } catch (err) {
+      console.error('[Session] Error loading summary:', err);
     }
   }, [sessionId]);
 
@@ -182,12 +195,16 @@ export default function ReconciliationSessionPage() {
       else if (sessionData && sessionData.status === 'in_review') {
         await loadDiscrepancies();
       }
+      // Auto-load summary if status is 'completed'
+      else if (sessionData && sessionData.status === 'completed') {
+        await loadSummary();
+      }
 
       setLoading(false);
     };
 
     init();
-  }, [loadSession, runParsing, runComparisonAction, loadDiscrepancies]);
+  }, [loadSession, runParsing, runComparisonAction, loadDiscrepancies, loadSummary]);
 
   // Handle continue to comparison
   const handleContinue = async () => {
@@ -201,8 +218,13 @@ export default function ReconciliationSessionPage() {
 
   // Handle refresh after resolution
   const handleRefresh = async () => {
-    await loadSession();
-    await loadDiscrepancies();
+    const updatedSession = await loadSession();
+    // If session is now completed, load summary instead of discrepancies
+    if (updatedSession?.status === 'completed') {
+      await loadSummary();
+    } else {
+      await loadDiscrepancies();
+    }
   };
 
   // Loading state
@@ -407,16 +429,26 @@ export default function ReconciliationSessionPage() {
           )
         )}
 
-      {/* Session already processed */}
-      {!parsing && !parseResult && session.status === 'completed' && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Session Complete</AlertTitle>
-          <AlertDescription>
-            This reconciliation session has already been completed. Total records:{' '}
-            {session.total_records}
-          </AlertDescription>
-        </Alert>
+      {/* Session completed - show summary report */}
+      {!parsing && !comparing && session.status === 'completed' && summary && (
+        <SummaryReport summary={summary} sessionId={sessionId} />
+      )}
+
+      {/* Session completed but no summary loaded yet - show loading */}
+      {!parsing && !comparing && session.status === 'completed' && !summary && (
+        <Card>
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="font-medium">Loading Summary...</p>
+                <p className="text-sm text-muted-foreground">
+                  Preparing reconciliation summary report
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Session failed */}
