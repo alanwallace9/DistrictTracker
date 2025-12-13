@@ -220,6 +220,7 @@ export async function uploadReconciliationCSV(formData: FormData): Promise<Uploa
       targetId: session.id,
       action: 'Created reconciliation session',
       details: {
+        sessionId: session.id, // Include for consistent filtering (Story 5-8)
         fileName: file.name,
         fileSize: file.size,
         detectedSIS,
@@ -289,17 +290,27 @@ export async function getReconciliationSessions(): Promise<ReconciliationSession
 // ============================================================================
 
 export async function getReconciliationSession(
-  sessionId: string
+  sessionIdOrSlug: string
 ): Promise<ReconciliationSession | null> {
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
 
-  const { data, error } = await supabase
+  // Check if it looks like a UUID (contains dashes in UUID pattern)
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionIdOrSlug);
+
+  let query = supabase
     .from('daep_reconciliation_sessions')
     .select('*')
-    .eq('id', sessionId)
-    .eq('tenant_id', tenantId)
-    .single();
+    .eq('tenant_id', tenantId);
+
+  // Query by ID or slug
+  if (isUUID) {
+    query = query.eq('id', sessionIdOrSlug);
+  } else {
+    query = query.eq('slug', sessionIdOrSlug);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) {
     console.error('[DAEP Reconciliation] Failed to fetch session:', error);
@@ -644,7 +655,11 @@ export async function saveFieldMapping(input: FieldMappingInput): Promise<{
     actorEmail: user.emailAddresses[0]?.emailAddress,
     targetId: data.id,
     action: 'Saved CSV field mapping',
-    details: { sisName: input.sisName, fieldCount: Object.keys(input.mappings).length },
+    details: {
+      sessionId: input.sessionId || undefined, // Include for consistent filtering (Story 5-8)
+      sisName: input.sisName,
+      fieldCount: Object.keys(input.mappings).length,
+    },
     tenantId,
   });
 
@@ -1220,7 +1235,10 @@ export async function runComparison(sessionId: string): Promise<ComparisonResult
       actorEmail: user?.emailAddresses[0]?.emailAddress,
       targetId: sessionId,
       action: 'Completed reconciliation comparison',
-      details: stats,
+      details: {
+        sessionId, // Include for consistent filtering (Story 5-8)
+        ...stats,
+      },
       tenantId,
     });
 
@@ -1367,7 +1385,7 @@ async function saveDiscrepancies(
  * Get discrepancies for a session with optional filtering
  */
 export async function getSessionDiscrepancies(
-  sessionId: string,
+  sessionIdOrSlug: string,
   filters?: {
     type?: DiscrepancyType;
     resolution?: string;
@@ -1375,6 +1393,20 @@ export async function getSessionDiscrepancies(
 ): Promise<ComparisonRecord[]> {
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
+
+  // Resolve slug to UUID if needed
+  let sessionId = sessionIdOrSlug;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionIdOrSlug);
+  if (!isUUID) {
+    const { data: session } = await supabase
+      .from('daep_reconciliation_sessions')
+      .select('id')
+      .eq('slug', sessionIdOrSlug)
+      .eq('tenant_id', tenantId)
+      .single();
+    if (!session) return [];
+    sessionId = session.id;
+  }
 
   let query = supabase
     .from('daep_reconciliation_discrepancies')
@@ -1462,7 +1494,15 @@ export async function resolveDiscrepancy(
       throw updateError;
     }
 
-    // Log audit event
+    // Log audit event with before/after values for each conflict field
+    const conflicts = (discrepancy.conflicts || []) as FieldConflict[];
+    const changes = conflicts.map((c: FieldConflict) => ({
+      field: c.field,
+      fieldLabel: c.fieldLabel,
+      before: c.daepValue,
+      after: c.sisValue,
+    }));
+
     await logAuditEvent({
       eventType: 'reconciliation.discrepancy_resolved',
       module: 'daep_management',
@@ -1472,11 +1512,15 @@ export async function resolveDiscrepancy(
       action: `Resolved discrepancy: ${resolution}`,
       details: {
         sessionId,
+        discrepancyId,
         discrepancyType: discrepancy.discrepancy_type,
         resolution,
         hasNote: !!note,
         studentId: discrepancy.student_id,
         studentName: discrepancy.student_name,
+        incidentNumber: discrepancy.incident_number,
+        // Include before/after values for each conflict (Story 5-8: AC 5.8.2)
+        changes: changes.length > 0 ? changes : undefined,
       },
       tenantId,
     });
@@ -1604,7 +1648,7 @@ async function checkSessionCompletion(
 // ============================================================================
 
 export async function bulkAcceptMatches(
-  sessionId: string
+  sessionIdOrSlug: string
 ): Promise<{ success: boolean; count?: number; error?: string }> {
   const supabase = await createServerClient();
   const user = await currentUser();
@@ -1612,6 +1656,20 @@ export async function bulkAcceptMatches(
 
   if (!user) {
     return { success: false, error: 'Unauthorized' };
+  }
+
+  // Resolve slug to UUID if needed
+  let sessionId = sessionIdOrSlug;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionIdOrSlug);
+  if (!isUUID) {
+    const { data: session } = await supabase
+      .from('daep_reconciliation_sessions')
+      .select('id')
+      .eq('slug', sessionIdOrSlug)
+      .eq('tenant_id', tenantId)
+      .single();
+    if (!session) return { success: false, error: 'Session not found' };
+    sessionId = session.id;
   }
 
   // Count matched records that are still pending
@@ -1652,10 +1710,234 @@ export async function bulkAcceptMatches(
     actorEmail: user.emailAddresses[0]?.emailAddress,
     targetId: sessionId,
     action: `Bulk accepted ${count || 0} matched records`,
-    details: { count: count || 0 },
+    details: {
+      sessionId, // Include for consistent filtering (Story 5-8)
+      count: count || 0,
+    },
     tenantId,
   });
 
   revalidatePath(`/daep/reconciliation/${sessionId}`);
   return { success: true, count: count || 0 };
+}
+
+// ============================================================================
+// FLAG FOR LATER (Story 5-5)
+// ============================================================================
+
+export async function flagForLater(
+  discrepancyId: string,
+  note?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const user = await currentUser();
+  const tenantId = await getTenantId();
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  // Get the discrepancy details
+  const { data: discrepancy, error: fetchError } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*, daep_reconciliation_sessions!inner(file_name)')
+    .eq('id', discrepancyId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (fetchError || !discrepancy) {
+    return { success: false, error: 'Discrepancy not found' };
+  }
+
+  // Create pending action
+  const { error: insertError } = await supabase
+    .from('daep_pending_actions')
+    .insert({
+      tenant_id: tenantId,
+      created_by: user.id,
+      action_type: 'reconciliation_review',
+      title: `Review: ${discrepancy.student_name}`,
+      description: note || `Missing from SIS - requires follow-up. Source: ${discrepancy.daep_reconciliation_sessions.file_name}`,
+      priority: 'normal',
+      reference_type: 'discrepancy',
+      reference_id: discrepancyId,
+      reference_data: {
+        student_id: discrepancy.student_id,
+        student_name: discrepancy.student_name,
+        incident_number: discrepancy.incident_number,
+        discrepancy_type: discrepancy.discrepancy_type,
+        daep_data: discrepancy.daep_data,
+      },
+    });
+
+  if (insertError) {
+    console.error('[Flag for Later] Error:', insertError);
+    return { success: false, error: 'Failed to create action item' };
+  }
+
+  // Update discrepancy as flagged
+  const { error: updateError } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .update({
+      resolution: 'flagged',
+      resolution_note: note || 'Flagged for later review',
+      resolved_by: user.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('id', discrepancyId);
+
+  if (updateError) {
+    console.error('[Flag for Later] Update error:', updateError);
+    return { success: false, error: 'Failed to update discrepancy' };
+  }
+
+  return { success: true };
+}
+
+// ============================================================================
+// RESET DEMO SESSION (Demo purposes only)
+// ============================================================================
+
+export async function resetDemoSession(
+  sessionIdOrSlug: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Only allow reset for sessions with slug starting with 'sample'
+  if (!sessionIdOrSlug.startsWith('sample')) {
+    return { success: false, error: 'Reset only allowed for demo sessions' };
+  }
+
+  // Resolve slug to UUID
+  const { data: session } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('id')
+    .eq('slug', sessionIdOrSlug)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (!session) {
+    return { success: false, error: 'Session not found' };
+  }
+
+  // Reset all discrepancies to pending
+  const { error } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .update({
+      resolution: 'pending',
+      resolution_note: null,
+      resolved_by: null,
+      resolved_at: null,
+    })
+    .eq('session_id', session.id)
+    .eq('tenant_id', tenantId);
+
+  if (error) {
+    console.error('[Demo Reset] Error:', error);
+    return { success: false, error: 'Failed to reset demo' };
+  }
+
+  revalidatePath(`/daep/reconciliation/${sessionIdOrSlug}`);
+  return { success: true };
+}
+
+// ============================================================================
+// AUDIT TRAIL (Story 5-8)
+// ============================================================================
+
+export interface AuditEvent {
+  id: string;
+  event_type: string;
+  actor_email: string | null;
+  action: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+/**
+ * Get audit events for a specific reconciliation session
+ * Filters admin_audit_log by module='daep_management' and sessionId in details
+ */
+export async function getSessionAuditEvents(sessionId: string): Promise<AuditEvent[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Query audit log for reconciliation events matching this session
+  // First query by target_id, then by sessionId in details JSONB
+  const { data, error } = await supabase
+    .from('admin_audit_log')
+    .select('id, event_type, actor_email, action, details, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('module', 'daep_management')
+    .like('event_type', 'reconciliation.%')
+    .or(`target_id.eq.${sessionId},details.cs.{"sessionId":"${sessionId}"}`)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[Audit] Failed to fetch session events:', error);
+    return [];
+  }
+
+  return (data || []) as AuditEvent[];
+}
+
+/**
+ * Get count of audit events for a session (for badge display)
+ */
+export async function getSessionAuditCount(sessionId: string): Promise<number> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { count, error } = await supabase
+    .from('admin_audit_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('module', 'daep_management')
+    .like('event_type', 'reconciliation.%')
+    .or(`target_id.eq.${sessionId},details.cs.{"sessionId":"${sessionId}"}`);
+
+  if (error) {
+    console.error('[Audit] Failed to count session events:', error);
+    return 0;
+  }
+
+  return count || 0;
+}
+
+/**
+ * Get audit counts for multiple sessions in a single query (batch optimization)
+ * Returns a map of sessionId -> count
+ */
+export async function getSessionAuditCounts(sessionIds: string[]): Promise<Record<string, number>> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  if (sessionIds.length === 0) return {};
+
+  // Fetch all audit events for reconciliation module
+  const { data, error } = await supabase
+    .from('admin_audit_log')
+    .select('target_id, details')
+    .eq('tenant_id', tenantId)
+    .eq('module', 'daep_management')
+    .like('event_type', 'reconciliation.%');
+
+  if (error) {
+    console.error('[Audit] Failed to fetch batch counts:', error);
+    return {};
+  }
+
+  // Count by session ID
+  const counts: Record<string, number> = {};
+  sessionIds.forEach(id => { counts[id] = 0; });
+
+  (data || []).forEach((row) => {
+    const sessionId = row.target_id || (row.details as Record<string, unknown>)?.sessionId;
+    if (sessionId && typeof sessionId === 'string' && counts[sessionId] !== undefined) {
+      counts[sessionId]++;
+    }
+  });
+
+  return counts;
 }

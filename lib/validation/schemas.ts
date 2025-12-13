@@ -1216,7 +1216,7 @@ export interface ComparisonRecord {
   sisRecord?: SISRecord;                // Original SIS record (if exists)
   daepPlacement?: DAEPPlacementCompact; // DAEP placement data (if exists)
   conflicts?: FieldConflict[];          // Field differences (for field_conflict type)
-  resolution?: 'pending' | 'accept_sis' | 'keep_daep' | 'skipped'; // Resolution status
+  resolution?: 'pending' | 'accept_sis' | 'keep_daep' | 'skipped' | 'flagged'; // Resolution status
 }
 
 /**

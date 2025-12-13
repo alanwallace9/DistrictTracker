@@ -57,6 +57,17 @@ After story completion:
    - Never use tenant-only RLS for sensitive data
    - Check existing RLS policies with: `SELECT * FROM pg_policies WHERE tablename = 'daep_placements'`
 
+5. **RLS policies MUST use helper functions** (see `docs/sprint-artifacts/daep/dec-12-rls-update.md`):
+   ```sql
+   -- CORRECT: Use get_my_tenant_id() helper which looks up tenant from user_profiles
+   USING (tenant_id = get_my_tenant_id())
+
+   -- WRONG: Direct JWT access or Supabase auth patterns
+   USING (tenant_id = (auth.jwt() ->> 'sub'))  -- This is user ID, not tenant ID!
+   USING (tenant_id = (auth.jwt() -> 'app_metadata' ->> 'tenant_id'))  -- Supabase auth pattern
+   ```
+   **Reference tables with correct RLS:** `daep_placements`, `daep_attendance`, `daep_daily_points`
+
 **Example - WRONG approach:**
 ```typescript
 // DON'T create custom auth helpers

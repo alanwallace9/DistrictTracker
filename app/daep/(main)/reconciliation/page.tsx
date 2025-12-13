@@ -8,13 +8,18 @@ import { CSVDropzone } from './components/csv-dropzone';
 import { FieldRequirementsSection } from './components/field-requirements-section';
 import { SISGuideButton } from './components/sis-guide-button';
 import { SessionList } from './components/session-list';
-import { getReconciliationSessions, getAvailableSISGuides } from '@/app/actions/daep/reconciliation';
+import {
+  getReconciliationSessions,
+  getAvailableSISGuides,
+  getSessionAuditCounts,
+} from '@/app/actions/daep/reconciliation';
 import type { ReconciliationSession } from '@/lib/validation/schemas';
 
 export default function ReconciliationPage() {
   const { toast } = useToast();
   const [sessions, setSessions] = useState<ReconciliationSession[]>([]);
   const [sisGuides, setSisGuides] = useState<{ sis_name: string; title: string }[]>([]);
+  const [auditCounts, setAuditCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +35,13 @@ export default function ReconciliationPage() {
       ]);
       setSessions(sessionsData);
       setSisGuides(guidesData);
+
+      // Fetch audit counts for all sessions in a single batch query
+      if (sessionsData.length > 0) {
+        const sessionIds = sessionsData.map((s) => s.id);
+        const counts = await getSessionAuditCounts(sessionIds);
+        setAuditCounts(counts);
+      }
     } catch (error) {
       console.error('[Reconciliation] Error loading data:', error);
       toast({
@@ -91,7 +103,12 @@ export default function ReconciliationPage() {
             View and manage your reconciliation history
           </p>
         </div>
-        <SessionList sessions={sessions} loading={loading} onRefresh={loadData} />
+        <SessionList
+          sessions={sessions}
+          loading={loading}
+          onRefresh={loadData}
+          auditCounts={auditCounts}
+        />
       </div>
     </div>
   );

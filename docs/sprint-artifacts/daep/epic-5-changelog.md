@@ -1,8 +1,50 @@
 # Epic 5: SIS Reconciliation - Changelog
 
-**Epic Status:** In Progress (5 of 8 stories) - Combined 5-5/5-6/5-7 into single story
+**Epic Status:** In Progress (6 of 8 stories) - Combined 5-5/5-6/5-7 into single story
 **Version Range:** v0.4.6 - TBD
 **FRs Covered:** FR52-FR62
+
+---
+
+## v0.5.3 - Reconciliation Audit Trail
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Reconciliation Audit Trail |
+| **Story** | 5-8 |
+| **FRs** | FR60 |
+
+**Description:**
+Complete audit trail for reconciliation sessions. Each session card on the reconciliation page can be expanded to show what changes were made, by whom, and the original values. Enables administrators to track all reconciliation decisions for compliance and potential future reversion.
+
+**Key Features:**
+- Expand/collapse audit history on each session card
+- Event count badge shows number of audit events per session
+- Chronological event display with descriptive icons:
+  - 📄 Session Created (filename, SIS type)
+  - ✅ Comparison Done (record counts, match stats)
+  - 🔧 Resolved (student name, resolution type, field changed)
+  - ✓✓ Bulk Accepted (count of accepted matches)
+- Before/after values displayed for field conflict resolutions
+- Actor email shown for each event
+- "Open Session" link when expanded
+
+**Database Changes:**
+- Added GIN index on `admin_audit_log.details` for efficient JSONB filtering
+- Added btree index on `(tenant_id, module, event_type)` for reconciliation queries
+
+**Server Actions:**
+- `getSessionAuditEvents(sessionId)` - Fetch all audit events for a session
+- `getSessionAuditCount(sessionId)` - Get count for badge display
+- `getSessionAuditCounts(sessionIds)` - Batch query for multiple sessions
+
+**Audit Events Enhanced:**
+- `reconciliation.discrepancy_resolved` now includes `changes` array with before/after values
+- All reconciliation events include `sessionId` in details for consistent filtering
+
+**Components:**
+- `SessionCard` - Enhanced with expand/collapse audit history section
 
 ---
 
@@ -154,6 +196,7 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.5.3 | Feature | Reconciliation Audit Trail | 5-8 |
 | v0.5.2 | Feature | Reconciliation Review Page | 5-5 (combined 5-5/5-6/5-7) |
 | v0.5.1 | Feature | CSV Parsing and Comparison Engine | 5-3, 5-4 |
 | v0.5.0 | Feature | One-Time CSV Field Mapping Setup | 5-2 |
@@ -163,7 +206,6 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 ## Remaining Stories
 
-- 5-8: Reconciliation Audit Trail
 - 5-9: Reconciliation Summary Report
 - 5-10: Unresolved Discrepancy Alerts
 

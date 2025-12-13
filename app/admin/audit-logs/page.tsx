@@ -10,10 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw, Download, FileText, Table, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
+// Note: xlsx, jspdf, jspdf-autotable are dynamically imported in export functions
+// to reduce initial bundle size (these libraries are 30MB+ combined)
 
 const EVENT_TYPES = [
   { value: 'record.viewed', label: 'Record Viewed' },
@@ -156,6 +155,9 @@ export default function AuditLogsPage() {
   const exportToExcel = async () => {
     setExporting(true);
     try {
+      // Dynamic import to reduce initial bundle size
+      const XLSX = await import('xlsx');
+
       // Fetch all logs with current filters (no pagination)
       const response = await getAuditLogs(undefined, filters, { page: 1, limit: 10000 });
 
@@ -189,6 +191,10 @@ export default function AuditLogsPage() {
   const exportToPDF = async () => {
     setExporting(true);
     try {
+      // Dynamic imports to reduce initial bundle size
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
       // Fetch all logs with current filters (no pagination)
       const response = await getAuditLogs(undefined, filters, { page: 1, limit: 10000 });
 

@@ -141,7 +141,7 @@ development_status:
   5-5-reconciliation-review-page: done  # COMBINED from 5-5/5-6/5-7 | Story: docs/sprint-artifacts/daep/story-5-5.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-5-combined.md | 8 pts, FR56-59
   # 5-6: REMOVED - combined into 5-5
   # 5-7: REMOVED - combined into 5-5
-  5-8-reconciliation-audit-trail: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-8.md
+  5-8-reconciliation-audit-trail: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-8.md | v0.5.3
   5-9-reconciliation-summary-report: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-9.md
   5-10-unresolved-discrepancy-alerts: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-10.md
   5-11-sis-guide-admin-ui: backlog  # Admin UI for editing SIS guides (Skyward, Focus, etc.) - screenshots, steps, PDF

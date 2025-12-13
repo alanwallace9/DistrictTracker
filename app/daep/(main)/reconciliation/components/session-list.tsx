@@ -9,9 +9,10 @@ interface SessionListProps {
   sessions: ReconciliationSession[];
   loading: boolean;
   onRefresh: () => void;
+  auditCounts?: Record<string, number>;
 }
 
-export function SessionList({ sessions, loading, onRefresh }: SessionListProps) {
+export function SessionList({ sessions, loading, onRefresh, auditCounts = {} }: SessionListProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -48,9 +49,15 @@ export function SessionList({ sessions, loading, onRefresh }: SessionListProps) 
           Refresh
         </Button>
       </div>
-      {sessions.map((session) => (
-        <SessionCard key={session.id} session={session} />
-      ))}
+      <div className="p-2 space-y-2">
+        {sessions.map((session) => (
+          <SessionCard
+            key={session.id}
+            session={session}
+            auditCount={auditCounts[session.id] || 0}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -13,9 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAdminTenant } from '@/contexts/AdminTenantContext';
 import { RefreshCw, Search, Users, FileText, Plus, Pencil, CheckCircle, FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// Note: xlsx, jspdf, jspdf-autotable are dynamically imported in export functions
+// to reduce initial bundle size (these libraries are 30MB+ combined)
 
 type SortKey = 'id' | 'name' | 'status' | 'user_count' | 'record_count' | 'created_at';
 
@@ -195,7 +194,10 @@ export default function CampusesManagementPage() {
     fetchCampuses();
   };
 
-  const exportRecordsToExcel = (records: any[], campusName: string) => {
+  const exportRecordsToExcel = async (records: any[], campusName: string) => {
+    // Dynamic import to reduce initial bundle size
+    const XLSX = await import('xlsx');
+
     const data = records.map(r => ({
       'Student ID': r.school_id,
       'First Name': r.first_name,
@@ -231,7 +233,11 @@ export default function CampusesManagementPage() {
     });
   };
 
-  const exportRecordsToPDF = (records: any[], campusName: string) => {
+  const exportRecordsToPDF = async (records: any[], campusName: string) => {
+    // Dynamic imports to reduce initial bundle size
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
     const doc = new jsPDF('landscape');
 
     // Add header

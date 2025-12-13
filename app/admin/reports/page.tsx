@@ -30,9 +30,8 @@ import { getDAEPRecords, type DAEPRecord } from '@/app/actions/admin/daep-record
 import { useAdminTenant } from '@/contexts/AdminTenantContext';
 import { Campus } from '@/lib/supabase';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// Note: xlsx, jspdf, jspdf-autotable are dynamically imported in export functions
+// to reduce initial bundle size (these libraries are 30MB+ combined)
 
 type ReportType =
   | 'ferpa_access'
@@ -390,7 +389,7 @@ export default function ReportsPage() {
     }
   };
 
-  const exportPreviewAs = (exportFormat: 'csv' | 'pdf') => {
+  const exportPreviewAs = async (exportFormat: 'csv' | 'pdf') => {
     if (!previewData || previewData.length === 0) return;
 
     const reportName = reports.find(r => r.id === previewReport)?.title || 'Report';
@@ -404,6 +403,10 @@ export default function ReportsPage() {
       link.download = `${filename}.csv`;
       link.click();
     } else if (exportFormat === 'pdf') {
+      // Dynamic imports to reduce initial bundle size
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
       const doc = new jsPDF('l', 'mm', 'a4');
 
       // Add title
