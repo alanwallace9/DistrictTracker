@@ -1,11 +1,29 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Settings2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Settings2, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-export default function MappingPage() {
+function MappingPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <div className="h-10 w-10 rounded bg-muted animate-pulse" />
+        <div className="space-y-2">
+          <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+          <div className="h-4 w-64 bg-muted animate-pulse rounded" />
+        </div>
+      </div>
+      <div className="rounded-lg border border-border bg-card p-12 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+function MappingContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session');
   const detectedSis = searchParams.get('detected_sis');
@@ -102,5 +120,13 @@ export default function MappingPage() {
         </ul>
       </div>
     </div>
+  );
+}
+
+export default function MappingPage() {
+  return (
+    <Suspense fallback={<MappingPageSkeleton />}>
+      <MappingContent />
+    </Suspense>
   );
 }
