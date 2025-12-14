@@ -631,11 +631,59 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ### Changelog Integration
 
-The `/feedback/changelog` page pulls from completed feedback items. After committing:
+The `/feedback/changelog` page pulls from completed feedback items. Epic changelogs must include a **Feedback Board Entry** section for each version release.
 
-1. Create feedback item in admin panel
-2. Set category (DAEP Management, Trespass Tracker, etc.)
-3. Set status: Completed
-4. Add release notes to `admin_response` field
+#### Epic Changelog Format
+
+Each version entry in `docs/sprint-artifacts/daep/epic-{N}-changelog.md` must include:
+
+1. **Version header** with release date, story, and FR references
+2. **What's New** - Customer-facing summary
+3. **Key Features** - Detailed feature breakdown
+4. **Feedback Board Entry** - Copy-paste content for feedback system
+
+#### Feedback Board Entry Template
+
+```markdown
+### Feedback Board Entry
+
+Use this to create the feedback item for the changelog page:
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature Request |
+| **Title** | [Short feature title] |
+| **Product** | [DAEP Dashboard / TrespassTracker / etc.] |
+| **Status** | Done |
+| **Date** | [Release date] |
+
+**Description:**
+```
+[2-3 sentence customer-facing summary of the feature]
+```
+
+**Admin Response:** *(green box)*
+```
+[Brief announcement of what's now available and key benefits]
+```
+
+**Release Notes:** *(blue box on changelog)*
+```
+• [Bullet point feature 1]
+• [Bullet point feature 2]
+• [Bullet point feature 3]
+```
+```
+
+#### Feedback Board Fields Explained
+
+| Field | Maps To | Notes |
+|-------|---------|-------|
+| Type | Form dropdown | Feature Request, Bug Report, Improvement |
+| Title | Title field | Keep short (5-8 words) |
+| Product | Product dropdown | DAEP Dashboard, TrespassTracker, etc. |
+| Description | Description textarea | Customer-facing, explains the "what" and "why" |
+| Admin Response | Green response box | Announcement tone, confirms feature is live |
+| Release Notes | Blue changelog box | Bulleted list of specific features |
 
 **Full process doc:** `docs/workflows/release-process.md`
