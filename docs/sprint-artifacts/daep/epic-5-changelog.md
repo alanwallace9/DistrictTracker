@@ -1,8 +1,60 @@
 # Epic 5: SIS Reconciliation - Changelog
 
-**Epic Status:** In Progress (8 of 9 stories) - Combined 5-5/5-6/5-7 into single story
-**Version Range:** v0.4.6 - TBD
+**Epic Status:** ✅ Complete (9 of 9 stories) - Combined 5-5/5-6/5-7 into single story
+**Version Range:** v0.4.6 - v0.5.5
 **FRs Covered:** FR52-FR62
+
+---
+
+## v0.5.5 - Unresolved Discrepancy Alerts
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature |
+| **Title** | Unresolved Discrepancy Alerts |
+| **Story** | 5-10 |
+| **FRs** | FR62 |
+
+**Description:**
+Proactive monitoring and notifications for incomplete reconciliation sessions. Prevents data staleness by alerting users to unfinished reconciliations and automatically marking abandoned sessions after 7 days of inactivity.
+
+**Key Features:**
+- Incomplete Sessions Alert card on reconciliation page
+  - Color-coded left borders: yellow (1-3 days), orange (3-7 days), red (7+ days)
+  - Resume/Reactivate buttons for quick access
+  - File name, upload date, and status display
+- Session age categorization (recent, warning, critical, abandoned)
+- Auto-abandon after 7 days of inactivity (daily cron)
+- In-app notifications for sessions > 24 hours old
+- Audit trail events for reminder_sent, session_abandoned, session_resumed
+
+**Server Actions:**
+- `getUnresolvedSessions()` - Query incomplete sessions for alert display
+- `getReconciliationPendingActions()` - Dashboard-ready pending actions (role-filtered)
+- `hasUnacceptedMatches(sessionId)` - Check for bulk-accept reminder
+- `resumeAbandonedSession(sessionId)` - Reactivate abandoned session
+- `markAbandonedSessions()` - Mark 7+ day old sessions as abandoned
+- `getIncompleteSessionsForNotification()` - Cross-tenant query for cron
+- `createReconciliationNotification()` - Create in-app notification
+
+**Cron Job:**
+- `/api/cron/reconciliation-reminder` - Daily at 11:00 UTC (5 AM Central)
+- Marks abandoned sessions, sends notifications, logs audit events
+
+**New Types:**
+- `SessionAgeCategory` - 'recent' | 'warning' | 'critical' | 'abandoned'
+- `UnresolvedSession` - Session with age category and pending counts
+- `ReconciliationPendingAction` - Dashboard-ready action item
+
+**Components:**
+- `IncompleteSessions` - Alert card showing incomplete sessions with age indicators
+- `SessionCard` - Updated to support 'abandoned' status
+
+**Files:**
+- `lib/daep/session-age.ts` (NEW) - Age calculation utilities
+- `app/daep/(main)/reconciliation/components/incomplete-sessions.tsx` (NEW)
+- `app/api/cron/reconciliation-reminder/route.ts` (NEW)
+- `vercel.json` - Added cron schedule
 
 ---
 
@@ -243,6 +295,7 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 | Version | Type | Title | Stories |
 |---------|------|-------|---------|
+| v0.5.5 | Feature | Unresolved Discrepancy Alerts | 5-10 |
 | v0.5.4 | Feature | Reconciliation Summary Report | 5-9 |
 | v0.5.3 | Feature | Reconciliation Audit Trail | 5-8 |
 | v0.5.2 | Feature | Reconciliation Review Page | 5-5 (combined 5-5/5-6/5-7) |
@@ -252,8 +305,10 @@ SIS Reconciliation entry point allowing DAEP admins to upload CSV exports from t
 
 ---
 
-## Remaining Stories
+## Epic Complete! 🎉
 
-- 5-10: Unresolved Discrepancy Alerts
+All 9 stories delivered. Epic 5: SIS Reconciliation is complete.
+
+**What's Next:** Epic 5b (Intake & Placement Workflows) or Epic 6 (Dashboard & Reporting)
 
 ---

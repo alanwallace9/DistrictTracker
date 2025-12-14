@@ -54,7 +54,11 @@ export type AuditEventType =
   | 'reconciliation.session_completed'
   | 'reconciliation.mapping_saved'
   | 'reconciliation.discrepancy_resolved'
-  | 'reconciliation.bulk_accept';
+  | 'reconciliation.bulk_accept'
+  // Story 5-10: Unresolved Discrepancy Alerts
+  | 'reconciliation.reminder_sent'
+  | 'reconciliation.session_abandoned'
+  | 'reconciliation.session_resumed';
 
 interface AuditLogEntry {
   eventType: AuditEventType;

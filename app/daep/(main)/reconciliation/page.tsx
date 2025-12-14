@@ -8,16 +8,19 @@ import { CSVDropzone } from './components/csv-dropzone';
 import { FieldRequirementsSection } from './components/field-requirements-section';
 import { SISGuideButton } from './components/sis-guide-button';
 import { SessionList } from './components/session-list';
+import { IncompleteSessions } from './components/incomplete-sessions';
 import {
   getReconciliationSessions,
   getAvailableSISGuides,
   getSessionAuditCounts,
+  getUnresolvedSessions,
 } from '@/app/actions/daep/reconciliation';
-import type { ReconciliationSession } from '@/lib/validation/schemas';
+import type { ReconciliationSession, UnresolvedSession } from '@/lib/validation/schemas';
 
 export default function ReconciliationPage() {
   const { toast } = useToast();
   const [sessions, setSessions] = useState<ReconciliationSession[]>([]);
+  const [unresolvedSessions, setUnresolvedSessions] = useState<UnresolvedSession[]>([]);
   const [sisGuides, setSisGuides] = useState<{ sis_name: string; title: string }[]>([]);
   const [auditCounts, setAuditCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -29,12 +32,14 @@ export default function ReconciliationPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [sessionsData, guidesData] = await Promise.all([
+      const [sessionsData, guidesData, unresolvedData] = await Promise.all([
         getReconciliationSessions(),
         getAvailableSISGuides(),
+        getUnresolvedSessions(),
       ]);
       setSessions(sessionsData);
       setSisGuides(guidesData);
+      setUnresolvedSessions(unresolvedData);
 
       // Fetch audit counts for all sessions in a single batch query
       if (sessionsData.length > 0) {
@@ -85,6 +90,11 @@ export default function ReconciliationPage() {
           </Button>
         </div>
       </div>
+
+      {/* Incomplete Sessions Alert (Story 5-10) */}
+      {unresolvedSessions.length > 0 && (
+        <IncompleteSessions sessions={unresolvedSessions} onRefresh={loadData} />
+      )}
 
       {/* Upload Section */}
       <div className="rounded-lg border border-border bg-card p-6">

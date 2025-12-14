@@ -987,6 +987,7 @@ export const RECONCILIATION_STATUSES = [
   'in_review',
   'completed',
   'failed',
+  'abandoned', // Story 5-10: Session inactive for 7+ days
 ] as const;
 
 export type ReconciliationStatus = (typeof RECONCILIATION_STATUSES)[number];
@@ -1296,6 +1297,46 @@ export interface ReconciliationSummary {
   // Detailed records
   resolutions: ResolutionDetail[];        // All discrepancy resolutions (one row per field)
   matchedRecords: MatchedRecordSummary[]; // All matched records (name + campus)
+}
+
+// ============================================================================
+// UNRESOLVED SESSION TYPES (Story 5-10)
+// ============================================================================
+
+/**
+ * Age category for session color coding
+ * - recent: < 1 day (no special color)
+ * - warning: 1-3 days (yellow)
+ * - critical: 3-7 days (orange)
+ * - abandoned: 7+ days (red)
+ */
+export type SessionAgeCategory = 'recent' | 'warning' | 'critical' | 'abandoned';
+
+/**
+ * Unresolved session for incomplete sessions list
+ */
+export interface UnresolvedSession {
+  id: string;
+  fileName: string;
+  uploadDate: string;
+  unresolvedCount: number;
+  totalDiscrepancies: number;
+  status: string;
+  ageCategory: SessionAgeCategory;
+}
+
+/**
+ * Reconciliation pending action for dashboard
+ */
+export interface ReconciliationPendingAction {
+  id: string;
+  type: 'reconciliation_incomplete' | 'reconciliation_abandoned';
+  title: string;
+  description: string;
+  subtitle: string;
+  actionUrl: string;
+  ageCategory: SessionAgeCategory;
+  createdAt: string;
 }
 
 // ============================================================================

@@ -69,6 +69,12 @@ const STATUS_CONFIG: Record<
     color: 'text-[rgb(var(--daep-danger))]',
     bgColor: 'bg-[rgb(var(--daep-danger))]/10',
   },
+  abandoned: {
+    label: 'Abandoned',
+    icon: AlertTriangle,
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+  },
 };
 
 // Event type display configuration
@@ -91,7 +97,7 @@ export function SessionCard({ session, auditCount = 0 }: SessionCardProps) {
 
   const statusConfig = STATUS_CONFIG[session.status] || STATUS_CONFIG.uploading;
   const StatusIcon = statusConfig.icon;
-  const isClickable = ['in_review', 'completed', 'mapping_required'].includes(session.status);
+  const isClickable = ['in_review', 'completed', 'mapping_required', 'abandoned'].includes(session.status);
   const hasAuditHistory = auditCount > 0;
 
   const formatDate = (dateString: string) => {

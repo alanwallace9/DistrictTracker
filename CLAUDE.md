@@ -210,6 +210,37 @@ Before implementing export/report features:
 
 **Never hardcode or assume project IDs - always verify from environment files first.**
 
+---
+
+## Supabase MCP Token Optimization
+
+**CRITICAL: `mcp__supabase__list_tables` returns ~22k tokens. AVOID using it.**
+
+### Use Targeted SQL Instead
+
+| Need | Use This | Tokens |
+|------|----------|--------|
+| All table names | `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'` | ~100 |
+| DAEP tables only | `SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'daep_%'` | ~50 |
+| Specific table schema | `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'daep_placements'` | ~200 |
+| Check if table exists | `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'foo')` | ~10 |
+
+### Alternative: Read Existing Code
+
+Instead of querying schema, learn from existing patterns:
+1. **Read server actions** - `app/actions/daep/*.ts` shows table/column usage
+2. **Read data-models.md** - `docs/reference/data-models.md` documents schema
+3. **Use `list_migrations`** - Shows table creation without full column details
+
+### When `list_tables` IS Acceptable
+
+Only use `list_tables` when you need:
+- Complete schema dump for documentation
+- User explicitly requests full table listing
+- Initial project exploration (first conversation only)
+
+**Default approach:** Use `execute_sql` with targeted information_schema queries.
+
 ## Playwright MCP for UI/UX Verification
 
 **Playwright MCP is active.** Use it to view pages during UI/UX development:

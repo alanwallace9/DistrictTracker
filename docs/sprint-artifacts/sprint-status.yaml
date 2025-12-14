@@ -132,7 +132,7 @@ development_status:
   # Epic 5: CSV Reconciliation - Core Differentiator (10 stories, 34 pts)
   # FRs: FR52-FR62
   # ============================================
-  epic-5: in-progress
+  epic-5: done  # Complete! 9 stories, FR52-FR62
   5-1-csv-upload-supabase-storage: done  # Story: docs/sprint-artifacts/daep/story-5-1.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-1.md | Context: docs/sprint-artifacts/daep/story-5-1.context.xml
   5-2-one-time-field-mapping-setup: done  # Story: docs/sprint-artifacts/daep/story-5-2.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-2.md | Context: docs/sprint-artifacts/daep/story-5-2.context.xml
   5-3-parse-csv-papaparse: done  # Story: docs/sprint-artifacts/daep/story-5-3.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-3.md
@@ -142,8 +142,8 @@ development_status:
   # 5-6: REMOVED - combined into 5-5
   # 5-7: REMOVED - combined into 5-5
   5-8-reconciliation-audit-trail: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-8.md | v0.5.3
-  5-9-reconciliation-summary-report: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-9.md
-  5-10-unresolved-discrepancy-alerts: drafted  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-10.md
+  5-9-reconciliation-summary-report: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-9.md | v0.5.4
+  5-10-unresolved-discrepancy-alerts: done  # Tech spec: docs/sprint-artifacts/daep/tech-spec-story-5-10.md | v0.5.5
   5-11-sis-guide-admin-ui: backlog  # Admin UI for editing SIS guides (Skyward, Focus, etc.) - screenshots, steps, PDF
   epic-5-retrospective: optional
 
@@ -160,8 +160,8 @@ development_status:
   # Epic 6: Dashboard & Reporting (12 stories, 34 pts)
   # FRs: FR78-FR92, FR108
   # ============================================
-  epic-6: backlog
-  6-1-dashboard-kpi-cards: backlog
+  epic-6: in-progress
+  6-1-dashboard-kpi-cards: done  # Story: docs/sprint-artifacts/daep/story-6-1.md | v0.6.0
   6-2-clickable-kpis-drill-down: backlog
   6-3-attendance-reports: backlog
   6-4-discipline-reports: backlog

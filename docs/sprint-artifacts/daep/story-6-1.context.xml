@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<context>
+  <story>
+    <id>6-1</id>
+    <title>Dashboard Page with KPI Cards</title>
+    <status>ready-for-dev</status>
+    <epic>6 - Dashboard &amp; Reporting</epic>
+    <points>5</points>
+  </story>
+
+  <key-decisions>
+    <decision>
+      <topic>Main Route</topic>
+      <choice>/daep renders dashboard inline (replace waitlist page)</choice>
+    </decision>
+    <decision>
+      <topic>Chart Library</topic>
+      <choice>Recharts (npm install recharts)</choice>
+    </decision>
+    <decision>
+      <topic>Animation Library</topic>
+      <choice>Framer Motion (npm install framer-motion)</choice>
+    </decision>
+    <decision>
+      <topic>KPI Count</topic>
+      <choice>4 cards: Enrollment, Attendance, Approvals, Recidivism</choice>
+    </decision>
+    <decision>
+      <topic>Animation Timing</topic>
+      <choice>400ms ease-out for slide-out animations</choice>
+    </decision>
+  </key-decisions>
+
+  <existing-patterns>
+    <pattern name="Server Action Auth Pattern">
+      <description>Standard auth pattern used across all DAEP server actions</description>
+      <code><![CDATA[
+// From app/actions/daep/attendance.ts
+import { createServerClient } from '@/lib/supabase/server';
+import { currentUser } from '@clerk/nextjs/server';
+
+async function getTenantId(): Promise<string> {
+  const user = await currentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const supabase = await createServerClient();
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) {
+    throw new Error('User profile not found');
+  }
+
+  const effectiveTenantId = profile.active_tenant_id || profile.tenant_id;
+  if (!effectiveTenantId) {
+    throw new Error('No tenant assigned');
+  }
+
+  return effectiveTenantId;
+}
+      ]]></code>
+    </pattern>
+
+    <pattern name="Sidebar Navigation">
+      <file>components/daep/layout/DAEPSidebar.tsx</file>
+      <description>Dashboard link already exists at /daep with LayoutDashboard icon</description>
+      <code><![CDATA[
+const NAV_ITEMS: NavItem[] = [
+  { href: '/daep', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/daep/rooms', label: 'Room Rosters', icon: Building2 },
+  // ... other items
+];
+
+// Role-based filtering
+const APPROVAL_ADMIN_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1'];
+const RECONCILIATION_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1', 'daep_admin_l2'];
+      ]]></code>
+    </pattern>
+
+    <pattern name="Layout Structure">
+      <file>app/daep/(main)/layout.tsx</file>
+      <description>Client component with sidebar + header + main content</description>
+      <code><![CDATA[
+export default function DAEPMainLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  return (
+    <div className="flex h-screen bg-[rgb(var(--daep-background))]">
+      <DAEPSidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <DAEPHeader onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)} />
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+      ]]></code>
+    </pattern>
+  </existing-patterns>
+
+  <files-to-replace>
+    <file>
+      <path>app/daep/(main)/page.tsx</path>
+      <reason>Currently a waitlist placeholder - replace entirely with dashboard</reason>
+      <current-type>client component</current-type>
+      <new-type>server component</new-type>
+    </file>
+  </files-to-replace>
+
+  <files-to-create>
+    <file>app/actions/daep/dashboard.ts</file>
+    <file>app/daep/(main)/components/dashboard/kpi-card.tsx</file>
+    <file>app/daep/(main)/components/dashboard/kpi-grid.tsx</file>
+    <file>app/daep/(main)/components/dashboard/trend-badge.tsx</file>
+    <file>app/daep/(main)/components/dashboard/action-items.tsx</file>
+    <file>app/daep/(main)/components/dashboard/action-item-card.tsx</file>
+    <file>app/daep/(main)/components/dashboard/closed-items-popover.tsx</file>
+    <file>app/daep/(main)/components/dashboard/today-intakes.tsx</file>
+    <file>app/daep/(main)/components/dashboard/intake-card.tsx</file>
+    <file>app/daep/(main)/components/dashboard/pipeline-mini.tsx</file>
+    <file>app/daep/(main)/components/dashboard/at-risk-card.tsx</file>
+    <file>app/daep/(main)/components/dashboard/attendance-trend-chart.tsx</file>
+    <file>app/daep/(main)/components/dashboard/discipline-chart.tsx</file>
+    <file>app/daep/(main)/components/dashboard/chart-controls.tsx</file>
+    <file>app/daep/(main)/components/dashboard/quick-actions.tsx</file>
+    <file>lib/constants/animations.ts</file>
+  </files-to-create>
+
+  <database-tables>
+    <table name="daep_placements">
+      <usage>Enrollment count, transitions, recidivism calculation</usage>
+      <key-columns>tenant_id, status, school_id, created_at</key-columns>
+    </table>
+    <table name="daep_attendance">
+      <usage>Attendance rate calculation</usage>
+      <key-columns>tenant_id, date, status, placement_id</key-columns>
+    </table>
+    <table name="daep_daily_points">
+      <usage>Pending approvals count</usage>
+      <key-columns>tenant_id, approval_status, date</key-columns>
+    </table>
+    <table name="daep_reconciliation_sessions">
+      <usage>Reconciliation action items</usage>
+      <key-columns>tenant_id, status, discrepancy_count</key-columns>
+    </table>
+    <table name="user_profiles">
+      <usage>User role for action item filtering</usage>
+      <key-columns>id, tenant_id, active_tenant_id, role</key-columns>
+    </table>
+  </database-tables>
+
+  <role-definitions>
+    <role name="l1_admin">
+      <sees>No-shows, pending approvals, reconciliation, reviews</sees>
+      <click-behavior>Review action opens full student review</click-behavior>
+    </role>
+    <role name="l2_admin">
+      <sees>No-shows, reviews</sees>
+      <click-behavior>Review action opens full student review</click-behavior>
+    </role>
+    <role name="daep_staff">
+      <sees>Attendance warning (after 9am), reviews</sees>
+      <click-behavior>Review action opens submit grades/notes dialog</click-behavior>
+    </role>
+  </role-definitions>
+
+  <animation-spec>
+    <constant name="DASHBOARD_ANIMATIONS">
+      <code><![CDATA[
+export const DASHBOARD_ANIMATIONS = {
+  slideOut: { duration: 400, easing: 'ease-out' },
+  slideUp: { duration: 400, easing: 'ease-out' },
+  fadeIn: { duration: 200, easing: 'ease-in' },
+};
+      ]]></code>
+    </constant>
+    <behavior name="Action Item Completion">
+      <steps>
+        <step>1. Item slides out to right (400ms ease-out)</step>
+        <step>2. Remaining items slide up to fill gap (400ms)</step>
+        <step>3. Toast: "Marked as complete"</step>
+        <step>4. Item moves to "Closed Today" list</step>
+      </steps>
+    </behavior>
+    <behavior name="No-Show Button">
+      <steps>
+        <step>1. Button shows spinner (200ms)</step>
+        <step>2. Card fades out and slides right (400ms ease-out)</step>
+        <step>3. Toast: "[Student Name] marked as No-Show"</step>
+        <step>4. Pipeline count updates</step>
+      </steps>
+    </behavior>
+  </animation-spec>
+
+  <kpi-definitions>
+    <kpi name="Students Enrolled">
+      <query>SELECT COUNT(*) FROM daep_placements WHERE tenant_id = :tenantId AND status = 'active'</query>
+      <trend>Compare to 7 days ago</trend>
+      <format>Number with "+X this week"</format>
+      <icon>Users (blue)</icon>
+    </kpi>
+    <kpi name="Attendance Rate">
+      <query>SELECT COUNT(*) FILTER (WHERE status IN ('P', 'T')) * 100.0 / NULLIF(COUNT(*), 0) FROM daep_attendance WHERE tenant_id = :tenantId AND date = CURRENT_DATE</query>
+      <trend>Compare to same day last week</trend>
+      <format>Percentage with "+X% from last week"</format>
+      <icon>Calendar (green when up, red when down)</icon>
+    </kpi>
+    <kpi name="Pending Approvals">
+      <query>SELECT COUNT(*) FROM daep_daily_points WHERE tenant_id = :tenantId AND approval_status = 'pending'</query>
+      <trend>Shows "Needs attention" if greater than 0</trend>
+      <format>Number</format>
+      <icon>Hourglass (orange)</icon>
+    </kpi>
+    <kpi name="Recidivism Rate">
+      <description>Students with multiple placements / total completed placements</description>
+      <trend>Compare to last month</trend>
+      <format>Percentage with breakdown by discipline code</format>
+      <icon>Repeat (red background)</icon>
+    </kpi>
+  </kpi-definitions>
+
+  <chart-specs>
+    <chart name="Attendance Trend">
+      <library>Recharts LineChart</library>
+      <time-periods>3 weeks, 6 weeks, 9 weeks, YTD, Semester</time-periods>
+      <features>
+        <feature>YoY comparison line (dashed, if data available)</feature>
+        <feature>Copy button - copies data to clipboard</feature>
+        <feature>Export button - downloads as PNG or CSV</feature>
+      </features>
+    </chart>
+    <chart name="Discipline Overview">
+      <library>Recharts BarChart (horizontal)</library>
+      <data>Top 6 discipline codes by count</data>
+      <features>
+        <feature>District/Campus toggle</feature>
+        <feature>Color-coded bars</feature>
+        <feature>Copy and Export buttons</feature>
+      </features>
+    </chart>
+  </chart-specs>
+
+  <responsive-grid>
+    <layout name="KPI Cards">
+      <classes>grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4</classes>
+    </layout>
+    <layout name="Action Items + Today's Intakes">
+      <classes>grid gap-6 md:grid-cols-2</classes>
+    </layout>
+    <layout name="Pipeline + At Risk">
+      <classes>grid gap-6 md:grid-cols-2</classes>
+    </layout>
+    <layout name="Charts">
+      <classes>space-y-6 (full width)</classes>
+    </layout>
+  </responsive-grid>
+
+  <bundle-optimization>
+    <strategy>Dynamic import for Recharts to reduce initial bundle</strategy>
+    <code><![CDATA[
+import dynamic from 'next/dynamic';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const AttendanceTrendChart = dynamic(
+  () => import('./attendance-trend-chart'),
+  { loading: () => <Skeleton className="h-[300px]" /> }
+);
+    ]]></code>
+  </bundle-optimization>
+
+  <references>
+    <doc path="docs/sprint-artifacts/daep/tech-spec-stories-6-1-6-2.md">Full technical specification</doc>
+    <doc path="docs/sprint-artifacts/daep/story-6-1.md">Story file with acceptance criteria</doc>
+    <doc path="docs/sprint-artifacts/daep/dashboard-backlog.md">Deferred features for future stories</doc>
+    <doc path="app/actions/daep/attendance.ts">Existing attendance functions including getStudentsBelowThreshold</doc>
+    <doc path="components/daep/layout/DAEPSidebar.tsx">Sidebar with role-based nav items</doc>
+  </references>
+</context>

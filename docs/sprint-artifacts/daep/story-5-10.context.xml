@@ -1,0 +1,697 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Story 5-10: Unresolved Discrepancy Alerts
+  Context file for implementation
+
+  Purpose: Pre-assembled relevant docs, code patterns, and dependencies
+  to reduce context usage during implementation.
+-->
+<context story="5-10" title="Unresolved Discrepancy Alerts">
+
+  <!-- ============================================================================
+       STORY OVERVIEW
+       ============================================================================ -->
+  <overview>
+    <summary>
+      Alert administrators about unresolved discrepancies from incomplete reconciliation
+      sessions. Integrates into Pending Actions on dashboard, provides daily 5 AM reminders,
+      and marks sessions abandoned after 7 days.
+    </summary>
+    <points>5</points>
+    <frs>FR62</frs>
+    <dependencies>
+      <story id="5-4">Comparison Engine - session status values</story>
+      <story id="5-8">Audit Trail - admin_audit_log, logAuditEvent()</story>
+      <story id="5-9">Summary Report - getReconciliationSummary()</story>
+    </dependencies>
+  </overview>
+
+  <!-- ============================================================================
+       AUTH PATTERN (MANDATORY - per CLAUDE.md)
+       ============================================================================ -->
+  <auth_pattern>
+    <description>
+      All server actions MUST follow this pattern. RLS handles role-based access.
+      DO NOT create custom auth helpers.
+    </description>
+    <code language="typescript"><![CDATA[
+const supabase = await createServerClient();
+const tenantId = await getTenantId();
+const user = await currentUser();
+// RLS handles role-based access at DB level
+]]></code>
+    <imports><![CDATA[
+import { createServerClient } from '@/lib/supabase/server';
+import { currentUser } from '@clerk/nextjs/server';
+import { getTenantId } from '@/lib/tenant';
+]]></imports>
+  </auth_pattern>
+
+  <!-- ============================================================================
+       SESSION STATUS VALUES
+       ============================================================================ -->
+  <session_statuses>
+    <status value="uploading">File being uploaded to storage</status>
+    <status value="mapping_required">Needs field mapping configuration</status>
+    <status value="parsing">CSV being parsed</status>
+    <status value="comparing">Running comparison engine</status>
+    <status value="in_review">Has unresolved discrepancies - needs review</status>
+    <status value="completed">All discrepancies resolved</status>
+    <status value="failed">Processing failed</status>
+    <status value="abandoned" new="true">Session inactive for 7+ days (Story 5-10)</status>
+  </session_statuses>
+
+  <!-- ============================================================================
+       EXISTING RECONCILIATION FUNCTIONS (from reconciliation.ts)
+       ============================================================================ -->
+  <existing_functions file="app/actions/daep/reconciliation.ts">
+
+    <!-- getReconciliationSessions() - Line 255-286 -->
+    <function name="getReconciliationSessions" lines="255-286">
+      <purpose>Fetches all reconciliation sessions for tenant (list display)</purpose>
+      <code><![CDATA[
+export async function getReconciliationSessions(): Promise<ReconciliationSession[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data, error } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select(`
+      id,
+      file_name,
+      upload_date,
+      total_records,
+      matched_count,
+      discrepancy_count,
+      new_in_sis_count,
+      missing_from_sis_count,
+      status,
+      detected_sis,
+      completed_at
+    `)
+    .eq('tenant_id', tenantId)
+    .order('upload_date', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('[DAEP Reconciliation] Failed to fetch sessions:', error);
+    return [];
+  }
+
+  return (data || []) as ReconciliationSession[];
+}
+]]></code>
+    </function>
+
+    <!-- checkSessionCompletion() - Line 1622-1644 -->
+    <function name="checkSessionCompletion" lines="1622-1644">
+      <purpose>Checks if all discrepancies resolved, updates session status to completed</purpose>
+      <code><![CDATA[
+async function checkSessionCompletion(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  sessionId: string,
+  tenantId: string
+) {
+  const { count } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+    .eq('resolution', 'pending')
+    .neq('discrepancy_type', 'matched');
+
+  if (count === 0) {
+    await supabase
+      .from('daep_reconciliation_sessions')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId)
+      .eq('tenant_id', tenantId);
+  }
+}
+]]></code>
+    </function>
+
+    <!-- getSessionAuditEvents() - Line 1862-1883 -->
+    <function name="getSessionAuditEvents" lines="1862-1883">
+      <purpose>Queries audit log for reconciliation events by session ID</purpose>
+      <code><![CDATA[
+export async function getSessionAuditEvents(sessionId: string): Promise<AuditEvent[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data, error } = await supabase
+    .from('admin_audit_log')
+    .select('id, event_type, actor_email, action, details, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('module', 'daep_management')
+    .like('event_type', 'reconciliation.%')
+    .or(`target_id.eq.${sessionId},details.cs.{"sessionId":"${sessionId}"}`)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[Audit] Failed to fetch session events:', error);
+    return [];
+  }
+
+  return (data || []) as AuditEvent[];
+}
+]]></code>
+    </function>
+
+    <!-- flagForLater() - Line 1728-1795 (uses daep_pending_actions table) -->
+    <function name="flagForLater" lines="1728-1795">
+      <purpose>Creates pending action item when discrepancy flagged for review</purpose>
+      <note>Uses daep_pending_actions table - reference for pending action pattern</note>
+      <code><![CDATA[
+export async function flagForLater(
+  discrepancyId: string,
+  note?: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const user = await currentUser();
+  const tenantId = await getTenantId();
+
+  // ... validation ...
+
+  // Create pending action
+  const { error: insertError } = await supabase
+    .from('daep_pending_actions')
+    .insert({
+      tenant_id: tenantId,
+      created_by: user.id,
+      action_type: 'reconciliation_review',
+      title: `Review: ${discrepancy.student_name}`,
+      description: note || `Missing from SIS - requires follow-up`,
+      priority: 'normal',
+      reference_type: 'discrepancy',
+      reference_id: discrepancyId,
+      reference_data: {
+        student_id: discrepancy.student_id,
+        student_name: discrepancy.student_name,
+        incident_number: discrepancy.incident_number,
+        discrepancy_type: discrepancy.discrepancy_type,
+        daep_data: discrepancy.daep_data,
+      },
+    });
+
+  // ... update discrepancy resolution ...
+}
+]]></code>
+    </function>
+
+  </existing_functions>
+
+  <!-- ============================================================================
+       AUDIT LOGGER
+       ============================================================================ -->
+  <audit_logger file="lib/audit-logger.ts">
+    <function_signature><![CDATA[
+export async function logAuditEvent(entry: AuditLogEntry): Promise<void>
+
+interface AuditLogEntry {
+  eventType: AuditEventType;
+  actorId: string;
+  actorEmail?: string;
+  actorRole?: string;
+  targetId?: string;
+  action: string;
+  details?: Record<string, any>;
+  recordSubjectName?: string;
+  recordSchoolId?: string;
+  tenantId?: string;
+  module?: 'trespass_tracker' | 'daep_management';
+}
+]]></function_signature>
+    <existing_event_types><![CDATA[
+// Reconciliation Events (existing)
+| 'reconciliation.session_created'
+| 'reconciliation.upload_failed'
+| 'reconciliation.session_completed'
+| 'reconciliation.mapping_saved'
+| 'reconciliation.discrepancy_resolved'
+| 'reconciliation.bulk_accept'
+
+// New for Story 5-10 (add to type union):
+| 'reconciliation.reminder_sent'
+| 'reconciliation.session_abandoned'
+]]></existing_event_types>
+    <usage_example><![CDATA[
+await logAuditEvent({
+  eventType: 'reconciliation.reminder_sent',
+  module: 'daep_management',
+  actorId: 'system',
+  actorEmail: 'system@cron',
+  targetId: sessionId,
+  action: 'Sent daily reminder for incomplete session',
+  details: {
+    sessionId,
+    fileName: session.file_name,
+  },
+  tenantId: session.tenant_id,
+});
+]]></usage_example>
+  </audit_logger>
+
+  <!-- ============================================================================
+       EXISTING TYPES (from lib/validation/schemas.ts)
+       ============================================================================ -->
+  <existing_types file="lib/validation/schemas.ts">
+
+    <type name="ReconciliationSession" lines="995-1007"><![CDATA[
+export interface ReconciliationSession {
+  id: string;
+  file_name: string;
+  upload_date: string;
+  total_records: number;
+  matched_count: number;
+  discrepancy_count: number;
+  new_in_sis_count: number;
+  missing_from_sis_count: number;
+  status: ReconciliationStatus;
+  detected_sis: string | null;
+  completed_at: string | null;
+}
+]]></type>
+
+    <type name="ReconciliationSummary" lines="1274-1299"><![CDATA[
+export interface ReconciliationSummary {
+  sessionId: string;
+  fileName: string;
+  uploadDate: string;
+  completedAt: string;
+  completedBy: string;
+  completedByEmail: string;
+  durationFormatted: string;
+  totalRecords: number;
+  matchedCount: number;
+  conflictCount: number;
+  newInSISCount: number;
+  missingFromSISCount: number;
+  acceptedSISCount: number;
+  keptDAEPCount: number;
+  newPlacementsCreated: number;
+  missingReviewed: number;
+  resolutions: ResolutionDetail[];
+  matchedRecords: MatchedRecordSummary[];
+}
+]]></type>
+
+  </existing_types>
+
+  <!-- ============================================================================
+       NEW TYPES TO ADD (Story 5-10)
+       ============================================================================ -->
+  <new_types file="lib/validation/schemas.ts">
+    <type name="UnresolvedSession"><![CDATA[
+export interface UnresolvedSession {
+  id: string;
+  fileName: string;
+  uploadDate: string;
+  unresolvedCount: number;
+  totalDiscrepancies: number;
+  status: string;
+  ageCategory: SessionAgeCategory;
+}
+]]></type>
+
+    <type name="SessionAgeCategory"><![CDATA[
+export type SessionAgeCategory = 'recent' | 'warning' | 'critical' | 'abandoned';
+]]></type>
+
+    <type name="ReconciliationPendingAction"><![CDATA[
+export interface ReconciliationPendingAction {
+  id: string;
+  type: 'reconciliation_incomplete' | 'reconciliation_abandoned';
+  title: string;           // "Reconciliation incomplete" or "Reconciliation abandoned"
+  description: string;     // File name
+  subtitle: string;        // "5 of 7 unresolved • 3 days ago"
+  actionUrl: string;       // /daep/reconciliation/{sessionId}
+  ageCategory: SessionAgeCategory;
+  createdAt: string;
+}
+]]></type>
+  </new_types>
+
+  <!-- ============================================================================
+       VERCEL CRON CONFIGURATION (SIMPLIFIED - DAILY)
+       ============================================================================ -->
+  <vercel_cron file="vercel.json">
+    <current_config><![CDATA[
+{
+  "crons": [
+    {
+      "path": "/api/cron/reset-demo",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
+]]></current_config>
+    <new_cron_to_add><![CDATA[
+{
+  "path": "/api/cron/reconciliation-reminder",
+  "schedule": "0 11 * * *"
+}
+]]></new_cron_to_add>
+    <note>
+      Daily at 11:00 UTC = 5 AM Central (Texas).
+      DAEP is Texas-focused, so Central Time is the primary target.
+      Simple daily run for all tenants - no timezone-per-tenant complexity.
+    </note>
+  </vercel_cron>
+
+  <!-- ============================================================================
+       RECONCILIATION PAGE STRUCTURE
+       ============================================================================ -->
+  <reconciliation_page file="app/daep/(main)/reconciliation/page.tsx">
+    <current_structure><![CDATA[
+export default function ReconciliationPage() {
+  // State: sessions, sisGuides, auditCounts, loading
+
+  return (
+    <div className="space-y-6">
+      {/* Header with SIS guide buttons and Sample CSV download */}
+
+      {/* Upload Section - CSVDropzone component */}
+
+      {/* Field Requirements Section */}
+
+      {/* Previous Sessions - SessionList component */}
+    </div>
+  );
+}
+]]></current_structure>
+    <integration_point>
+      Add IncompleteSessions component BEFORE the Upload Section.
+      This shows sessions with unresolved discrepancies at the top.
+    </integration_point>
+  </reconciliation_page>
+
+  <!-- ============================================================================
+       SERVICE CLIENT FOR CRON JOBS
+       ============================================================================ -->
+  <service_client>
+    <description>
+      Cron jobs query across tenants (while keeping data isolated per-tenant).
+      Uses service client that bypasses RLS since cron has no authenticated user.
+    </description>
+    <pattern><![CDATA[
+// Service client for cron jobs (bypasses RLS)
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
+);
+]]></pattern>
+    <cron_auth><![CDATA[
+// Verify cron secret in API route
+export async function GET(request: Request) {
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // ... cron logic (tenant data stays isolated)
+}
+]]></cron_auth>
+    <tenant_isolation_note>
+      Even though the cron queries all tenants, each notification/action
+      is created with the correct tenant_id. No cross-tenant data mixing.
+    </tenant_isolation_note>
+  </service_client>
+
+  <!-- ============================================================================
+       DAILY CRON IMPLEMENTATION (SIMPLIFIED)
+       ============================================================================ -->
+  <daily_cron>
+    <schedule>0 11 * * * (11:00 UTC = 5 AM Central)</schedule>
+    <description>
+      Single daily run at 5 AM Central Time for all tenants.
+      No timezone-per-tenant complexity needed.
+    </description>
+    <logic><![CDATA[
+// app/api/cron/reconciliation-reminder/route.ts
+export async function GET(request: Request) {
+  // 1. Verify CRON_SECRET
+  // 2. Query all incomplete sessions > 24 hours old (across all tenants)
+  // 3. Group by tenant_id
+  // 4. For each tenant's sessions:
+  //    - Create in-app notification for uploaded_by user
+  //    - Log audit event with tenant_id
+  // 5. Return summary
+}
+]]></logic>
+  </daily_cron>
+
+  <!-- ============================================================================
+       AGE CATEGORY UTILITIES (new file: lib/daep/session-age.ts)
+       ============================================================================ -->
+  <session_age_utilities>
+    <file>lib/daep/session-age.ts</file>
+    <code><![CDATA[
+export type SessionAgeCategory = 'recent' | 'warning' | 'critical' | 'abandoned';
+
+export function getSessionAgeCategory(uploadDate: string): SessionAgeCategory {
+  const daysSinceUpload = Math.floor(
+    (Date.now() - new Date(uploadDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (daysSinceUpload >= 7) return 'abandoned';
+  if (daysSinceUpload >= 3) return 'critical';   // orange
+  if (daysSinceUpload >= 1) return 'warning';    // yellow
+  return 'recent';                                // no special color (< 1 day)
+}
+
+export function getAgeColorClasses(category: SessionAgeCategory): string {
+  const colors: Record<SessionAgeCategory, string> = {
+    recent: '',
+    warning: 'border-l-4 border-l-yellow-500 bg-yellow-50',
+    critical: 'border-l-4 border-l-orange-500 bg-orange-50',
+    abandoned: 'border-l-4 border-l-red-500 bg-red-50',
+  };
+  return colors[category];
+}
+
+export function formatAgeText(uploadDate: string): string {
+  const daysSinceUpload = Math.floor(
+    (Date.now() - new Date(uploadDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (daysSinceUpload === 0) return 'Today';
+  if (daysSinceUpload === 1) return 'Yesterday';
+  return `${daysSinceUpload} days ago`;
+}
+]]></code>
+  </session_age_utilities>
+
+  <!-- ============================================================================
+       ROLE-BASED FILTERING
+       ============================================================================ -->
+  <role_filtering>
+    <description>
+      Only DAEP Admin L1 and L2 roles see reconciliation pending actions.
+    </description>
+    <code><![CDATA[
+const allowedRoles = ['daep_admin_l1', 'daep_admin_l2', 'super_admin'];
+
+const user = await currentUser();
+const { data: profile } = await supabase
+  .from('user_profiles')
+  .select('role')
+  .eq('user_id', user?.id)
+  .single();
+
+if (!profile || !allowedRoles.includes(profile.role)) {
+  return []; // Don't show to teachers, viewers, etc.
+}
+]]></code>
+  </role_filtering>
+
+  <!-- ============================================================================
+       DATABASE TABLES REFERENCED
+       ============================================================================ -->
+  <database_tables>
+    <table name="daep_reconciliation_sessions">
+      <columns>
+        id, tenant_id, uploaded_by, file_name, file_url, storage_path,
+        detected_sis, status, total_records, matched_count, discrepancy_count,
+        new_in_sis_count, missing_from_sis_count, upload_date, completed_at,
+        error_message, updated_at
+      </columns>
+      <note>Add 'abandoned' to status enum via migration</note>
+    </table>
+
+    <table name="daep_reconciliation_discrepancies">
+      <columns>
+        id, tenant_id, session_id, student_id, student_name, incident_number,
+        discrepancy_type, sis_data, daep_data, daep_placement_id, conflicts,
+        resolution, resolution_note, resolved_by, resolved_at
+      </columns>
+    </table>
+
+    <table name="daep_pending_actions">
+      <columns>
+        id, tenant_id, created_by, action_type, title, description,
+        priority, reference_type, reference_id, reference_data,
+        completed_at, completed_by
+      </columns>
+      <note>Existing table used by flagForLater()</note>
+    </table>
+
+    <table name="daep_notifications" new="true">
+      <columns>
+        id, tenant_id, user_id, type, title, message, action_url,
+        read, created_at, read_at
+      </columns>
+      <note>New table for in-app notifications (create if not exists)</note>
+    </table>
+
+    <table name="admin_audit_log">
+      <columns>
+        id, tenant_id, event_type, actor_id, actor_email, actor_role,
+        target_id, action, details, module, record_subject_name,
+        record_school_id, created_at
+      </columns>
+    </table>
+  </database_tables>
+
+  <!-- ============================================================================
+       NEW FUNCTIONS TO IMPLEMENT (Story 5-10)
+       ============================================================================ -->
+  <new_functions file="app/actions/daep/reconciliation.ts">
+    <function name="getUnresolvedSessions">
+      <purpose>Query sessions with unresolved discrepancies for dashboard/reconciliation page</purpose>
+      <returns>UnresolvedSession[]</returns>
+      <note>Uses standard auth pattern - tenant-scoped via RLS</note>
+    </function>
+
+    <function name="getReconciliationPendingActions">
+      <purpose>Format unresolved sessions as pending action items for dashboard</purpose>
+      <returns>ReconciliationPendingAction[]</returns>
+      <note>Role-filtered - only returns for admin roles</note>
+    </function>
+
+    <function name="getIncompleteSessionsForNotification">
+      <purpose>Query sessions >24 hours old still in_review (for cron job)</purpose>
+      <note>Uses service client - queries across all tenants, processes per-tenant</note>
+    </function>
+
+    <function name="markAbandonedSessions">
+      <purpose>Mark sessions as abandoned after 7 days of inactivity</purpose>
+      <note>Called by daily cron job, uses service client</note>
+    </function>
+
+    <function name="hasUnacceptedMatches">
+      <purpose>Check if session has matched records not yet bulk-accepted</purpose>
+      <returns>boolean</returns>
+      <note>For "Accept All Matches" reminder banner</note>
+    </function>
+
+    <function name="resumeAbandonedSession">
+      <purpose>Reactivate abandoned session (set status back to in_review)</purpose>
+      <note>Log audit event when resumed</note>
+    </function>
+  </new_functions>
+
+  <!-- ============================================================================
+       FILE LIST
+       ============================================================================ -->
+  <files>
+    <new_files>
+      <file>app/daep/(main)/reconciliation/components/incomplete-sessions.tsx</file>
+      <file>app/api/cron/reconciliation-reminder/route.ts</file>
+      <file>lib/daep/session-age.ts</file>
+    </new_files>
+
+    <modified_files>
+      <file>app/actions/daep/reconciliation.ts</file>
+      <file>lib/validation/schemas.ts</file>
+      <file>lib/audit-logger.ts</file>
+      <file>app/daep/(main)/reconciliation/page.tsx</file>
+      <file>app/daep/(main)/reconciliation/[sessionId]/page.tsx</file>
+      <file>vercel.json</file>
+    </modified_files>
+
+    <migrations>
+      <migration name="add_abandoned_status">Add 'abandoned' to session status enum</migration>
+      <migration name="create_daep_notifications">Create notifications table with RLS (if not exists)</migration>
+    </migrations>
+  </files>
+
+  <!-- ============================================================================
+       INCOMPLETE SESSIONS COMPONENT TEMPLATE
+       ============================================================================ -->
+  <component_template name="IncompleteSessions">
+    <file>app/daep/(main)/reconciliation/components/incomplete-sessions.tsx</file>
+    <code><![CDATA[
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Clock, FileSpreadsheet, ArrowRight } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { getAgeColorClasses } from '@/lib/daep/session-age';
+import type { UnresolvedSession } from '@/lib/validation/schemas';
+
+interface Props {
+  sessions: UnresolvedSession[];
+}
+
+export function IncompleteSessions({ sessions }: Props) {
+  const router = useRouter();
+
+  if (sessions.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Clock className="h-5 w-5 text-yellow-600" />
+          Incomplete Sessions
+          <Badge variant="secondary">{sessions.length}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className={`flex items-center justify-between p-3 rounded-lg ${getAgeColorClasses(session.ageCategory)}`}
+            >
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{session.fileName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {session.unresolvedCount} of {session.totalDiscrepancies} unresolved •{' '}
+                    {formatDistanceToNow(new Date(session.uploadDate), { addSuffix: true })}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => router.push(`/daep/reconciliation/${session.id}`)}
+              >
+                Resume
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+]]></code>
+  </component_template>
+
+</context>

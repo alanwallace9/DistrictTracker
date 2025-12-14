@@ -14,8 +14,16 @@ import type {
   ParseResult,
   ParseError,
   ParseWarning,
+  UnresolvedSession,
+  ReconciliationPendingAction,
+  SessionAgeCategory,
 } from '@/lib/validation/schemas';
 import { parseDate, parseCSVContent } from '@/lib/daep/csv-parser';
+import {
+  getSessionAgeCategory,
+  formatAgeText,
+  getDaysSinceUpload,
+} from '@/lib/daep/session-age';
 
 // ============================================================================
 // CONSTANTS
@@ -2132,4 +2140,352 @@ export async function getReconciliationSummary(
     resolutions,
     matchedRecords,
   };
+}
+
+// ============================================================================
+// UNRESOLVED DISCREPANCY ALERTS (Story 5-10)
+// ============================================================================
+
+/**
+ * Get sessions with unresolved discrepancies for the reconciliation page
+ * Shows sessions that are in_review or abandoned with pending resolutions
+ */
+export async function getUnresolvedSessions(): Promise<UnresolvedSession[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Get sessions in_review or abandoned status
+  const { data: sessions, error } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select(
+      `
+      id,
+      file_name,
+      upload_date,
+      status,
+      discrepancy_count,
+      new_in_sis_count,
+      missing_from_sis_count
+    `
+    )
+    .eq('tenant_id', tenantId)
+    .in('status', ['in_review', 'abandoned'])
+    .order('upload_date', { ascending: false });
+
+  if (error) {
+    console.error('[Reconciliation] Failed to fetch unresolved sessions:', error);
+    return [];
+  }
+
+  if (!sessions || sessions.length === 0) {
+    return [];
+  }
+
+  // For each session, count unresolved discrepancies
+  const results: UnresolvedSession[] = [];
+
+  for (const session of sessions) {
+    const { count } = await supabase
+      .from('daep_reconciliation_discrepancies')
+      .select('*', { count: 'exact', head: true })
+      .eq('session_id', session.id)
+      .eq('resolution', 'pending')
+      .neq('discrepancy_type', 'matched');
+
+    const unresolvedCount = count || 0;
+
+    // Only include if there are unresolved discrepancies
+    if (unresolvedCount > 0) {
+      const totalDiscrepancies =
+        (session.discrepancy_count || 0) +
+        (session.new_in_sis_count || 0) +
+        (session.missing_from_sis_count || 0);
+
+      results.push({
+        id: session.id,
+        fileName: session.file_name,
+        uploadDate: session.upload_date,
+        unresolvedCount,
+        totalDiscrepancies,
+        status: session.status,
+        ageCategory: getSessionAgeCategory(session.upload_date),
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Get reconciliation pending actions for dashboard
+ * Role-filtered: only returns for admin roles
+ */
+export async function getReconciliationPendingActions(): Promise<ReconciliationPendingAction[]> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+  const user = await currentUser();
+
+  if (!user) return [];
+
+  // Check user role - only admins see reconciliation pending actions
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single();
+
+  const allowedRoles = ['daep_admin_l1', 'daep_admin_l2', 'super_admin', 'district_admin'];
+  if (!profile || !allowedRoles.includes(profile.role)) {
+    return [];
+  }
+
+  // Get unresolved sessions
+  const unresolved = await getUnresolvedSessions();
+
+  return unresolved.map((session) => ({
+    id: session.id,
+    type:
+      session.status === 'abandoned'
+        ? ('reconciliation_abandoned' as const)
+        : ('reconciliation_incomplete' as const),
+    title: session.status === 'abandoned' ? 'Reconciliation abandoned' : 'Reconciliation incomplete',
+    description: session.fileName,
+    subtitle: `${session.unresolvedCount} of ${session.totalDiscrepancies} unresolved • ${formatAgeText(session.uploadDate)}`,
+    actionUrl: `/daep/reconciliation/${session.id}`,
+    ageCategory: session.ageCategory,
+    createdAt: session.uploadDate,
+  }));
+}
+
+/**
+ * Check if a session has unaccepted matched records
+ * Used to show "Accept All Matches" reminder
+ */
+export async function hasUnacceptedMatches(sessionId: string): Promise<boolean> {
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  // Verify session belongs to tenant
+  const { data: session } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (!session) return false;
+
+  // Check for matched records that haven't been accepted
+  const { count } = await supabase
+    .from('daep_reconciliation_discrepancies')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+    .eq('discrepancy_type', 'matched')
+    .eq('resolution', 'pending');
+
+  return (count || 0) > 0;
+}
+
+/**
+ * Resume an abandoned session (set status back to in_review)
+ */
+export async function resumeAbandonedSession(
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const user = await currentUser();
+  const tenantId = await getTenantId();
+
+  if (!user) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  // Verify session exists and is abandoned
+  const { data: session, error: fetchError } = await supabase
+    .from('daep_reconciliation_sessions')
+    .select('id, file_name, status')
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (fetchError || !session) {
+    return { success: false, error: 'Session not found' };
+  }
+
+  if (session.status !== 'abandoned') {
+    return { success: false, error: 'Session is not abandoned' };
+  }
+
+  // Update status back to in_review
+  const { error: updateError } = await supabase
+    .from('daep_reconciliation_sessions')
+    .update({
+      status: 'in_review',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', sessionId)
+    .eq('tenant_id', tenantId);
+
+  if (updateError) {
+    console.error('[Reconciliation] Failed to resume session:', updateError);
+    return { success: false, error: 'Failed to resume session' };
+  }
+
+  // Log audit event
+  await logAuditEvent({
+    eventType: 'reconciliation.session_resumed',
+    module: 'daep_management',
+    actorId: user.id,
+    actorEmail: user.emailAddresses?.[0]?.emailAddress,
+    targetId: sessionId,
+    action: `Resumed abandoned reconciliation session: ${session.file_name}`,
+    details: {
+      sessionId,
+      fileName: session.file_name,
+    },
+    tenantId,
+  });
+
+  revalidatePath('/daep/reconciliation');
+  revalidatePath(`/daep/reconciliation/${sessionId}`);
+
+  return { success: true };
+}
+
+// ============================================================================
+// CRON JOB FUNCTIONS (Story 5-10)
+// These use supabaseAdmin (service client) to query across tenants
+// ============================================================================
+
+/**
+ * Get all incomplete sessions older than 24 hours for notification
+ * Used by daily cron job - queries across all tenants
+ */
+export async function getIncompleteSessionsForNotification(): Promise<
+  Array<{
+    id: string;
+    tenant_id: string;
+    uploaded_by: string;
+    file_name: string;
+    upload_date: string;
+    status: string;
+  }>
+> {
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from('daep_reconciliation_sessions')
+    .select('id, tenant_id, uploaded_by, file_name, upload_date, status')
+    .eq('status', 'in_review')
+    .lt('upload_date', twentyFourHoursAgo)
+    .order('upload_date', { ascending: true });
+
+  if (error) {
+    console.error('[Cron] Failed to fetch incomplete sessions:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Mark sessions as abandoned after 7 days of inactivity
+ * Used by daily cron job - queries across all tenants
+ * Returns count of sessions marked abandoned
+ */
+export async function markAbandonedSessions(): Promise<{
+  success: boolean;
+  count: number;
+  sessions: Array<{ id: string; tenant_id: string; file_name: string }>;
+}> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Find sessions to mark as abandoned
+  const { data: sessions, error: fetchError } = await supabaseAdmin
+    .from('daep_reconciliation_sessions')
+    .select('id, tenant_id, file_name, uploaded_by')
+    .eq('status', 'in_review')
+    .lt('upload_date', sevenDaysAgo);
+
+  if (fetchError) {
+    console.error('[Cron] Failed to fetch sessions for abandonment:', fetchError);
+    return { success: false, count: 0, sessions: [] };
+  }
+
+  if (!sessions || sessions.length === 0) {
+    return { success: true, count: 0, sessions: [] };
+  }
+
+  // Update each session to abandoned
+  const sessionIds = sessions.map((s) => s.id);
+
+  const { error: updateError } = await supabaseAdmin
+    .from('daep_reconciliation_sessions')
+    .update({
+      status: 'abandoned',
+      updated_at: new Date().toISOString(),
+    })
+    .in('id', sessionIds);
+
+  if (updateError) {
+    console.error('[Cron] Failed to mark sessions as abandoned:', updateError);
+    return { success: false, count: 0, sessions: [] };
+  }
+
+  // Log audit event for each session
+  for (const session of sessions) {
+    await logAuditEvent({
+      eventType: 'reconciliation.session_abandoned',
+      module: 'daep_management',
+      actorId: 'system',
+      actorEmail: 'system@cron',
+      targetId: session.id,
+      action: `Session marked abandoned after 7 days: ${session.file_name}`,
+      details: {
+        sessionId: session.id,
+        fileName: session.file_name,
+        daysInactive: 7,
+      },
+      tenantId: session.tenant_id,
+    });
+  }
+
+  return {
+    success: true,
+    count: sessions.length,
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      tenant_id: s.tenant_id,
+      file_name: s.file_name,
+    })),
+  };
+}
+
+/**
+ * Create in-app notification for a user about incomplete session
+ * Used by cron job after sending reminders
+ */
+export async function createReconciliationNotification(
+  tenantId: string,
+  userId: string,
+  sessionId: string,
+  fileName: string
+): Promise<boolean> {
+  const { error } = await supabaseAdmin.from('daep_notifications').insert({
+    tenant_id: tenantId,
+    user_id: userId,
+    notification_type: 'reconciliation_reminder',
+    title: 'Reconciliation incomplete',
+    message: `Session "${fileName}" has unresolved discrepancies.`,
+    action_url: `/daep/reconciliation/${sessionId}`,
+    read: false,
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error('[Cron] Failed to create notification:', error);
+    return false;
+  }
+
+  return true;
 }
