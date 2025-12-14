@@ -75,14 +75,39 @@ Your DAEP program health is now visible at a glance. The new Dashboard landing p
 **Mobile Responsive**
 - Adapts from 1 column (mobile) to 2 columns (tablet) to 4 columns (desktop)
 
-### For Your Feedback Page
+### Feedback Board Entry
 
-**Title:** Dashboard with KPI Cards
+Use this to create the feedback item for the changelog page:
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature Request |
+| **Title** | DAEP Dashboard with KPI Cards |
+| **Product** | DAEP Dashboard |
+| **Status** | Done |
+| **Date** | Dec 14, 2024 |
 
 **Description:**
+```
 See your entire DAEP program health at a glance. The new Dashboard shows enrollment, attendance, pending approvals, and recidivism metrics with trend indicators. Role-aware action items highlight what needs your attention, and quick-action buttons let you manage today's intakes without leaving the page.
+```
 
-**Category:** DAEP Management
+**Admin Response:** *(green box)*
+```
+The DAEP Dashboard is now live! Monitor program health with 4 KPI cards showing enrollment, attendance, pending approvals, and recidivism rate—all with week-over-week trends. Action items are role-aware so you see exactly what needs your attention.
+```
+
+**Release Notes:** *(blue box on changelog)*
+```
+• 4 KPI cards: Enrollment, Attendance, Pending Approvals, Recidivism Rate
+• Role-aware action items (L1 Admin, L2 Admin, Staff see different tasks)
+• Today's Intakes with No-Show/Arrived buttons
+• Intake Pipeline mini-view (Approved → Scheduled → Arrived → No-Show)
+• Students At Risk card
+• Attendance Trend chart (3wk/6wk/9wk/YTD views)
+• Discipline Overview chart (top 6 codes)
+• Mobile responsive layout
+```
 
 ---
 
