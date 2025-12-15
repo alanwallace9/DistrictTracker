@@ -3,7 +3,7 @@
 **Epic:** 6 - Dashboard & Reporting
 **Version Range:** v0.6.0 - v0.6.x
 **FRs:** FR78-FR92, FR108
-**Stories:** 1 of 12 complete
+**Stories:** 2 of 12 complete
 
 ---
 
@@ -12,7 +12,7 @@
 | Version | Story | Title | Status |
 |---------|-------|-------|--------|
 | v0.6.0 | 6-1 | Dashboard Page with KPI Cards | Done |
-| - | 6-2 | Clickable KPIs & Drill-Down | Backlog |
+| v0.6.1 | 6-2 | Clickable KPIs & Drill-Down | Done |
 | - | 6-3 | Attendance Reports | Backlog |
 | - | 6-4 | Discipline Reports | Backlog |
 | - | 6-5 | Point Progress Reports | Backlog |
@@ -111,11 +111,113 @@ The DAEP Dashboard is now live! Monitor program health with 4 KPI cards showing 
 
 ---
 
+## v0.6.1 - Clickable KPIs & Drill-Down
+
+**Released:** December 14, 2024
+**Story:** 6-2
+**FR:** FR79
+
+### What's New
+
+Your dashboard KPIs are now interactive! Click any metric card to drill down into the details, and use the campus filter to focus on specific locations. The recidivism breakdown gives L1+ admins deep insight into repeat placements with offense analysis and student-level data.
+
+### Key Features
+
+**Campus Filter Dropdown**
+- Filter all dashboard components by campus
+- Auto-hides for single-campus tenants
+- Persists in URL for bookmarking and sharing
+
+**KPI Card Click Navigation**
+- **Current Enrollment** → Students page with active filter
+- **Today's Attendance** → Attendance/Room Roster page
+- **Pending Approvals** → Approvals page
+- **Recidivism Rate** → Detailed breakdown (L1+ Admin only)
+
+**Recidivism Drill-Down Page** (L1+ Admin Only)
+- Summary stats: Rate, returning students count, total completed
+- "By Original Offense" distribution chart
+- "Time to Return" distribution chart (< 30 days, 30-90 days, 91-180 days, > 180 days)
+- Returning students table with:
+  - Student name (clickable link to profile)
+  - Original offense
+  - First placement days (e.g., "30 w/review")
+  - Return offense
+  - Days between placements
+- Export to Excel functionality
+
+**Role-Based Access Control**
+- L1+ Admin (Super Admin, District Admin, L1 Admin, L2 Admin): Full recidivism breakdown access
+- DAEP Staff, Campus Admin: See KPI card only, no drill-down
+- Parent, Student: No dashboard access
+
+**Visual Enhancements**
+- Hover effects on KPI cards
+- Smooth animations on drill-down pages
+- Matching gradient styles from dashboard-preview
+- Mobile responsive layouts
+
+### Feedback Board Entry
+
+Use this to create the feedback item for the changelog page:
+
+| Field | Value |
+|-------|-------|
+| **Type** | Feature Request |
+| **Title** | Dashboard Campus Filter & KPI Drill-Downs |
+| **Product** | DAEP Dashboard |
+| **Status** | Done |
+| **Date** | Dec 14, 2024 |
+
+**Description:**
+```
+Click any KPI card to see detailed breakdowns. Filter the entire dashboard by campus to focus on specific locations. Admins can access the recidivism drill-down to see offense patterns and returning student details.
+```
+
+**Admin Response:** *(green box)*
+```
+Dashboard KPIs are now clickable! Filter by campus to see location-specific metrics, and click any card to drill down into the data. L1+ admins get access to the new recidivism breakdown showing offense patterns and returning student details.
+```
+
+**Release Notes:** *(blue box on changelog)*
+```
+• Campus filter dropdown to focus on specific locations
+• Click-through navigation on all 4 KPI cards
+• Recidivism drill-down with offense breakdown charts
+• Returning students table with profile links
+• "First placement days" format (e.g., "30 w/review")
+• Export to Excel on recidivism report
+• Role-based access for sensitive data
+• Campus filter persists in URL
+```
+
+### Technical Notes
+
+**New Files (12)**
+- `app/daep/(main)/dashboard-preview/components/campus-filter.tsx`
+- `app/daep/(main)/dashboard-preview/components/drill-down-header.tsx`
+- `app/daep/(main)/dashboard-preview/components/drill-down-breadcrumb.tsx`
+- `app/daep/(main)/dashboard-preview/components/back-button.tsx`
+- `app/daep/(main)/dashboard-preview/components/recidivism-popover.tsx`
+- `app/daep/(main)/reports/recidivism/page.tsx`
+- `app/daep/(main)/reports/recidivism/recidivism-drill-down.tsx`
+- `components/daep/DAEPPopover.tsx`
+- `components/daep/DAEPSheet.tsx`
+- `components/daep/DAEPAlertDialog.tsx`
+- `components/daep/DAEPDropdownMenu.tsx`
+- `components/daep/index.ts`
+
+**Modified Files**
+- `app/daep/(main)/dashboard-preview/page.tsx` - Added campus filter, real data fetching
+- `app/daep/(main)/dashboard-preview/components/enhanced-kpi-card.tsx` - Added click navigation, role-based popover
+- `app/actions/daep/dashboard.ts` - Added getCampuses(), getRecidivismBreakdown()
+
+---
+
 ## Remaining Stories
 
 | Story | Title | Points | FRs |
 |-------|-------|--------|-----|
-| 6-2 | Clickable KPIs & Drill-Down | 3 | FR79 |
 | 6-3 | Attendance Reports | 3 | FR80-81 |
 | 6-4 | Discipline Reports | 3 | FR82-83 |
 | 6-5 | Point Progress Reports | 3 | FR84-85 |

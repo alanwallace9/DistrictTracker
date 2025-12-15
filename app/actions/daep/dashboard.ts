@@ -890,3 +890,276 @@ export async function completeActionItem(itemId: string): Promise<{ success: boo
 export async function restoreActionItem(itemId: string): Promise<{ success: boolean }> {
   return { success: true };
 }
+
+// ============================================================================
+// CAMPUS FILTER
+// ============================================================================
+
+export interface CampusOption {
+  id: string;
+  name: string;
+}
+
+/**
+ * Get all campuses for the current tenant (for campus filter dropdown)
+ */
+export async function getCampuses(): Promise<CampusOption[]> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  const { data: campuses, error } = await supabase
+    .from('campuses')
+    .select('id, name')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active')
+    .order('name');
+
+  if (error) {
+    console.error('Error fetching campuses:', error);
+    return [];
+  }
+
+  return campuses || [];
+}
+
+// ============================================================================
+// RECIDIVISM BREAKDOWN
+// ============================================================================
+
+export interface OffenseBreakdown {
+  offense: string;
+  offenseCode: string;
+  count: number;
+  percentage: number;
+}
+
+export interface TimeToReturnBreakdown {
+  range: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ReturningStudent {
+  id: string;
+  schoolId: string;
+  firstName: string;
+  lastName: string;
+  originalOffense: string;
+  originalOffenseCode: string;
+  firstPlacementDays: number;
+  firstRequiresReview: boolean;
+  firstPlacementDisplay: string;
+  returnOffense: string;
+  returnOffenseCode: string;
+  daysBetween: number;
+  placementCount: number;
+}
+
+export interface RecidivismBreakdown {
+  rate: number;
+  returningCount: number;
+  totalCompleted: number;
+  byOffense: OffenseBreakdown[];
+  timeToReturn: TimeToReturnBreakdown[];
+  returningStudents: ReturningStudent[];
+}
+
+/**
+ * Get recidivism breakdown for popover and drill-down page
+ * Includes offense distribution, time to return, and returning students table
+ */
+export async function getRecidivismBreakdown(
+  campusId?: string
+): Promise<RecidivismBreakdown> {
+  const tenantId = await getTenantId();
+  const supabase = await createServerClient();
+
+  // Build base query for completed placements
+  let placementsQuery = supabase
+    .from('daep_placements')
+    .select(`
+      id,
+      school_id,
+      offense_code,
+      days_assigned,
+      assessment_90day_required,
+      created_at,
+      status,
+      home_campus_id
+    `)
+    .eq('tenant_id', tenantId)
+    .in('status', ['completed', 'active']);
+
+  if (campusId && campusId !== 'all') {
+    placementsQuery = placementsQuery.eq('home_campus_id', campusId);
+  }
+
+  const { data: placements, error: placementsError } = await placementsQuery;
+
+  if (placementsError || !placements || placements.length === 0) {
+    return {
+      rate: 0,
+      returningCount: 0,
+      totalCompleted: 0,
+      byOffense: [],
+      timeToReturn: [],
+      returningStudents: [],
+    };
+  }
+
+  // Group placements by student
+  const studentPlacements = new Map<string, typeof placements>();
+  placements.forEach((p) => {
+    const existing = studentPlacements.get(p.school_id) || [];
+    existing.push(p);
+    studentPlacements.set(p.school_id, existing);
+  });
+
+  // Find returning students (more than 1 placement)
+  const returningStudentIds: string[] = [];
+  const returningStudentData: Array<{
+    schoolId: string;
+    firstPlacement: (typeof placements)[0];
+    latestPlacement: (typeof placements)[0];
+    placementCount: number;
+  }> = [];
+
+  studentPlacements.forEach((studentPlacs, schoolId) => {
+    if (studentPlacs.length > 1) {
+      returningStudentIds.push(schoolId);
+      // Sort by created_at to get first and latest
+      const sorted = [...studentPlacs].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      returningStudentData.push({
+        schoolId,
+        firstPlacement: sorted[0],
+        latestPlacement: sorted[sorted.length - 1],
+        placementCount: sorted.length,
+      });
+    }
+  });
+
+  const totalStudents = studentPlacements.size;
+  const returningCount = returningStudentIds.length;
+  const rate = totalStudents > 0 ? Math.round((returningCount / totalStudents) * 1000) / 10 : 0;
+
+  // Get student names
+  const { data: students } = await supabase
+    .from('students')
+    .select('school_id, first_name, last_name')
+    .eq('tenant_id', tenantId)
+    .in('school_id', returningStudentIds.length > 0 ? returningStudentIds : ['none']);
+
+  const studentNameMap = new Map<string, { firstName: string; lastName: string }>();
+  (students || []).forEach((s) => {
+    studentNameMap.set(s.school_id, { firstName: s.first_name, lastName: s.last_name });
+  });
+
+  // Get discipline code labels
+  const offenseCodes = new Set<string>();
+  placements.forEach((p) => {
+    if (p.offense_code) offenseCodes.add(p.offense_code);
+  });
+
+  const { data: disciplineCodes } = await supabase
+    .from('daep_discipline_codes')
+    .select('code, label')
+    .eq('tenant_id', tenantId)
+    .in('code', Array.from(offenseCodes).length > 0 ? Array.from(offenseCodes) : ['none']);
+
+  const codeToLabel = new Map<string, string>();
+  (disciplineCodes || []).forEach((dc) => {
+    codeToLabel.set(dc.code, dc.label);
+  });
+
+  // Calculate offense breakdown for returning students
+  const offenseCounts = new Map<string, number>();
+  returningStudentData.forEach((rs) => {
+    const code = rs.firstPlacement.offense_code || 'Unknown';
+    offenseCounts.set(code, (offenseCounts.get(code) || 0) + 1);
+  });
+
+  const byOffense: OffenseBreakdown[] = Array.from(offenseCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([code, count]) => ({
+      offense: codeToLabel.get(code) || code,
+      offenseCode: code,
+      count,
+      percentage: returningCount > 0 ? Math.round((count / returningCount) * 100) : 0,
+    }));
+
+  // Calculate time to return breakdown
+  const timeRanges = [
+    { range: '< 30 days', min: 0, max: 29 },
+    { range: '30-90 days', min: 30, max: 90 },
+    { range: '91-180 days', min: 91, max: 180 },
+    { range: '> 180 days', min: 181, max: Infinity },
+  ];
+
+  const timeCounts = new Map<string, number>();
+  timeRanges.forEach((r) => timeCounts.set(r.range, 0));
+
+  returningStudentData.forEach((rs) => {
+    const firstDate = new Date(rs.firstPlacement.created_at);
+    const latestDate = new Date(rs.latestPlacement.created_at);
+    const daysBetween = Math.floor(
+      (latestDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    for (const range of timeRanges) {
+      if (daysBetween >= range.min && daysBetween <= range.max) {
+        timeCounts.set(range.range, (timeCounts.get(range.range) || 0) + 1);
+        break;
+      }
+    }
+  });
+
+  const timeToReturn: TimeToReturnBreakdown[] = timeRanges.map((r) => ({
+    range: r.range,
+    count: timeCounts.get(r.range) || 0,
+    percentage: returningCount > 0 ? Math.round(((timeCounts.get(r.range) || 0) / returningCount) * 100) : 0,
+  }));
+
+  // Build returning students list
+  const returningStudents: ReturningStudent[] = returningStudentData
+    .map((rs) => {
+      const student = studentNameMap.get(rs.schoolId);
+      const firstDate = new Date(rs.firstPlacement.created_at);
+      const latestDate = new Date(rs.latestPlacement.created_at);
+      const daysBetween = Math.floor(
+        (latestDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      const firstDays = rs.firstPlacement.days_assigned || 0;
+      const firstRequiresReview = rs.firstPlacement.assessment_90day_required || false;
+      const firstPlacementDisplay = firstRequiresReview ? `${firstDays} w/review` : `${firstDays}`;
+
+      return {
+        id: rs.firstPlacement.id,
+        schoolId: rs.schoolId,
+        firstName: student?.firstName || 'Unknown',
+        lastName: student?.lastName || '',
+        originalOffense: codeToLabel.get(rs.firstPlacement.offense_code || '') || rs.firstPlacement.offense_code || 'Unknown',
+        originalOffenseCode: rs.firstPlacement.offense_code || '',
+        firstPlacementDays: firstDays,
+        firstRequiresReview,
+        firstPlacementDisplay,
+        returnOffense: codeToLabel.get(rs.latestPlacement.offense_code || '') || rs.latestPlacement.offense_code || 'Unknown',
+        returnOffenseCode: rs.latestPlacement.offense_code || '',
+        daysBetween,
+        placementCount: rs.placementCount,
+      };
+    })
+    .sort((a, b) => b.placementCount - a.placementCount || b.daysBetween - a.daysBetween);
+
+  return {
+    rate,
+    returningCount,
+    totalCompleted: totalStudents,
+    byOffense,
+    timeToReturn,
+    returningStudents,
+  };
+}

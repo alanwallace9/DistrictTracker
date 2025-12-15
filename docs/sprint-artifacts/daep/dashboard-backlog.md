@@ -10,14 +10,18 @@
 
 These features were discussed during 6-1 planning and deferred to future stories.
 
-### Story 6-2: Dashboard Drill-Downs & Campus Filter
+### Story 6-2: Dashboard Drill-Downs & Campus Filter ✅ COMPLETE (v0.6.1)
 
-| Feature | Description | Priority |
-|---------|-------------|----------|
-| Campus filter dropdown | Filter all KPIs/charts by campus in header | High |
-| KPI card drill-downs | Click any KPI → filtered detail view | High |
-| Recidivism drill-down | Click → list view with offense breakdown | High |
-| Recidivism by campus | Toggle district vs campus breakdown | Medium |
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Campus filter dropdown | Filter all KPIs/charts by campus in header | ✅ Done |
+| KPI card drill-downs | Click any KPI → filtered detail view | ✅ Done |
+| Recidivism drill-down | Click → list view with offense breakdown | ✅ Done |
+| Recidivism by campus | Toggle district vs campus breakdown | ⏭️ Deferred (baked into filter) |
+
+**Delivered:** Campus filter, KPI click navigation (Enrollment→Students, Attendance→Room Roster, Approvals→Approvals page, Recidivism→Drill-down), Recidivism breakdown with offense charts and returning students table, role-based access (L1+ Admin for detailed breakdown).
+
+**Deferred to Future:** Enrollment Analytics drill-down page (added to Future Enhancements below).
 
 ### Story 6-3: Morning Briefing & Smart Prompts
 
@@ -57,6 +61,7 @@ These features were discussed during 6-1 planning and deferred to future stories
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
+| **Enrollment Analytics Drill-Down** | Dedicated page for enrollment breakdown: by campus distribution, by grade level, by sending school, enrollment trend over time, average placement length | Medium |
 | Keyboard shortcuts | Cmd+K search, navigation shortcuts | Low |
 | Dashboard settings | Toggle charts on/off in settings | Medium |
 | Enrollment Flow chart | Intakes vs Completions over time | Medium |

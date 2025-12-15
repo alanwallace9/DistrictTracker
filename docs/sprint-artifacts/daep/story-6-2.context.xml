@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Context File: Story 6-2 - Clickable KPIs & Drill-Down
+  Generated: 2024-12-14
+
+  This file contains pre-assembled code snippets for implementing Story 6-2.
+  Load this instead of reading multiple source files.
+-->
+<context story="6-2" title="Clickable KPIs & Drill-Down">
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1: Enhanced KPI Card (to be modified for click nav) -->
+  <!-- ============================================================ -->
+  <file path="app/daep/(main)/dashboard-preview/components/enhanced-kpi-card.tsx">
+    <description>
+      KPI card component with gradient backgrounds and count-up animation.
+      MODIFY: Add role-based click navigation and enhanced hover effects.
+      Current: Links via href prop. Need: Role check for recidivism.
+    </description>
+    <code><![CDATA[
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { motion, useInView } from 'framer-motion';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import {
+  Users,
+  Clock,
+  Hourglass,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  LucideIcon,
+} from 'lucide-react';
+import { kpiCardHover, countUpConfig } from './enhanced-animations';
+
+const iconMap: Record<string, LucideIcon> = {
+  Users,
+  Clock,
+  Hourglass,
+  RefreshCw,
+};
+
+interface KPIData {
+  id: string;
+  label: string;
+  value: number;
+  format: 'number' | 'percent' | 'decimal';
+  trend: {
+    value: number;
+    direction: 'up' | 'down' | 'neutral';
+    label: string;
+    sentiment: 'positive' | 'negative' | 'neutral' | 'attention';
+  };
+  icon: string;
+  iconColor: string;
+  href: string;
+}
+
+interface EnhancedKPICardProps {
+  kpi: KPIData;
+  // TODO: Add userRole prop for role-based navigation
+  // userRole?: UserRole;
+}
+
+// Gradient backgrounds based on card type
+const gradientClasses: Record<string, string> = {
+  enrollment: 'from-blue-50/80 to-indigo-50/40',
+  attendance: 'from-emerald-50/80 to-teal-50/40',
+  approvals: 'from-amber-50/80 to-orange-50/40',
+  recidivism: 'from-purple-50/80 to-violet-50/40',
+};
+
+const iconBgClasses: Record<string, string> = {
+  enrollment: 'bg-gradient-to-br from-blue-100 to-indigo-100',
+  attendance: 'bg-gradient-to-br from-emerald-100 to-teal-100',
+  approvals: 'bg-gradient-to-br from-amber-100 to-orange-100',
+  recidivism: 'bg-gradient-to-br from-purple-100 to-violet-100',
+};
+
+export function EnhancedKPICard({ kpi }: EnhancedKPICardProps) {
+  const Icon = iconMap[kpi.icon] || Users;
+
+  return (
+    <Link href={kpi.href}>
+      <motion.div
+        initial="rest"
+        whileHover="hover"
+        variants={kpiCardHover}
+        className="h-full rounded-xl overflow-hidden"
+      >
+        <Card className={cn(
+          'h-full border-0 bg-gradient-to-br shadow-sm rounded-xl',
+          'hover:shadow-lg transition-shadow duration-300',
+          gradientClasses[kpi.id] || 'from-slate-50/80 to-gray-50/40'
+        )}>
+          <CardContent className="pt-6 pb-5">
+            {/* ... card content ... */}
+          </CardContent>
+        </Card>
+      </motion.div>
+    </Link>
+  );
+}
+]]></code>
+    <modification_notes>
+      1. Add userRole prop to check access level
+      2. For recidivism card: if userRole not in L1+ roles, disable click or show tooltip
+      3. Add cursor-not-allowed for non-clickable state
+      4. Preserve campus filter in href via searchParams
+    </modification_notes>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2: Dashboard Preview Page (add campus filter) -->
+  <!-- ============================================================ -->
+  <file path="app/daep/(main)/dashboard-preview/page.tsx">
+    <description>
+      Main dashboard preview page with test data.
+      MODIFY: Add campus filter dropdown to header.
+    </description>
+    <code><![CDATA[
+// Key sections to modify:
+
+// 1. IMPORTS - Add:
+// import { CampusFilter } from './components/campus-filter';
+// import { useSearchParams } from 'next/navigation';
+
+// 2. TEST KPIs - Current href values:
+const TEST_KPIS = [
+  { id: 'enrollment', href: '/daep/students?filter=active' },
+  { id: 'attendance', href: '/daep/attendance' },  // Room Roster
+  { id: 'approvals', href: '/daep/approvals' },    // Existing page
+  { id: 'recidivism', href: '/daep/reports/recidivism' }, // New drill-down
+];
+
+// 3. ADMIN_ROLES constant already defined:
+const ADMIN_ROLES = ['daep_admin_l1', 'daep_admin_l2', 'super_admin'];
+
+// 4. HEADER section - Add campus filter:
+<motion.div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  <div>
+    <h1>Good morning!</h1>
+    <p>Here's what needs your attention today</p>
+  </div>
+  {/* ADD: <CampusFilter /> here */}
+  <PreviewQuickActions />
+</motion.div>
+]]></code>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3: Animation Constants -->
+  <!-- ============================================================ -->
+  <file path="app/daep/(main)/dashboard-preview/components/enhanced-animations.ts">
+    <description>Framer Motion animation variants for dashboard.</description>
+    <code><![CDATA[
+// KPI card hover animation
+export const kpiCardHover = {
+  rest: {
+    y: 0,
+    boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+  },
+  hover: {
+    y: -2,
+    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+    transition: { duration: 0.2, ease: 'easeOut' },
+  },
+};
+
+// Number count-up config
+export const countUpConfig = {
+  duration: 1.2,
+  ease: [0.16, 1, 0.3, 1],
+};
+
+// List item entrance
+export const listItemEntrance = {
+  initial: { opacity: 0, y: 15 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+};
+]]></code>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 4: Role Constants & Utilities -->
+  <!-- ============================================================ -->
+  <file path="lib/roles.ts">
+    <description>Role hierarchy and permission utilities.</description>
+    <code><![CDATA[
+// Role type definition
+export type UserRole =
+  | 'viewer' | 'campus_admin' | 'district_admin' | 'super_admin'
+  | 'daep_admin_l1' | 'daep_admin_l2' | 'daep_staff'
+  | 'parent' | 'student' | 'counselor';
+
+// Role hierarchy (higher = more permissions)
+export const ROLE_HIERARCHY: Record<UserRole, number> = {
+  super_admin: 100,
+  district_admin: 90,
+  daep_admin_l1: 80,
+  campus_admin: 70,
+  daep_admin_l2: 60,
+  daep_staff: 50,
+  counselor: 40,
+  viewer: 30,
+  parent: 20,
+  student: 10,
+};
+
+// Permission check
+export function hasPermission(userRole: UserRole, requiredRole: UserRole): boolean {
+  return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
+}
+
+// DAEP-specific roles
+export const DAEP_ROLES: UserRole[] = ['daep_admin_l1', 'daep_admin_l2', 'daep_staff'];
+]]></code>
+    <usage_for_story>
+      // Roles that can access recidivism breakdown:
+      const RECIDIVISM_ALLOWED_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1', 'daep_admin_l2'];
+
+      // Check in component:
+      const canAccessRecidivism = RECIDIVISM_ALLOWED_ROLES.includes(userRole);
+
+      // Or use hierarchy:
+      const canAccessRecidivism = hasPermission(userRole, 'daep_admin_l2');
+    </usage_for_story>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 5: Existing Approvals Page (reference) -->
+  <!-- ============================================================ -->
+  <file path="app/daep/(main)/approvals/page.tsx">
+    <description>
+      Existing approvals page structure.
+      Reference for: How it handles role check, campus filter support.
+    </description>
+    <code><![CDATA[
+// Role check pattern:
+const ADMIN_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1'];
+
+useEffect(() => {
+  async function checkAuth() {
+    const profile = await getUserProfile(user.id);
+    const role = profile?.role || 'viewer';
+    if (ADMIN_ROLES.includes(role)) {
+      setIsAuthorized(true);
+    } else {
+      router.push('/daep');
+    }
+  }
+  checkAuth();
+}, [user, isLoaded, router]);
+
+// TODO: Add campus filter support
+// const searchParams = useSearchParams();
+// const campusId = searchParams.get('campus');
+// Pass campusId to getPendingApprovals(campusId)
+]]></code>
+    <notes>
+      - Page already has role-based access check
+      - Need to add campus filter param support
+      - Server action getPendingApprovals needs optional campusId param
+    </notes>
+  </file>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 6: daep_placements Schema -->
+  <!-- ============================================================ -->
+  <schema table="daep_placements">
+    <description>DAEP placement records - key columns for recidivism query.</description>
+    <columns>
+      <column name="id" type="UUID" pk="true" />
+      <column name="tenant_id" type="TEXT" required="true" />
+      <column name="school_id" type="TEXT" required="true" comment="Student ID" />
+      <column name="incident_number" type="TEXT" required="true" />
+      <column name="placement_date" type="DATE" required="true" />
+      <column name="start_date" type="DATE" required="true" />
+      <column name="days_assigned" type="INT" required="true" comment="e.g., 30, 45" />
+      <column name="days_served" type="INT" default="0" />
+      <column name="offense_code" type="TEXT" required="true" comment="PEIMS code" />
+      <column name="placement_reason" type="TEXT" required="true" />
+      <column name="home_campus_id" type="TEXT" fk="campuses.id" />
+      <column name="status" type="TEXT" default="pending" comment="pending|active|transition|complete" />
+      <column name="assessment_90day_required" type="BOOLEAN" default="false" comment="Has 'with review' modifier" />
+      <column name="created_at" type="TIMESTAMPTZ" />
+    </columns>
+    <recidivism_query_notes>
+      - requires_review: Check assessment_90day_required for "w/review" display
+      - first_placement_days: days_assigned from first placement
+      - days_between: Calculated from consecutive placement dates
+      - JOIN with students table for names
+      - JOIN with daep_discipline_codes for offense descriptions
+    </recidivism_query_notes>
+  </schema>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 7: Campus Filter Component Template -->
+  <!-- ============================================================ -->
+  <template name="campus-filter.tsx">
+    <description>New component to create for campus filtering.</description>
+    <code><![CDATA[
+'use client';
+
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building2 } from 'lucide-react';
+
+interface Campus {
+  id: string;
+  name: string;
+}
+
+interface CampusFilterProps {
+  campuses: Campus[];
+  // If only 1 campus, component returns null (auto-hide)
+}
+
+export function CampusFilter({ campuses }: CampusFilterProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Auto-hide for single-campus tenants
+  if (campuses.length <= 1) {
+    return null;
+  }
+
+  const currentCampus = searchParams.get('campus') || 'all';
+
+  const handleChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'all') {
+      params.delete('campus');
+    } else {
+      params.set('campus', value);
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  return (
+    <Select value={currentCampus} onValueChange={handleChange}>
+      <SelectTrigger className="w-[200px]">
+        <Building2 className="h-4 w-4 mr-2" />
+        <SelectValue placeholder="All Campuses" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Campuses</SelectItem>
+        {campuses.map((campus) => (
+          <SelectItem key={campus.id} value={campus.id}>
+            {campus.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+]]></code>
+  </template>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 8: Recidivism Drill-Down Page Template -->
+  <!-- ============================================================ -->
+  <template name="reports/recidivism/page.tsx">
+    <description>New page for recidivism breakdown (L1+ only).</description>
+    <code><![CDATA[
+import { redirect } from 'next/navigation';
+import { currentUser } from '@clerk/nextjs/server';
+import { getUserProfile } from '@/app/actions/users';
+import { getRecidivismBreakdown } from '@/app/actions/daep/dashboard';
+import { DrillDownHeader } from '../../dashboard-preview/components/drill-down-header';
+import { DrillDownBreadcrumb } from '../../dashboard-preview/components/drill-down-breadcrumb';
+
+// Roles allowed to access this page
+const ALLOWED_ROLES = ['super_admin', 'district_admin', 'daep_admin_l1', 'daep_admin_l2'];
+
+interface PageProps {
+  searchParams: { campus?: string };
+}
+
+export default async function RecidivismPage({ searchParams }: PageProps) {
+  // Role check
+  const user = await currentUser();
+  if (!user) redirect('/daep');
+
+  const profile = await getUserProfile(user.id);
+  if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
+    redirect('/daep'); // Redirect non-authorized users
+  }
+
+  // Fetch data
+  const campusId = searchParams.campus;
+  const data = await getRecidivismBreakdown(campusId);
+
+  return (
+    <div className="space-y-6">
+      <DrillDownBreadcrumb
+        items={[
+          { label: 'Dashboard', href: '/daep/dashboard-preview' },
+          { label: 'Recidivism Rate' }
+        ]}
+      />
+
+      <DrillDownHeader
+        title="Recidivism Rate"
+        subtitle={`${data.rate}% (${data.returningCount} of ${data.totalCompleted} returned)`}
+        campusId={campusId}
+      />
+
+      {/* Charts: By Offense, Time to Return */}
+      {/* Table: Returning Students with profile links */}
+    </div>
+  );
+}
+]]></code>
+  </template>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 9: KPI Click Destinations -->
+  <!-- ============================================================ -->
+  <reference name="kpi-destinations">
+    <destinations>
+      <kpi id="enrollment" destination="/daep/reports/enrollment" new_page="true" />
+      <kpi id="attendance" destination="/daep/attendance" existing="true" notes="Room Roster page" />
+      <kpi id="approvals" destination="/daep/approvals" existing="true" notes="Existing approvals page" />
+      <kpi id="recidivism" destination="/daep/reports/recidivism" new_page="true" role_restricted="true" roles="super_admin,district_admin,daep_admin_l1,daep_admin_l2" />
+    </destinations>
+    <url_pattern>
+      All destinations preserve campus filter: ?campus=xxx
+      Example: /daep/reports/recidivism?campus=campus-uuid
+    </url_pattern>
+  </reference>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 10: Implementation Checklist -->
+  <!-- ============================================================ -->
+  <checklist>
+    <item priority="1">Create campus-filter.tsx component</item>
+    <item priority="2">Update server actions to accept campusId filter</item>
+    <item priority="3">Add campus filter to dashboard-preview header</item>
+    <item priority="4">Update enhanced-kpi-card.tsx with role-based navigation</item>
+    <item priority="5">Create /daep/reports/enrollment drill-down page</item>
+    <item priority="6">Create /daep/reports/recidivism drill-down page (L1+ only)</item>
+    <item priority="7">Update existing pages (attendance, approvals) to accept campus param</item>
+    <item priority="8">Create shared drill-down components (header, breadcrumb, back button)</item>
+    <item priority="9">Test with Playwright MCP</item>
+  </checklist>
+
+</context>

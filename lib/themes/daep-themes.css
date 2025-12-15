@@ -112,3 +112,35 @@
 .daep-theme .hover\:bg-accent:hover {
   background-color: #F1F5F9 !important;  /* Slate-100 */
 }
+
+/* ============================================
+ * Portal-Safe Utility Classes
+ * These work in Radix portals (popovers, dialogs, dropdowns)
+ * because they don't require .daep-theme parent selector.
+ * The CSS variables resolve correctly since [data-daep-theme]
+ * is set at document level.
+ * ============================================ */
+
+/* Background tints - theme primary with opacity */
+.daep-bg-primary-tint {
+  background-color: rgb(var(--daep-primary) / 0.15);
+}
+.daep-bg-primary-tint-light {
+  background-color: rgb(var(--daep-primary) / 0.08);
+}
+.daep-bg-primary-tint-strong {
+  background-color: rgb(var(--daep-primary) / 0.25);
+}
+
+/* Text colors */
+.daep-text-primary {
+  color: rgb(var(--daep-primary));
+}
+
+/* Border colors */
+.daep-border-primary {
+  border-color: rgb(var(--daep-primary));
+}
+.daep-border-primary-tint {
+  border-color: rgb(var(--daep-primary) / 0.3);
+}
