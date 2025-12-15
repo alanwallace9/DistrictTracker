@@ -347,8 +347,8 @@ function PreviewQuickActions({
   );
 }
 
-// Main Preview Page
-export default function DashboardPreviewPage() {
+// Inner component that uses useSearchParams
+function DashboardPreviewContent() {
   const searchParams = useSearchParams();
   const campusId = searchParams.get('campus') || undefined;
 
@@ -569,5 +569,14 @@ export default function DashboardPreviewPage() {
         Last updated: {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
       </motion.div>
     </div>
+  );
+}
+
+// Main Preview Page - wraps content in Suspense for useSearchParams
+export default function DashboardPreviewPage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardPreviewContent />
+    </Suspense>
   );
 }
