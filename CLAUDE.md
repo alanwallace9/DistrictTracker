@@ -33,13 +33,28 @@ grep NEXT_PUBLIC_SUPABASE_URL .env.local
 ### 3. Commit Workflow (WAIT FOR USER APPROVAL)
 After story completion:
 1. **ASK USER**: "Story complete - ready to commit?" - **YES - WAIT**
-2. Invoke `/bmad:bmm:agents:tech-writer` to draft commit message AND changelog entry
-3. Update `docs/sprint-artifacts/daep/epic-{N}-changelog.md` with new entry
-4. Update `sprint-status.yaml` to mark story as `done`
-5. Bump version in `package.json`
-6. Stage, commit, and push to staging branch
+2. **RUN BUILD**: `npm run build` - **MUST PASS before committing**
+3. Invoke `/bmad:bmm:agents:tech-writer` to draft commit message AND changelog entry
+4. Update `docs/sprint-artifacts/daep/epic-{N}-changelog.md` with new entry
+5. Update `sprint-status.yaml` to mark story as `done`
+6. Bump version in `package.json`
+7. Stage, commit, and push to staging branch
 
-**DO NOT commit without user approval. The tech-writer agent ensures consistent formatting.**
+**DO NOT commit without user approval. DO NOT push without passing build. The tech-writer agent ensures consistent formatting.**
+
+### 4. Pre-Push Build Verification (MANDATORY)
+**ALWAYS run `npm run build` before pushing ANY commit.** This catches:
+- TypeScript errors
+- Missing exports/imports
+- Next.js static generation issues (Suspense boundaries, dynamic routes)
+- Bundle/build configuration problems
+
+```bash
+# Run this before EVERY push
+npm run build
+```
+
+**If build fails, fix the issues before pushing. Never push broken code to remote.**
 
 ---
 
