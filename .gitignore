@@ -98,3 +98,6 @@ CHANGELOG.md
 TODO.md
 
 # Note: CLAUDE.md is now tracked - it contains project instructions
+
+# Playwright MCP test screenshots
+.playwright-mcp/
