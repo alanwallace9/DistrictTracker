@@ -836,7 +836,11 @@ export async function getBehaviorNotesList(
     let notes: BehaviorNoteListItem[] = (data || []).map((note: Record<string, unknown>) => {
       const placement = note.daep_placements as Record<string, unknown> | null;
       const categoryData = note.daep_behavior_categories as Record<string, unknown> | null;
-      const staffInfo = staffMap.get(note.staff_member as string) || { displayName: 'Staff', lastName: 'Staff' };
+      const rawStaffMember = (note.staff_member as string) || '';
+      const staffInfo = staffMap.get(rawStaffMember) || {
+        displayName: rawStaffMember || 'Staff',
+        lastName: rawStaffMember || 'Staff',
+      };
       const description = (note.description as string) || '';
 
       // Get student school ID from placement or note

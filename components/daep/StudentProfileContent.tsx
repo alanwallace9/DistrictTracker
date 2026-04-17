@@ -110,6 +110,7 @@ export function StudentProfileContent({
             <StudentAttendanceCard
               attendanceRates={attendanceRates}
               daysAssigned={profile.currentPlacement.days_assigned}
+              daysServed={profile.currentPlacement.days_served ?? 0}
             />
           )}
           <TrespassTrackerStatus schoolId={schoolId} />

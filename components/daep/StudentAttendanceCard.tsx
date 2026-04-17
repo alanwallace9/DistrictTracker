@@ -7,24 +7,26 @@ import type { StudentAttendanceRates } from '@/lib/validation/schemas';
 interface Props {
   attendanceRates: StudentAttendanceRates;
   daysAssigned: number;
+  daysServed: number;
 }
 
-export function StudentAttendanceCard({ attendanceRates, daysAssigned }: Props) {
+export function StudentAttendanceCard({ attendanceRates, daysAssigned, daysServed }: Props) {
   const { cumulative } = attendanceRates;
-  const daysPresent = cumulative.periodsPresent;
-  const rate = cumulative.rate;
+  // Use days_served from the placement as authoritative source — matches the progress bar
+  const daysPresent = daysServed;
+  const rate = daysAssigned > 0 ? Math.round((daysServed / daysAssigned) * 1000) / 10 : 0;
 
   const rateColor =
-    cumulative.rateCategory === 'green'
+    rate > 90
       ? 'text-green-600 dark:text-green-400'
-      : cumulative.rateCategory === 'yellow'
+      : rate >= 85
         ? 'text-yellow-600 dark:text-yellow-400'
         : 'text-destructive';
 
   const barColor =
-    cumulative.rateCategory === 'green'
+    rate > 90
       ? 'bg-green-500'
-      : cumulative.rateCategory === 'yellow'
+      : rate >= 85
         ? 'bg-yellow-500'
         : 'bg-destructive';
 

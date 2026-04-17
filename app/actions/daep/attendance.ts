@@ -1223,8 +1223,8 @@ export async function getCumulativeAttendanceRate(
       periodsPresent: 0,
       periodsAbsent: 0,
       totalPeriods: 0,
-      rate: 100, // Assume perfect until proven otherwise
-      rateCategory: 'green',
+      rate: 0,
+      rateCategory: getRateCategory(0),
       startDate: placement.start_date,
       endDate: today,
       daysWithAttendance: 0,
@@ -1256,7 +1256,7 @@ export async function getCumulativeAttendanceRate(
 
   const totalDays = byDate.size;
   const daysAbsent = totalDays - daysPresent;
-  const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 100;
+  const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 0;
   const roundedRate = Math.round(rate * 10) / 10;
 
   // Calculate consecutive absent days (uses day-based logic)
@@ -1367,13 +1367,12 @@ export async function getRoomAttendanceRates(
     const records = byPlacement.get(placementId) || [];
 
     if (records.length === 0) {
-      // No attendance taken yet - assume perfect
       resultMap.set(placementId, {
         periodsPresent: 0,
         periodsAbsent: 0,
         totalPeriods: 0,
-        rate: 100,
-        rateCategory: 'green',
+        rate: 0,
+        rateCategory: getRateCategory(0),
       });
       return;
     }
@@ -1401,7 +1400,7 @@ export async function getRoomAttendanceRates(
 
     const totalDays = byDate.size;
     const daysAbsent = totalDays - daysPresent;
-    const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 100;
+    const rate = totalDays > 0 ? (daysPresent / totalDays) * 100 : 0;
     const roundedRate = Math.round(rate * 10) / 10;
 
     resultMap.set(placementId, {
