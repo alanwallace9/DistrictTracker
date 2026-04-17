@@ -14,6 +14,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { StudentProfileHeader } from './StudentProfileHeader';
 import { StudentDemographicsCard } from './StudentDemographicsCard';
+import { StudentAttendanceCard } from './StudentAttendanceCard';
 import { CurrentPlacementCard } from './CurrentPlacementCard';
 import { TrespassTrackerStatus } from './TrespassTrackerStatus';
 import { StudentProfileTabs } from './StudentProfileTabs';
@@ -102,9 +103,15 @@ export function StudentProfileContent({
 
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column: Demographics + TT Status */}
+        {/* Left column: Demographics + Attendance + TT Status */}
         <div className="space-y-6">
           <StudentDemographicsCard student={profile.student} schoolId={schoolId} />
+          {attendanceRates && profile.currentPlacement && (
+            <StudentAttendanceCard
+              attendanceRates={attendanceRates}
+              daysAssigned={profile.currentPlacement.days_assigned}
+            />
+          )}
           <TrespassTrackerStatus schoolId={schoolId} />
         </div>
 

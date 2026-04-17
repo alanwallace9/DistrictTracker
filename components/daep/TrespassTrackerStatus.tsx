@@ -60,6 +60,7 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
         title="TrespassTracker Status"
         icon={<Shield className="w-4 h-4" />}
         storageKey="student-tt-status"
+        defaultOpen={false}
       >
         <div className="space-y-3">
           <Skeleton className="h-4 w-3/4" />
@@ -76,6 +77,7 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
         title="TrespassTracker Status"
         icon={<ShieldOff className="w-4 h-4" />}
         storageKey="student-tt-status"
+        defaultOpen={false}
       >
         <p className="text-sm text-destructive">{error}</p>
       </CollapsibleCard>
@@ -88,6 +90,7 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
         title="TrespassTracker Status"
         icon={<ShieldOff className="w-4 h-4" />}
         storageKey="student-tt-status"
+        defaultOpen={false}
       >
         <p className="text-sm text-muted-foreground">
           No TrespassTracker records found for this student
@@ -114,6 +117,7 @@ export function TrespassTrackerStatus({ schoolId, moduleAccess = 'both' }: Props
         />
       }
       storageKey="student-tt-status"
+      defaultOpen={false}
       className={status.trespassStatus === 'active' ? 'border-destructive/50' : ''}
       contentClassName="space-y-4">
         {/* Warning banner for active trespass - uses theme-compliant destructive colors */}

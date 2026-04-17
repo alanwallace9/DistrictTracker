@@ -69,9 +69,9 @@ export function RecidivismDrillDown({
       const exportData = data.returningStudents.map((student) => ({
         'Student Name': `${student.firstName} ${student.lastName}`,
         'Student ID': student.schoolId,
-        'Original Offense': student.originalOffense,
+        'Original Offense': student.originalOffenseCode || student.originalOffense,
         '1st Placement Days': student.firstPlacementDisplay,
-        'Return Offense': student.returnOffense,
+        'Return Offense': student.returnOffenseCode || student.returnOffense,
         'Days Between': student.daysBetween,
         'Total Placements': student.placementCount,
       }));
@@ -194,7 +194,7 @@ export function RecidivismDrillDown({
                     >
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-700 font-medium">
-                          {item.offense}
+                          {item.offenseCode}
                         </span>
                         <span className="text-slate-500">
                           {item.percentage}% ({item.count})
@@ -304,6 +304,7 @@ export function RecidivismDrillDown({
                       <TableHead>Original Offense</TableHead>
                       <TableHead className="text-center">1st Placement Days</TableHead>
                       <TableHead>Return Offense</TableHead>
+                      <TableHead className="text-center">Times</TableHead>
                       <TableHead className="text-center">Days Between</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -325,8 +326,8 @@ export function RecidivismDrillDown({
                             <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </Link>
                         </TableCell>
-                        <TableCell className="text-slate-600">
-                          {student.originalOffense}
+                        <TableCell className="text-slate-600 font-mono text-sm">
+                          {student.originalOffenseCode || student.originalOffense}
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge
@@ -340,8 +341,16 @@ export function RecidivismDrillDown({
                             {student.firstPlacementDisplay}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-slate-600">
-                          {student.returnOffense}
+                        <TableCell className="text-slate-600 font-mono text-sm">
+                          {student.returnOffenseCode || student.returnOffense}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={student.placementCount > 2 ? 'destructive' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {student.placementCount}x
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-center">
                           <span

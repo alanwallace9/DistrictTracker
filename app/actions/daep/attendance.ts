@@ -464,6 +464,37 @@ export async function markAttendance(
       auditDetails
     );
 
+    // Update days_served/days_remaining on the placement
+    const { count: daysServed } = await supabase
+      .from('daep_attendance')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('placement_id', placement_id)
+      .eq('counts_toward_days_served', true)
+      .neq('status', 'A');
+
+    if (daysServed !== null) {
+      const { data: placementData } = await supabase
+        .from('daep_placements')
+        .select('days_assigned, school_id')
+        .eq('id', placement_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (placementData) {
+        await supabase
+          .from('daep_placements')
+          .update({
+            days_served: daysServed,
+            days_remaining: Math.max(0, placementData.days_assigned - daysServed),
+          })
+          .eq('id', placement_id)
+          .eq('tenant_id', tenantId);
+
+        revalidatePath(`/daep/students/${placementData.school_id}`);
+      }
+    }
+
     revalidatePath('/daep/rooms');
     return { success: true, entry, pointsCreated, pointsRemoved };
   } catch (error) {

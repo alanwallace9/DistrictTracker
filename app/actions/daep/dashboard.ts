@@ -283,12 +283,12 @@ async function getKPIs(
     .eq('approval_status', 'pending');
 
   // 4. Recidivism Rate
-  // Students with multiple placements / total students with completed placements
+  // Students with multiple placements / total students with any placement (matches drill-down)
   let completedQuery = supabase
     .from('daep_placements')
     .select('school_id')
     .eq('tenant_id', tenantId)
-    .eq('status', 'completed');
+    .in('status', ['completed', 'active']);
 
   if (campusFilter) {
     completedQuery = completedQuery.eq('home_campus_id', campusFilter);
@@ -984,6 +984,9 @@ export async function getRecidivismBreakdown(
       days_assigned,
       assessment_90day_required,
       created_at,
+      start_date,
+      expected_end_date,
+      actual_end_date,
       status,
       home_campus_id
     `)
@@ -1027,9 +1030,9 @@ export async function getRecidivismBreakdown(
   studentPlacements.forEach((studentPlacs, schoolId) => {
     if (studentPlacs.length > 1) {
       returningStudentIds.push(schoolId);
-      // Sort by created_at to get first and latest
+      // Sort by start_date to get chronological order
       const sorted = [...studentPlacs].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
       );
       returningStudentData.push({
         schoolId,
@@ -1044,9 +1047,9 @@ export async function getRecidivismBreakdown(
   const returningCount = returningStudentIds.length;
   const rate = totalStudents > 0 ? Math.round((returningCount / totalStudents) * 1000) / 10 : 0;
 
-  // Get student names
+  // Get student names from trespass_records (primary student table)
   const { data: students } = await supabase
-    .from('students')
+    .from('trespass_records')
     .select('school_id, first_name, last_name')
     .eq('tenant_id', tenantId)
     .in('school_id', returningStudentIds.length > 0 ? returningStudentIds : ['none']);
@@ -1102,11 +1105,12 @@ export async function getRecidivismBreakdown(
   timeRanges.forEach((r) => timeCounts.set(r.range, 0));
 
   returningStudentData.forEach((rs) => {
-    const firstDate = new Date(rs.firstPlacement.created_at);
-    const latestDate = new Date(rs.latestPlacement.created_at);
-    const daysBetween = Math.floor(
-      (latestDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // Days between = start of return placement minus end of first placement
+    const firstEnd = rs.firstPlacement.actual_end_date || rs.firstPlacement.expected_end_date || rs.firstPlacement.start_date;
+    const returnStart = rs.latestPlacement.start_date;
+    const daysBetween = Math.max(0, Math.floor(
+      (new Date(returnStart).getTime() - new Date(firstEnd).getTime()) / (1000 * 60 * 60 * 24)
+    ));
 
     for (const range of timeRanges) {
       if (daysBetween >= range.min && daysBetween <= range.max) {
@@ -1126,11 +1130,11 @@ export async function getRecidivismBreakdown(
   const returningStudents: ReturningStudent[] = returningStudentData
     .map((rs) => {
       const student = studentNameMap.get(rs.schoolId);
-      const firstDate = new Date(rs.firstPlacement.created_at);
-      const latestDate = new Date(rs.latestPlacement.created_at);
-      const daysBetween = Math.floor(
-        (latestDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const firstEnd = rs.firstPlacement.actual_end_date || rs.firstPlacement.expected_end_date || rs.firstPlacement.start_date;
+      const returnStart = rs.latestPlacement.start_date;
+      const daysBetween = Math.max(0, Math.floor(
+        (new Date(returnStart).getTime() - new Date(firstEnd).getTime()) / (1000 * 60 * 60 * 24)
+      ));
 
       const firstDays = rs.firstPlacement.days_assigned || 0;
       const firstRequiresReview = rs.firstPlacement.assessment_90day_required || false;
