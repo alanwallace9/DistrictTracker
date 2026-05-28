@@ -260,22 +260,25 @@ export function calculateBusinessDaysFallback(
 // ========== STORY 2-11: ROLLOVER CALENDAR UTILITIES ==========
 
 /**
+ * Get the school year (format YYYY-YYYY, e.g. "2024-2025") for a given date.
+ * Logic: If the month is July or later (>=7), year is current-next;
+ *        otherwise it is previous-current.
+ */
+export function getSchoolYearForDate(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1; // 1-12
+
+  // School year typically starts in August/September.
+  // July (7) is summer but closer to the new school year.
+  return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+}
+
+/**
  * Get current school year in format YYYY-YYYY (e.g., "2024-2025")
- * Logic: If current month is July or later (>=7), year is current-next
- *        Otherwise, year is previous-current
  */
 export function getCurrentSchoolYear(): string {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // 1-12
-
-  // School year typically starts in August/September
-  // July (7) is summer but closer to new school year
-  if (currentMonth >= 7) {
-    return `${currentYear}-${currentYear + 1}`;
-  } else {
-    return `${currentYear - 1}-${currentYear}`;
-  }
+  return getSchoolYearForDate(new Date());
 }
 
 /**

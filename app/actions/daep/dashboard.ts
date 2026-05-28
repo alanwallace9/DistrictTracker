@@ -19,6 +19,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { currentUser } from '@clerk/nextjs/server';
 import { format, subDays, subWeeks, startOfWeek, endOfWeek } from 'date-fns';
+import { getCurrentSchoolYear, getSchoolYearForDate } from '@/lib/daep/days-remaining';
 
 // ============================================================================
 // TYPES
@@ -198,6 +199,69 @@ export async function getDashboardData(
 }
 
 // ============================================================================
+// RECIDIVISM HELPERS
+// ============================================================================
+
+/** Minimal placement shape needed to evaluate recidivism. */
+interface RecidivismPlacement {
+  school_id: string;
+  start_date: string;
+  status: string;
+  actual_end_date?: string | null;
+}
+
+/**
+ * Identify the distinct students who returned to DAEP within the given school year.
+ *
+ * A placement qualifies only if it is not a no-show and not a rollover (callers must
+ * pre-filter those out). A student is a "returner" when a qualifying placement that
+ * completed is followed by another qualifying placement that started on/after the
+ * prior placement's end date — all within the same school year.
+ *
+ * Returns the set of returning student IDs and the eligible denominator: students
+ * with at least one completed qualifying placement in the school year.
+ */
+function computeReturningStudents(
+  placements: RecidivismPlacement[],
+  schoolYear: string
+): { returningStudentIds: Set<string>; eligibleStudentIds: Set<string> } {
+  const byStudent = new Map<string, RecidivismPlacement[]>();
+  for (const p of placements) {
+    if (!p.start_date) continue;
+    if (getSchoolYearForDate(p.start_date) !== schoolYear) continue;
+    const list = byStudent.get(p.school_id) || [];
+    list.push(p);
+    byStudent.set(p.school_id, list);
+  }
+
+  const returningStudentIds = new Set<string>();
+  const eligibleStudentIds = new Set<string>();
+
+  byStudent.forEach((studentPlacements, schoolId) => {
+    const sorted = [...studentPlacements].sort(
+      (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+
+    const completed = sorted.filter((p) => p.status === 'complete');
+    if (completed.length === 0) return; // require a prior completion to be eligible
+    eligibleStudentIds.add(schoolId);
+
+    // Returner: a qualifying placement starts on/after a completed placement's end date.
+    const returned = sorted.some((later) =>
+      completed.some((prior) => {
+        if (prior === later) return false;
+        const priorEnd = new Date(prior.actual_end_date || prior.start_date).getTime();
+        return new Date(later.start_date).getTime() >= priorEnd;
+      })
+    );
+
+    if (returned) returningStudentIds.add(schoolId);
+  });
+
+  return { returningStudentIds, eligibleStudentIds };
+}
+
+// ============================================================================
 // KPI CARDS
 // ============================================================================
 
@@ -282,32 +346,33 @@ async function getKPIs(
     .eq('tenant_id', tenantId)
     .eq('approval_status', 'pending');
 
-  // 4. Recidivism Rate
-  // Students with multiple placements / total students with any placement (matches drill-down)
-  let completedQuery = supabase
+  // 4. Recidivism Rate (current school year)
+  // Returning students / students who completed a placement this school year.
+  // Excludes no-shows and year-end rollover placements (Story 2-11).
+  const schoolYear = getCurrentSchoolYear();
+  let recidivismQuery = supabase
     .from('daep_placements')
-    .select('school_id')
+    .select('school_id, start_date, status, actual_end_date')
     .eq('tenant_id', tenantId)
-    .in('status', ['completed', 'active']);
+    .eq('no_show', false)
+    .eq('is_rollover_placement', false);
 
   if (campusFilter) {
-    completedQuery = completedQuery.eq('home_campus_id', campusFilter);
+    recidivismQuery = recidivismQuery.eq('home_campus_id', campusFilter);
   }
 
-  const { data: completedPlacements } = await completedQuery;
+  const { data: recidivismPlacements } = await recidivismQuery;
 
   let recidivismRate = 0;
-  if (completedPlacements && completedPlacements.length > 0) {
-    const studentCounts = new Map<string, number>();
-    completedPlacements.forEach((p: { school_id: string }) => {
-      studentCounts.set(p.school_id, (studentCounts.get(p.school_id) || 0) + 1);
-    });
+  if (recidivismPlacements && recidivismPlacements.length > 0) {
+    const { returningStudentIds, eligibleStudentIds } = computeReturningStudents(
+      recidivismPlacements,
+      schoolYear
+    );
 
-    const totalStudents = studentCounts.size;
-    const repeatStudents = Array.from(studentCounts.values()).filter((c) => c > 1).length;
-
-    if (totalStudents > 0) {
-      recidivismRate = Math.round((repeatStudents / totalStudents) * 100 * 10) / 10;
+    if (eligibleStudentIds.size > 0) {
+      recidivismRate =
+        Math.round((returningStudentIds.size / eligibleStudentIds.size) * 100 * 10) / 10;
     }
   }
 
@@ -369,7 +434,7 @@ async function getKPIs(
       trend: {
         value: 0,
         direction: 'neutral',
-        label: 'All time',
+        label: schoolYear,
         sentiment: recidivismRate > 20 ? 'negative' : 'neutral',
       },
       icon: 'RefreshCw',
@@ -969,12 +1034,14 @@ export interface RecidivismBreakdown {
  * Includes offense distribution, time to return, and returning students table
  */
 export async function getRecidivismBreakdown(
-  campusId?: string
+  campusId?: string,
+  schoolYear: string = getCurrentSchoolYear()
 ): Promise<RecidivismBreakdown> {
   const tenantId = await getTenantId();
   const supabase = await createServerClient();
 
-  // Build base query for completed placements
+  // Fetch all qualifying placements (not no-show, not rollover). We keep every
+  // status because evaluating a "return" needs both completed and later placements.
   let placementsQuery = supabase
     .from('daep_placements')
     .select(`
@@ -991,15 +1058,21 @@ export async function getRecidivismBreakdown(
       home_campus_id
     `)
     .eq('tenant_id', tenantId)
-    .in('status', ['completed', 'active']);
+    .eq('no_show', false)
+    .eq('is_rollover_placement', false);
 
   if (campusId && campusId !== 'all') {
     placementsQuery = placementsQuery.eq('home_campus_id', campusId);
   }
 
-  const { data: placements, error: placementsError } = await placementsQuery;
+  const { data: allPlacements, error: placementsError } = await placementsQuery;
 
-  if (placementsError || !placements || placements.length === 0) {
+  // Limit to the requested school year (derived from start_date).
+  const placements = (allPlacements || []).filter(
+    (p) => p.start_date && getSchoolYearForDate(p.start_date) === schoolYear
+  );
+
+  if (placementsError || placements.length === 0) {
     return {
       rate: 0,
       returningCount: 0,
@@ -1010,7 +1083,7 @@ export async function getRecidivismBreakdown(
     };
   }
 
-  // Group placements by student
+  // Group placements by student (within the school year)
   const studentPlacements = new Map<string, typeof placements>();
   placements.forEach((p) => {
     const existing = studentPlacements.get(p.school_id) || [];
@@ -1018,8 +1091,13 @@ export async function getRecidivismBreakdown(
     studentPlacements.set(p.school_id, existing);
   });
 
-  // Find returning students (more than 1 placement)
-  const returningStudentIds: string[] = [];
+  // Determine returners and the eligible denominator using the shared rule.
+  const { returningStudentIds: returningSet, eligibleStudentIds } = computeReturningStudents(
+    placements,
+    schoolYear
+  );
+
+  const returningStudentIds: string[] = Array.from(returningSet);
   const returningStudentData: Array<{
     schoolId: string;
     firstPlacement: (typeof placements)[0];
@@ -1027,23 +1105,21 @@ export async function getRecidivismBreakdown(
     placementCount: number;
   }> = [];
 
-  studentPlacements.forEach((studentPlacs, schoolId) => {
-    if (studentPlacs.length > 1) {
-      returningStudentIds.push(schoolId);
-      // Sort by start_date to get chronological order
-      const sorted = [...studentPlacs].sort(
-        (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
-      );
-      returningStudentData.push({
-        schoolId,
-        firstPlacement: sorted[0],
-        latestPlacement: sorted[sorted.length - 1],
-        placementCount: sorted.length,
-      });
-    }
+  returningStudentIds.forEach((schoolId) => {
+    const sorted = [...(studentPlacements.get(schoolId) || [])].sort(
+      (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+    // First completed placement is the original stay; latest is the return.
+    const firstCompleted = sorted.find((p) => p.status === 'complete') || sorted[0];
+    returningStudentData.push({
+      schoolId,
+      firstPlacement: firstCompleted,
+      latestPlacement: sorted[sorted.length - 1],
+      placementCount: sorted.length,
+    });
   });
 
-  const totalStudents = studentPlacements.size;
+  const totalStudents = eligibleStudentIds.size;
   const returningCount = returningStudentIds.length;
   const rate = totalStudents > 0 ? Math.round((returningCount / totalStudents) * 1000) / 10 : 0;
 

@@ -230,6 +230,66 @@ export async function searchStudentsForPlacement(
   }));
 }
 
+// ========== FIND POSSIBLE DUPLICATE STUDENTS (intake guardrail) ==========
+
+/**
+ * Find existing students whose name matches the one being entered in the
+ * quick-create dialog. Used to warn staff before they create a duplicate
+ * student record, so repeat placements stay linked to the same school_id
+ * (which is what makes recidivism tracking work).
+ */
+export async function findPossibleStudentMatches(
+  firstName: string,
+  lastName: string
+): Promise<StudentSearchResult[]> {
+  const first = firstName.trim();
+  const last = lastName.trim();
+  if (first.length < 2 || last.length < 2) {
+    return [];
+  }
+
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+
+  const { data: students, error } = await supabase
+    .from('trespass_records')
+    .select('school_id, first_name, last_name, grade_level, current_school')
+    .eq('tenant_id', tenantId)
+    .ilike('first_name', first)
+    .ilike('last_name', last)
+    .order('last_name')
+    .limit(10);
+
+  if (error) {
+    console.error('Error finding possible student matches:', error);
+    return [];
+  }
+
+  if (!students || students.length === 0) {
+    return [];
+  }
+
+  // Flag which matches already have an active placement
+  const schoolIds = students.map((s) => s.school_id);
+  const { data: activePlacements } = await supabase
+    .from('daep_placements')
+    .select('school_id')
+    .eq('tenant_id', tenantId)
+    .in('school_id', schoolIds)
+    .in('status', ['pending', 'active', 'met']);
+
+  const activeStudentIds = new Set(activePlacements?.map((p) => p.school_id) || []);
+
+  return students.map((s) => ({
+    school_id: s.school_id,
+    first_name: s.first_name,
+    last_name: s.last_name,
+    grade_level: s.grade_level,
+    current_school: s.current_school,
+    has_active_placement: activeStudentIds.has(s.school_id),
+  }));
+}
+
 // ========== CHECK DUPLICATE PLACEMENT ==========
 
 export async function checkDuplicatePlacement(

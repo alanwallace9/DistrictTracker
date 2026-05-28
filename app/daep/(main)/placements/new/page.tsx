@@ -32,6 +32,7 @@ import {
   createPlacement,
   getExpectedEndDatePreview,
   createQuickStudent,
+  findPossibleStudentMatches,
   getOffenseCodesForForm,
   getLocationCodesForOffense,
   type DisciplineCodeOption,
@@ -105,6 +106,7 @@ export default function NewPlacementPage() {
     campus_id: '',
   });
   const [creatingStudent, setCreatingStudent] = useState(false);
+  const [possibleDuplicates, setPossibleDuplicates] = useState<StudentSearchResult[]>([]);
 
   // Load form options on mount
   useEffect(() => {
@@ -242,6 +244,25 @@ export default function NewPlacementPage() {
       }
     }
   }, [locationCode, locationCodes]);
+
+  // Warn if a student with the same name already exists (avoid duplicate records)
+  useEffect(() => {
+    if (!showNewStudentDialog) {
+      setPossibleDuplicates([]);
+      return;
+    }
+    const first = newStudentForm.first_name.trim();
+    const last = newStudentForm.last_name.trim();
+    if (first.length < 2 || last.length < 2) {
+      setPossibleDuplicates([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const matches = await findPossibleStudentMatches(first, last);
+      setPossibleDuplicates(matches);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [showNewStudentDialog, newStudentForm.first_name, newStudentForm.last_name]);
 
   const handleSelectStudent = (student: StudentSearchResult) => {
     setSelectedStudent(student);
@@ -800,6 +821,49 @@ export default function NewPlacementPage() {
                 />
               </div>
             </div>
+            {possibleDuplicates.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+                <div className="flex items-center gap-2 font-medium text-amber-800">
+                  <AlertCircle className="w-4 h-4" />
+                  Possible existing student{possibleDuplicates.length > 1 ? 's' : ''} found
+                </div>
+                <p className="mt-1 text-amber-700">
+                  A record with this name already exists. Use it instead of creating a
+                  duplicate so the placement links to the same student.
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {possibleDuplicates.map((match) => (
+                    <li
+                      key={match.school_id}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="text-amber-900">
+                        {match.first_name} {match.last_name} ({match.school_id})
+                        {match.grade_level ? ` · Grade ${match.grade_level}` : ''}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          handleSelectStudent(match);
+                          setShowNewStudentDialog(false);
+                          setNewStudentForm({
+                            school_id: '',
+                            first_name: '',
+                            last_name: '',
+                            grade_level: '',
+                            campus_id: '',
+                          });
+                        }}
+                      >
+                        Use this student
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="new-grade">Grade Level</Label>

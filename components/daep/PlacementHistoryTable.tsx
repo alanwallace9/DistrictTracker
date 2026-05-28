@@ -72,6 +72,7 @@ export function PlacementHistoryTable({ placements }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Visit #</TableHead>
               <TableHead>Incident #</TableHead>
               <TableHead>Start Date</TableHead>
               <TableHead>Days</TableHead>
@@ -90,6 +91,23 @@ export function PlacementHistoryTable({ placements }: Props) {
                   className="cursor-pointer hover:bg-muted/50"
                   title="Click to view details (coming soon)"
                 >
+                  <TableCell>
+                    {placement.visit_number ? (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Visit #{placement.visit_number}</span>
+                        {placement.is_repeat && (
+                          <Badge
+                            variant="outline"
+                            className="bg-purple-100 text-purple-800 border-purple-200"
+                          >
+                            Repeat
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="font-mono text-sm">
                     {placement.incident_number}
                   </TableCell>

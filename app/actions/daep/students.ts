@@ -7,6 +7,7 @@ import {
   type StudentSearchInput,
   type PlacementStatus,
 } from '@/lib/validation/schemas';
+import { getSchoolYearForDate } from '@/lib/daep/days-remaining';
 
 // ========== TYPES FOR STUDENT LIST ==========
 
@@ -99,9 +100,14 @@ export interface PlacementDetail {
 
   // Flags
   rollover_student: boolean;
+  is_rollover_placement: boolean;
   no_show: boolean;
   assessment_90day_required: boolean;
   assessment_90day_date: string | null;
+
+  // Repeat-visit tracking (computed per school year; null for no-show/rollover)
+  visit_number: number | null;
+  is_repeat: boolean;
 
   // Notes
   intake_notes: string | null;
@@ -521,6 +527,7 @@ export async function getStudentProfile(schoolId: string): Promise<StudentProfil
       transition_meeting_date,
       first_day_back_date,
       rollover_student,
+      is_rollover_placement,
       no_show,
       assessment_90day_required,
       assessment_90day_date,
@@ -580,13 +587,41 @@ export async function getStudentProfile(schoolId: string): Promise<StudentProfil
     first_day_back_date: p.first_day_back_date,
     transition_complete: !!p.first_day_back_date,
     rollover_student: p.rollover_student,
+    is_rollover_placement: p.is_rollover_placement,
     no_show: p.no_show,
     assessment_90day_required: p.assessment_90day_required,
     assessment_90day_date: p.assessment_90day_date,
     intake_notes: p.intake_notes,
     completion_notes: p.completion_notes,
     created_at: p.created_at,
+    visit_number: null,
+    is_repeat: false,
   }));
+
+  // 4b. Assign per-school-year visit numbers. Qualifying placements (not a no-show,
+  // not a rollover) are numbered chronologically within each school year; visit >= 2
+  // that follows a completed prior placement is flagged as a repeat.
+  const byYear = new Map<string, PlacementDetail[]>();
+  for (const p of transformedPlacements) {
+    if (p.no_show || p.is_rollover_placement || !p.start_date) continue;
+    const year = getSchoolYearForDate(p.start_date);
+    const list = byYear.get(year) || [];
+    list.push(p);
+    byYear.set(year, list);
+  }
+
+  byYear.forEach((yearPlacements) => {
+    const chronological = [...yearPlacements].sort(
+      (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+    chronological.forEach((p, index) => {
+      p.visit_number = index + 1;
+      const priorCompleted = chronological
+        .slice(0, index)
+        .some((prev) => prev.status === 'complete');
+      p.is_repeat = index > 0 && priorCompleted;
+    });
+  });
 
   // 5. Identify current placement (first non-complete)
   const currentPlacement =
