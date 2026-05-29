@@ -28,6 +28,7 @@ import {
   getDisciplineCodesForForm,
   getCampusesForForm,
   searchStudentsForPlacement,
+  lookupStudentForIntake,
   checkDuplicatePlacement,
   createPlacement,
   getExpectedEndDatePreview,
@@ -38,6 +39,7 @@ import {
   type DisciplineCodeOption,
   type CampusOption,
   type StudentSearchResult,
+  type IntakeStudentLookup,
   type OffenseCodeOption,
   type LocationCodeOption,
 } from '@/app/actions/daep/placements';
@@ -112,6 +114,9 @@ function NewPlacementForm() {
   const [queueFirstName, setQueueFirstName] = useState('');
   const [queueLastName, setQueueLastName] = useState('');
   const [queueGrade, setQueueGrade] = useState('');
+  // Existing-student detection for the queue Student ID (repeat placements).
+  const [existingMatch, setExistingMatch] = useState<IntakeStudentLookup | null>(null);
+  const [lookingUpStudent, setLookingUpStudent] = useState(false);
 
   // New student dialog
   const [showNewStudentDialog, setShowNewStudentDialog] = useState(false);
@@ -174,14 +179,52 @@ function NewPlacementForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingOptions, queueId]);
 
-  // In queue mode, derive selectedStudent from the inline identity so the rest
-  // of the form (duplicate check, submit) works without a student search.
+  // Detect an existing student by the entered Student ID so a repeat placement
+  // attaches to that record (debounced; mirrors the student-search pattern).
+  useEffect(() => {
+    if (!queueId || !queueStudentId.trim()) {
+      setExistingMatch(null);
+      return;
+    }
+    setLookingUpStudent(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await lookupStudentForIntake(queueStudentId);
+        setExistingMatch(result.exists ? result : null);
+      } catch (error) {
+        console.error('Error looking up student:', error);
+        setExistingMatch(null);
+      } finally {
+        setLookingUpStudent(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [queueId, queueStudentId]);
+
+  // In queue mode, derive selectedStudent so the rest of the form (duplicate
+  // check, submit) works without a student search. An existing match uses that
+  // record's identity; otherwise the inline fields create a new record.
   useEffect(() => {
     if (!queueId) return;
     const sid = queueStudentId.trim();
+    if (!sid) {
+      setSelectedStudent(null);
+      return;
+    }
+    if (existingMatch?.exists) {
+      setSelectedStudent({
+        school_id: sid,
+        first_name: existingMatch.first_name || '',
+        last_name: existingMatch.last_name || '',
+        grade_level: existingMatch.grade_level,
+        current_school: existingMatch.current_school,
+        has_active_placement: existingMatch.has_active_placement,
+      });
+      return;
+    }
     const first = queueFirstName.trim();
     const last = queueLastName.trim();
-    if (!sid || !first || !last) {
+    if (!first || !last) {
       setSelectedStudent(null);
       return;
     }
@@ -194,7 +237,7 @@ function NewPlacementForm() {
       current_school: campusName,
       has_active_placement: false,
     });
-  }, [queueId, queueStudentId, queueFirstName, queueLastName, queueGrade, homeCampusId, campuses]);
+  }, [queueId, queueStudentId, queueFirstName, queueLastName, queueGrade, homeCampusId, campuses, existingMatch]);
 
   // Load location codes when offense code changes
   useEffect(() => {
@@ -511,56 +554,88 @@ function NewPlacementForm() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="queue-student-id">Student ID *</Label>
+              <div>
+                <Label htmlFor="queue-student-id">Student ID *</Label>
+                <div className="relative mt-1.5">
                   <Input
                     id="queue-student-id"
                     value={queueStudentId}
                     onChange={(e) => setQueueStudentId(e.target.value)}
                     placeholder="District student ID"
-                    className="mt-1.5"
                     required
                   />
-                </div>
-                <div>
-                  <Label htmlFor="queue-grade">Grade Level</Label>
-                  <Select value={queueGrade} onValueChange={setQueueGrade}>
-                    <SelectTrigger className="mt-1.5">
-                      <SelectValue placeholder="Select grade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...Array(12)].map((_, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)}>
-                          Grade {i + 1}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {lookingUpStudent && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="queue-first-name">First Name *</Label>
-                  <Input
-                    id="queue-first-name"
-                    value={queueFirstName}
-                    onChange={(e) => setQueueFirstName(e.target.value)}
-                    className="mt-1.5"
-                    required
-                  />
+
+              {existingMatch?.exists ? (
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+                  <div className="flex items-center gap-2 font-medium text-blue-900">
+                    <UserCheck className="h-4 w-4" />
+                    Existing student: {existingMatch.first_name} {existingMatch.last_name}
+                  </div>
+                  <p className="mt-1 text-blue-800">
+                    {existingMatch.prior_placement_count > 0
+                      ? `${existingMatch.prior_placement_count} prior DAEP placement(s). This intake adds a new incident to their record.`
+                      : 'This intake adds a placement to their existing record.'}
+                  </p>
+                  {existingMatch.has_active_placement && (
+                    <p className="mt-1 flex items-center gap-1 font-medium text-amber-700">
+                      <AlertCircle className="h-4 w-4" />
+                      Student already has an active placement — resolve it before adding another.
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <Label htmlFor="queue-last-name">Last Name *</Label>
-                  <Input
-                    id="queue-last-name"
-                    value={queueLastName}
-                    onChange={(e) => setQueueLastName(e.target.value)}
-                    className="mt-1.5"
-                    required
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="queue-first-name">First Name *</Label>
+                      <Input
+                        id="queue-first-name"
+                        value={queueFirstName}
+                        onChange={(e) => setQueueFirstName(e.target.value)}
+                        className="mt-1.5"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="queue-last-name">Last Name *</Label>
+                      <Input
+                        id="queue-last-name"
+                        value={queueLastName}
+                        onChange={(e) => setQueueLastName(e.target.value)}
+                        className="mt-1.5"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="queue-grade">Grade Level</Label>
+                      <Select value={queueGrade} onValueChange={setQueueGrade}>
+                        <SelectTrigger className="mt-1.5">
+                          <SelectValue placeholder="Select grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[...Array(12)].map((_, i) => (
+                            <SelectItem key={i + 1} value={String(i + 1)}>
+                              Grade {i + 1}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {queueStudentId.trim() && !lookingUpStudent && (
+                    <p className="text-xs text-muted-foreground">
+                      No existing record for this ID — a new student record is created on submit.
+                    </p>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         )}

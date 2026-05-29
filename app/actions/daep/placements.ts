@@ -178,6 +178,68 @@ export async function getCampusesForForm(): Promise<CampusOption[]> {
 
 // ========== SEARCH STUDENTS FOR FORM ==========
 
+export interface IntakeStudentLookup {
+  exists: boolean;
+  first_name: string | null;
+  last_name: string | null;
+  grade_level: number | null;
+  current_school: string | null;
+  prior_placement_count: number;
+  has_active_placement: boolean;
+}
+
+/**
+ * Exact Student-ID lookup used by the intake-queue completion screen so the
+ * coordinator can see when an ID belongs to an existing (repeat) student. The
+ * new placement attaches to that record as an additional incident.
+ */
+export async function lookupStudentForIntake(
+  schoolId: string
+): Promise<IntakeStudentLookup> {
+  const empty: IntakeStudentLookup = {
+    exists: false,
+    first_name: null,
+    last_name: null,
+    grade_level: null,
+    current_school: null,
+    prior_placement_count: 0,
+    has_active_placement: false,
+  };
+
+  if (!schoolId || !schoolId.trim()) return empty;
+
+  const supabase = await createServerClient();
+  const tenantId = await getTenantId();
+  const id = schoolId.trim();
+
+  const { data: student } = await supabase
+    .from('trespass_records')
+    .select('first_name, last_name, grade_level, current_school')
+    .eq('tenant_id', tenantId)
+    .eq('school_id', id)
+    .maybeSingle();
+
+  if (!student) return empty;
+
+  const { data: placements } = await supabase
+    .from('daep_placements')
+    .select('status')
+    .eq('tenant_id', tenantId)
+    .eq('school_id', id);
+
+  return {
+    exists: true,
+    first_name: student.first_name,
+    last_name: student.last_name,
+    grade_level: student.grade_level,
+    current_school: student.current_school,
+    prior_placement_count: placements?.length || 0,
+    has_active_placement: (placements || []).some((p) =>
+      ['pending', 'active', 'met'].includes(p.status)
+    ),
+  };
+}
+
 export async function searchStudentsForPlacement(
   query: string
 ): Promise<StudentSearchResult[]> {
