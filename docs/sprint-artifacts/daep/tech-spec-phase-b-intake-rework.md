@@ -122,23 +122,33 @@ emergency_contact_name: string | null;
 emergency_contact_phone: string | null;
 ```
 
-Each is computed `intake ?? sis` server-side. *(Confirm field set: §10 Q1.)*
+Each is computed `intake ?? sis` server-side. *(Decided: yes, return resolved
+fields — Q1 resolved 2026-05-29.)*
 
 ### 4.2 `placements.ts` — `createQuickStudent` (lines 699–801)
 
-**Rename and rewrite** as `createDaepStudent`. Writes a `daep_records` row
-(canonical DAEP identity). The trespass-record write is removed from this
-function entirely.
+**Hard rename to `createDaepStudent`** *(Q3 resolved: hard rename, no soft
+re-export)*. Writes a `daep_records` row (canonical DAEP identity). The
+trespass-record write is removed from this function entirely.
 
 Key differences from the current `createQuickStudent`:
 - Inserts into `daep_records` with `created_via = 'manual'`, `created_by = user.id`.
+- **SIS contact fields (`parent_email`, `guardian_phone`, `emergency_contact_*`)
+  are left NULL on insert** *(Q2 resolved: always `_intake` on intake-time
+  entry; SIS columns are populated only by a real SIS sync)*. If contact-info
+  inputs are present, they are written to the corresponding `*_intake` fields
+  with `demographics_updated_at` / `_by` stamped.
+- Identity fields (name, grade, current_school, home_campus_id) go to their
+  regular columns — name/grade/DOB are single SIS-authoritative fields per the
+  parent spec §6.1 and are not in the dual-field scope.
 - No `expiration_date`, no `is_daep` flag, no `user_id` — DAEP doesn't need those.
 - Duplicate check is `(tenant_id, school_id)` against `daep_records`, not
   `trespass_records`.
-- Audit event payload becomes `student.daep_created` (new event type — add to
-  `lib/audit-logger.ts` allowed list).
+- Audit event payload becomes `student.daep_created` *(Q4 resolved: new
+  AuditEventType, added to `lib/audit-logger.ts`)*.
 
-The callers of `createQuickStudent` today:
+The callers of `createQuickStudent` today are updated to call
+`createDaepStudent`:
 - `app/actions/daep/placements.ts` — `createPlacement` (we change this in §4.3)
 - `app/daep/(main)/placements/new/page.tsx` — quick-create dialog (UI keeps the
   same dialog; we just point it at the renamed action)
@@ -176,10 +186,12 @@ Where:
   `lib/daep/records.ts` if we want it reusable). It upserts on
   `(tenant_id, school_id)`:
   - If the row exists: update SIS fields **only if the row was created via
-    `'backfill'` and the SIS field is NULL** (gentle SIS top-up); update
-    `*_intake` fields whenever the corresponding input is non-null and differs.
-  - If new: insert SIS fields from the intake form's identity inputs; insert
-    `*_intake` fields from any explicit correction inputs.
+    `'backfill'` and the SIS field is NULL** (gentle SIS top-up of legacy data
+    — never overwrites a present SIS value); update `*_intake` fields whenever
+    the corresponding input is non-null and differs.
+  - If new (no prior `daep_records`): insert identity fields (name, grade,
+    `current_school`, `home_campus_id`); **leave SIS contact columns NULL**;
+    write any provided contact inputs to `*_intake` *(Q2 resolved)*.
   - Stamp `demographics_updated_at = now()`, `demographics_updated_by = user.id`
     when any `*_intake` is set.
 
@@ -252,13 +264,15 @@ view, shown after the existing-student / new-student branch resolves:
 
 - For **existing students**, "on file" shows the resolved value
   (`intake ?? sis`) returned by §4.1.
-- For **new students**, the fields are blank and any value entered is treated as
-  the SIS value at this point (the only signal we have); no `*_intake` is set on
-  create. (We can revisit if needed — see §10 Q2.)
-- Clicking **Override** turns the field editable; the entered value is sent as
-  the corresponding `*_intake` on submit. Hitting Override on a blank-on-file
-  field still writes `*_intake` (so we capture the new info as a correction,
-  preserving the empty SIS state).
+- For **new students**, there are no "on file" baselines — the fields are blank
+  inputs (no Override button needed, since there's nothing to override). Any
+  value entered is written to the corresponding `*_intake` field per Q2; the
+  SIS columns stay NULL. *(Decided: always `_intake` on intake-time entry —
+  Q2 resolved 2026-05-29.)*
+- Clicking **Override** (existing-student case) turns the field editable; the
+  entered value is sent as the corresponding `*_intake` on submit. Hitting
+  Override on a blank-on-file field still writes `*_intake` (so we capture the
+  new info as a correction, preserving the empty SIS state).
 - Optional: a small "edited" badge after submit, but not required for Phase B.
 
 The submit handler adds the four optional `*_intake` strings (or nulls) to the
@@ -315,12 +329,14 @@ existing student card surfaces with prior-placement count and resolved contact
 info (`intake ?? sis`).
 
 **AC-B-4: Intake-time correction.**
-Given a coordinator clicks "Override" on guardian phone and submits a new value,
-then `daep_records.guardian_phone_intake` is set to the new value,
-`daep_records.guardian_phone` (SIS) is unchanged, and
-`daep_records.demographics_updated_at` / `_by` are stamped. In a both-modules
-tenant, `trespass_records.guardian_phone` is also unchanged. *(Confirms parent
-spec §10 Q2a — no push-through to trespass.)*
+Given a coordinator clicks "Override" on guardian phone (existing student) or
+fills the guardian phone field at first intake (new student), then
+`daep_records.guardian_phone_intake` is set to the entered value,
+`daep_records.guardian_phone` (SIS) is unchanged (or NULL for the new-student
+case), and `daep_records.demographics_updated_at` / `_by` are stamped. In a
+both-modules tenant, `trespass_records.guardian_phone` is also unchanged.
+*(Confirms parent spec §10 Q2a — no push-through to trespass; confirms Phase
+B Q2 — `_intake` is the destination even at create.)*
 
 **AC-B-5: Live module toggle.**
 Given a super-admin removes `'trespass'` from `tenants.enabled_modules` for
@@ -385,36 +401,15 @@ Credentialed env (you):
 
 ---
 
-## 10. Open questions / confirmations needed
+## 10. Decisions (resolved 2026-05-29)
 
-**Q1 — `IntakeStudentLookup` shape.**
-Add the four resolved contact fields to the lookup return shape? Useful for the
-"contact info on file" UX (§5). Recommend yes; harmless if the form ignores
-them.
-
-**Q2 — New-student correction flow.**
-For a brand-new student created at intake (no prior `daep_records` row), if the
-coordinator enters a phone they describe as "corrected by parent," do we still
-treat it as the SIS value (clean slate) or as an intake correction (sets
-`_intake` only, leaves SIS NULL)? Recommend: **clean slate** — the SIS field is
-the right home for the first value, and `_intake` exists to capture *changes
-from SIS*. Easier mental model.
-
-**Q3 — Rename or keep `createQuickStudent`?**
-Recommend rename to `createDaepStudent` (clarity), with a soft re-export of the
-old name for one release in case anything outside DAEP imports it. Confirm
-that's OK or just hard-rename.
-
-**Q4 — Audit event type.**
-Add `student.daep_created` to the allowed `AuditEventType`s? Alternative: reuse
-`student.quick_created` and rely on `module` field to disambiguate. Recommend
-add new — cleaner audit log filtering.
-
-**Q5 — Validation schema versioning.**
-`CreatePlacementSchema` is consumed by `createPlacement` and the form. Adding
-four optional fields is backwards-compatible, but if anything else generates
-that input (e.g. tests, scripts), check for surprises. Quick grep should
-suffice.
+| # | Question | Decision |
+|---|---|---|
+| Q1 | Resolve contact fields in `IntakeStudentLookup`? | **Yes** — return `intake ?? sis` for parent_email, guardian_phone, emergency_contact_name/phone. |
+| Q2 | New-student intake-time contact entries — SIS or `_intake`? | **Always `_intake`.** SIS contact columns stay NULL until a real SIS sync. The strict invariant "SIS field = SIS-sourced only" applies on creation too. |
+| Q3 | Rename `createQuickStudent` → `createDaepStudent`? | **Hard rename.** Update both call sites in one diff; no soft re-export. |
+| Q4 | Audit event for the DAEP-record-creation path? | **Add `student.daep_created`** as a new `AuditEventType` in `lib/audit-logger.ts`. |
+| Q5 | Validation schema versioning concerns? | Self-resolve via `grep` over consumers of `CreatePlacementSchema` before changing it. |
 
 ---
 
