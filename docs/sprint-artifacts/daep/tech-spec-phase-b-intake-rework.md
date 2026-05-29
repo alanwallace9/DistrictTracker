@@ -133,14 +133,22 @@ trespass-record write is removed from this function entirely.
 
 Key differences from the current `createQuickStudent`:
 - Inserts into `daep_records` with `created_via = 'manual'`, `created_by = user.id`.
-- **SIS contact fields (`parent_email`, `guardian_phone`, `emergency_contact_*`)
-  are left NULL on insert** *(Q2 resolved: always `_intake` on intake-time
-  entry; SIS columns are populated only by a real SIS sync)*. If contact-info
-  inputs are present, they are written to the corresponding `*_intake` fields
-  with `demographics_updated_at` / `_by` stamped.
-- Identity fields (name, grade, current_school, home_campus_id) go to their
-  regular columns — name/grade/DOB are single SIS-authoritative fields per the
-  parent spec §6.1 and are not in the dual-field scope.
+- **Student-identity columns** — `school_id` (the PEIMS Student ID, also the
+  row key with `tenant_id`), `first_name`, `last_name`, and the campus
+  (`current_school` text + `home_campus_id` FK) — are written from the
+  coordinator's intake inputs (or queue-prefilled values). These are
+  single-field SIS-authoritative columns, not in the dual-field scope.
+- **Other single-field SIS columns** — `grade_level`, DOB, etc. — are written
+  the same way.
+- **Dual-field contact columns** (`parent_email`, `guardian_phone`,
+  `emergency_contact_name`, `emergency_contact_phone`) are left NULL on insert
+  *(Q2 resolved: always `_intake` on intake-time entry; SIS columns are
+  populated only by a real SIS sync)*. If contact-info inputs are present, they
+  are written to the corresponding `*_intake` fields with
+  `demographics_updated_at` / `_by` stamped.
+- **Incident number** lives on `daep_placements`, not `daep_records`, so
+  `createDaepStudent` doesn't touch it — `createPlacement` (§4.3) writes it
+  when it inserts the placement row.
 - No `expiration_date`, no `is_daep` flag, no `user_id` — DAEP doesn't need those.
 - Duplicate check is `(tenant_id, school_id)` against `daep_records`, not
   `trespass_records`.
@@ -189,9 +197,13 @@ Where:
     `'backfill'` and the SIS field is NULL** (gentle SIS top-up of legacy data
     — never overwrites a present SIS value); update `*_intake` fields whenever
     the corresponding input is non-null and differs.
-  - If new (no prior `daep_records`): insert identity fields (name, grade,
-    `current_school`, `home_campus_id`); **leave SIS contact columns NULL**;
-    write any provided contact inputs to `*_intake` *(Q2 resolved)*.
+  - If new (no prior `daep_records`): insert student-identity columns
+    (`school_id`, `first_name`, `last_name`, `current_school`,
+    `home_campus_id`) plus other single-field SIS columns (`grade_level`,
+    DOB) from the intake inputs; **leave the four dual-field contact
+    columns NULL** *(Q2 resolved)*; write any provided contact inputs to
+    `*_intake`. (Incident number is on `daep_placements` and is set by
+    `createPlacement`, not here.)
   - Stamp `demographics_updated_at = now()`, `demographics_updated_by = user.id`
     when any `*_intake` is set.
 
@@ -406,7 +418,7 @@ Credentialed env (you):
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Resolve contact fields in `IntakeStudentLookup`? | **Yes** — return `intake ?? sis` for parent_email, guardian_phone, emergency_contact_name/phone. |
-| Q2 | New-student intake-time contact entries — SIS or `_intake`? | **Always `_intake`.** SIS contact columns stay NULL until a real SIS sync. The strict invariant "SIS field = SIS-sourced only" applies on creation too. |
+| Q2 | New-student intake-time contact entries — SIS or `_intake`? | **Always `_intake`.** SIS contact columns stay NULL until a real SIS sync. The strict invariant "SIS field = SIS-sourced only" applies on creation too. Scope is the four dual-field contact columns only (`parent_email`, `guardian_phone`, `emergency_contact_name`, `emergency_contact_phone`). Student-identity columns (`school_id`, name, campus) and other single-field columns (`grade_level`, DOB) are written normally from intake inputs; incident number lives on `daep_placements`. |
 | Q3 | Rename `createQuickStudent` → `createDaepStudent`? | **Hard rename.** Update both call sites in one diff; no soft re-export. |
 | Q4 | Audit event for the DAEP-record-creation path? | **Add `student.daep_created`** as a new `AuditEventType` in `lib/audit-logger.ts`. |
 | Q5 | Validation schema versioning concerns? | Self-resolve via `grep` over consumers of `CreatePlacementSchema` before changing it. |
