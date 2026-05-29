@@ -82,13 +82,22 @@ CREATE TABLE IF NOT EXISTS daep_records (
   home_campus_id text,                            -- composite FK -> campuses(tenant_id, id)
   current_school text,
   date_of_birth date,
-  -- DAEP support fields (migrated from trespass_records)
+  -- SIS-sourced demographics (authoritative; NEVER overwritten by intake)
   parent_email             text,
+  guardian_phone           text,
   emergency_contact_name   text,
   emergency_contact_phone  text,
   special_education boolean NOT NULL DEFAULT false,
   plan_504          boolean NOT NULL DEFAULT false,
   ell_status        boolean NOT NULL DEFAULT false,
+  -- Intake-captured corrections (additive; preferred for display when present).
+  -- See §6.1 "Additive demographics". SIS originals above are preserved.
+  parent_email_intake            text,
+  guardian_phone_intake          text,
+  emergency_contact_name_intake  text,
+  emergency_contact_phone_intake text,
+  demographics_updated_at        timestamptz,
+  demographics_updated_by        text,                  -- Clerk user id
   -- lifecycle
   status        text NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
   -- cross-module link (NULL when trespass module not in use)
@@ -125,19 +134,23 @@ trespass_records (id)   ← only when district uses TrespassTracker
 
 ---
 
-## 5. Module-Presence Detection (KEY DECISION — needs your input)
+## 5. Module-Presence Detection (DECIDED: Option A + dynamic)
 
-We must know whether a tenant "uses the trespass module" to decide whether to
-link/sync. Today this only exists per-user. Options:
+**Decision (Alan, 2026-05-29): Option A — tenant-level flag**, because modules can be
+added/removed throughout the contract.
 
-| Option | Mechanism | Pros | Cons |
-|--------|-----------|------|------|
-| **A (recommended)** | Tenant-level flag: `tenants.enabled_modules text[]` (or a `tenant_modules` table) | Explicit, queryable, future-proof | New column/migration + admin UI to set it |
-| **B** | Derive: tenant has any `user_profiles.module_access IN ('trespass_only','both')` | No new schema | Implicit; user provisioning drives data behavior |
-| **C** | Derive: tenant has ≥1 row in `trespass_records` | No new schema | Fragile; empty/new tenants misdetected |
-
-**Recommendation: Option A**, defaulting `enabled_modules` from existing user
-`module_access` during migration.
+- **Schema:** `tenants.enabled_modules text[]` (e.g., `{'daep','trespass'}`).
+  Seed during migration from aggregated user `module_access` per tenant.
+- **Admin UI:** a per-tenant module toggle on the **master/super-admin tenants page**
+  (`app/admin/tenants/page.tsx`), writable only by `super_admin`.
+- **Runtime + cadence (DECIDED: "Both"):**
+  1. **Live read** of `enabled_modules` at every decision point (intake, placement
+     lifecycle sync) — never assume a fixed state.
+  2. **On-toggle reconcile** when a module is switched in the admin UI (trespass ON ⇒
+     backfill/link existing `daep_records` to `trespass_records`; OFF ⇒ stop trespass
+     writes, DAEP continues standalone).
+  3. **Periodic safety-net job** re-reconciles links per tenant on a cadence (catches
+     anything missed by the toggle path).
 
 ---
 
@@ -146,16 +159,33 @@ link/sync. Today this only exists per-user. Options:
 **DAEP is the source of truth for DAEP status.** On DAEP intake / placement lifecycle:
 
 1. Upsert `daep_records` (create or reuse by `(tenant_id, school_id)`).
-2. If tenant has trespass module:
+2. If tenant has trespass module (live `enabled_modules` check):
    - Upsert/find the `trespass_records` row by `(tenant_id, school_id)`.
    - Set `daep_records.trespass_record_id`.
    - Sync DAEP status onto the trespass record: `is_daep`, `daep_expiration_date`
      (this is today's `syncTrespassTrackerExpiration`, repurposed as DAEP→trespass).
 3. If tenant does **not** have trespass module: skip all trespass writes.
 
-**Open decision:** ownership of shared demographics (name, grade, contacts) when both
-exist — do we (a) treat `daep_records` as authoritative and push to trespass, (b) keep
-each independent, or (c) read demographics from trespass when linked? See §10 Q2.
+### 6.1 Additive demographics (DECIDED: Option A "with a twist")
+
+DAEP is authoritative for the DAEP context, **but intake never overwrites SIS-sourced
+demographics.** Corrections captured at intake (e.g., a parent gives a better phone
+number) are written to the **parallel `*_intake` fields**, leaving the SIS originals
+intact.
+
+- **Write:** intake/edit sets `parent_email_intake`, `guardian_phone_intake`,
+  `emergency_contact_*_intake` (+ `demographics_updated_at/by`). SIS fields untouched.
+- **Display (helper):** prefer `*_intake` when present, else the SIS value
+  (`COALESCE(guardian_phone_intake, guardian_phone)`), so screens show the freshest
+  contact info while preserving the official record.
+- **Both modules:** the SIS value continues to live in `trespass_records` too (unchanged);
+  we do **not** push intake corrections back into `trespass_records` (it owns SIS data).
+  *(Confirm: see §10 Q2a.)*
+- **Standalone:** `daep_records` holds both the SIS-imported value and the `*_intake`
+  override.
+- **Scope:** applies to contact fields (parent email, guardian phone, emergency contact
+  name/phone). Name / grade / DOB / program flags remain single SIS-authoritative fields
+  (correctable in place). *(Confirm field set: §10 Q2b.)*
 
 ---
 
@@ -164,8 +194,10 @@ each independent, or (c) read demographics from trespass when linked? See §10 Q
 1. Create `daep_records` + RLS + indexes.
 2. Backfill: for every distinct `(tenant_id, school_id)` that has a `daep_placements`
    row **or** `trespass_records.is_daep = true`, insert a `daep_records` row copying
-   the DAEP-relevant fields from `trespass_records`, and set `trespass_record_id`.
-3. (Option A) Add `tenants.enabled_modules`; seed from aggregated user `module_access`.
+   the SIS demographic fields from `trespass_records`, and set `trespass_record_id`.
+   The `*_intake` correction fields start NULL (no intake corrections exist yet).
+3. Add `tenants.enabled_modules text[]`; seed per tenant from aggregated user
+   `module_access` (`both`→`{daep,trespass}`, `daep_only`→`{daep}`, etc.).
 
 Backfill is idempotent (`ON CONFLICT (tenant_id, school_id) DO NOTHING`).
 
@@ -175,9 +207,10 @@ Backfill is idempotent (`ON CONFLICT (tenant_id, school_id) DO NOTHING`).
 
 | Phase | Scope | Risk |
 |-------|-------|------|
-| **A — Schema** | `daep_records` table, RLS, indexes, backfill migration; (Option A) tenant module flag | Low (additive) |
-| **B — Intake rework** | Rework commit `a5500fb`: `createPlacement`/intake create `daep_records`; `lookupStudentForIntake` reads `daep_records`; DAEP→trespass sync gated by module presence | Medium |
-| **C — Reads migration** | Point roster/search/dashboard off `daep_records`: `students.ts`, `placements.ts` (search, getDaepStudents path), `dashboard.ts`, `roster.ts`, `rooms.ts`, `behavior-notes.ts`, `rollover.ts`, `reconciliation.ts` | High (8 files, ~61 refs) |
+| **A — Schema** | `daep_records` table (+ `*_intake` fields), RLS, indexes, backfill migration; `tenants.enabled_modules` + seed | Low (additive) |
+| **B — Intake rework** | Rework commit `a5500fb`/`72479b0`: `createPlacement`/intake create `daep_records`; intake corrections → `*_intake` fields; `lookupStudentForIntake` reads `daep_records`; DAEP→trespass sync gated by live `enabled_modules` | Medium |
+| **C — Reads migration** | Point roster/search/dashboard off `daep_records`: `students.ts`, `placements.ts` (search, getDaepStudents path), `dashboard.ts`, `roster.ts`, `rooms.ts`, `behavior-notes.ts`, `rollover.ts`; reconciliation resolves against `daep_records` (Q4) | High (8 files, ~61 refs) |
+| **E — Admin toggle + periodic job** | Module toggle UI on `app/admin/tenants/page.tsx` (super_admin); on-toggle reconcile; periodic safety-net reconciliation job | Medium |
 | **D — Sync hardening / cleanup** | DAEP→trespass one-way sync finalized; optionally decommission DAEP columns on `trespass_records` (separate story) | Medium |
 
 Each phase is independently shippable; DAEP keeps working throughout (dual-source until
@@ -195,16 +228,27 @@ Phase C completes).
 
 ---
 
-## 10. Open Decisions (need answers before Phase A)
+## 10. Decisions & Remaining Confirmations
 
-1. **Module detection (§5):** Option A (tenant flag), B (derive from users), or C (derive
-   from data)? — *Recommend A.*
-2. **Shared-field ownership (§6):** when both modules present, is `daep_records`
-   authoritative for demographics (push to trespass), independent, or read-through?
-3. **`trespass_records` DAEP columns:** keep for back-compat/sync now (recommended) or
-   plan removal in Phase D?
-4. **Reconciliation:** it matches CSV/SIS to `trespass_records.incident_number`. Should
-   reconciliation stay trespass-oriented, or also/instead resolve against `daep_records`?
+**Resolved (Alan, 2026-05-29):**
+1. **Module detection (§5):** Option A — `tenants.enabled_modules`, toggled on the
+   super-admin tenants page. Handling = **Both** (live reads + on-toggle reconcile +
+   periodic safety-net job).
+2. **Shared demographics (§6.1):** Option A **additive** — DAEP authoritative, but
+   intake corrections go to parallel `*_intake` fields; SIS originals never overwritten;
+   display prefers the correction.
+3. **Reconciliation (§7/§8C):** resolves against the new `daep_records`.
+
+**Need confirmation before/within the relevant phase:**
+- **Q2a (Phase B):** When both modules are present, do we keep intake corrections only in
+  `daep_records.*_intake` (recommended — trespass keeps SIS), or also surface them in
+  TrespassTracker?
+- **Q2b (Phase B):** Confirm the field set that gets `*_intake` corrections (proposed:
+  parent email, guardian phone, emergency contact name/phone). Name/grade/DOB stay
+  single SIS-authoritative fields — OK?
+- **Q3 (Phase D):** Keep the DAEP columns on `trespass_records` for back-compat/sync now,
+  removing only in a later cleanup story? (recommended)
+
 
 ---
 
