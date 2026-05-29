@@ -111,19 +111,24 @@ const { data: student } = await supabase
 
 The placement count subquery on `daep_placements` is unchanged.
 
-The returned shape adds the resolved (COALESCE'd) contact fields so the intake
-form can show the coordinator what's currently on file when checking for a repeat
-student. Concretely, `IntakeStudentLookup` gains:
+The returned shape exposes the four dual-field contact columns as the **raw
+SIS value, the raw `_intake` value, and a resolved (COALESCE'd) value** so the
+intake form can render both rows of the side-by-side layout in §5 (SIS-on-top
+read-only, DAEP-on-file editable) without doing its own coalesce. Concretely,
+`IntakeStudentLookup` gains, for each of the four contact fields:
 
 ```ts
-parent_email: string | null;
-guardian_phone: string | null;
-emergency_contact_name: string | null;
-emergency_contact_phone: string | null;
+parent_email_sis: string | null;       // raw daep_records.parent_email
+parent_email_intake: string | null;    // raw daep_records.parent_email_intake
+parent_email: string | null;           // resolved: intake ?? sis (for list/grid display)
+// …same triple for guardian_phone, emergency_contact_name, emergency_contact_phone
 ```
 
-Each is computed `intake ?? sis` server-side. *(Decided: yes, return resolved
-fields — Q1 resolved 2026-05-29.)*
+The resolved field is computed server-side and is the right choice for
+read-only display surfaces (placement lists, dashboards). The `_sis` / `_intake`
+pair is what the intake form binds to. *(Decided: yes, return resolved fields
+— Q1 resolved 2026-05-29; refined here to add the raw pair so §5's side-by-side
+UX has the data it needs.)*
 
 ### 4.2 `placements.ts` — `createQuickStudent` (lines 699–801)
 
@@ -260,32 +265,65 @@ Today the queue-mode prefill (lines 158–202) populates name/grade/home campus
 from the queue entry. The repeat-student lookup (lines 184–202) already fetches
 the existing student from `lookupStudentForIntake`.
 
-Add an **"Update parent contact info"** disclosure section to the queue-mode
-view, shown after the existing-student / new-student branch resolves:
+Add a **"Parent contact info"** section to the queue-mode view, shown after
+the existing-student / new-student branch resolves. The section shows the SIS
+value and the DAEP-on-file value **side by side** so the coordinator can see
+what the district has versus what DAEP is using for notifications, and edit
+the DAEP value directly:
 
 ```
-┌─ Contact info on file ────────────────────────────────────────────┐
-│ Parent email          alanw@example.com    [ Override ]           │
-│ Guardian phone        (817) 555-0100        [ Override ]          │
-│ Emergency contact     Jane Doe / (817)…     [ Override ]          │
-│                                                                   │
-│ ℹ Corrections are saved to the DAEP record and used for           │
-│   notifications. The official SIS values stay unchanged.          │
-└───────────────────────────────────────────────────────────────────┘
+┌─ Parent contact info ─────────────────────────────────────────────────┐
+│                                                                       │
+│ Parent email                                                          │
+│   From SIS:        alanw@example.com           (read-only)            │
+│   DAEP-on-file:    [ alan.w@example.com              ]                │
+│                                                                       │
+│ Guardian phone                                                        │
+│   From SIS:        (817) 555-0100              (read-only)            │
+│   DAEP-on-file:    [ (817) 555-9999                  ]                │
+│                                                                       │
+│ Emergency contact                                                     │
+│   From SIS:        Jane Doe / (817) 555-2000   (read-only)            │
+│   DAEP-on-file:    Name  [ Jane Doe              ]                    │
+│                    Phone [ (817) 555-2000        ]                    │
+│                                                                       │
+│ ℹ Corrections you enter here are saved to the DAEP record and used    │
+│   for DAEP notifications. The official SIS values stay unchanged      │
+│   and remain visible above for reference.                             │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
-- For **existing students**, "on file" shows the resolved value
-  (`intake ?? sis`) returned by §4.1.
-- For **new students**, there are no "on file" baselines — the fields are blank
-  inputs (no Override button needed, since there's nothing to override). Any
-  value entered is written to the corresponding `*_intake` field per Q2; the
-  SIS columns stay NULL. *(Decided: always `_intake` on intake-time entry —
-  Q2 resolved 2026-05-29.)*
-- Clicking **Override** (existing-student case) turns the field editable; the
-  entered value is sent as the corresponding `*_intake` on submit. Hitting
-  Override on a blank-on-file field still writes `*_intake` (so we capture the
-  new info as a correction, preserving the empty SIS state).
-- Optional: a small "edited" badge after submit, but not required for Phase B.
+**Layout rules:**
+
+- **Two rows per field.** "From SIS" (read-only label) on top, "DAEP-on-file"
+  (editable input) below. Both stay visible at all times — there is no
+  "Override" toggle that hides anything.
+- **`From SIS`** displays `daep_records.<field>` (the SIS column literally).
+  Read-only here; intake never writes to it. Shows "—" when NULL.
+- **`DAEP-on-file`** is an always-editable input prefilled with the current
+  `<field>_intake` value when present, else blank. Whatever the coordinator
+  leaves in this input at submit is the value sent for `<field>_intake`.
+  Empty string → null (no change to existing `_intake` on the DB side; see
+  routing rules below).
+- **New students:** the "From SIS" row reads "—" (the row stays for layout
+  consistency); the DAEP-on-file input is the only place to type.
+- **Visual differentiation:** the "From SIS" line is rendered as muted/gray
+  reference text; the DAEP-on-file input is a normal form field. No badge
+  needed — the row labels carry the meaning.
+
+**Routing rules (data layer — what hits the DB):**
+
+| Coordinator action | Form input state at submit | What gets written |
+|---|---|---|
+| Leaves DAEP-on-file blank (no prior `_intake`) | `""` / null | Nothing for this field |
+| Leaves DAEP-on-file blank (prior `_intake` exists) | shows the prior `_intake` value (prefilled) | Re-writes same `_intake` value (no-op) |
+| Edits DAEP-on-file | new string | `<field>_intake = <new string>`, stamp `demographics_updated_at` / `_by` |
+| Clears DAEP-on-file (had prior `_intake`) | `""` | `<field>_intake = NULL` (revert to SIS for display) |
+| Anything | — | **SIS column is never written from this form** |
+
+The "From SIS" column is **never** an input target. The only path that writes
+to a SIS contact column is a future SIS sync (and the one-time Phase A
+backfill).
 
 The submit handler adds the four optional `*_intake` strings (or nulls) to the
 `createPlacement` input.
@@ -337,18 +375,28 @@ only), a `daep_placements` row, and `daep_records.trespass_record_id` is set;
 **AC-B-3: Repeat student detection.**
 Given an existing `daep_records` row for `(tenant_id, school_id)`, when the
 coordinator types that Student ID in the queue completion screen, then the
-existing student card surfaces with prior-placement count and resolved contact
-info (`intake ?? sis`).
+existing student card surfaces with prior-placement count and the parent
+contact info section renders both rows per field: a read-only "From SIS"
+value (`daep_records.<field>`) and an editable "DAEP-on-file" input
+prefilled with `daep_records.<field>_intake` (blank if NULL).
 
 **AC-B-4: Intake-time correction.**
-Given a coordinator clicks "Override" on guardian phone (existing student) or
-fills the guardian phone field at first intake (new student), then
+Given a coordinator edits the "DAEP-on-file" guardian-phone input (existing
+student) or fills it for the first time (new student) and submits, then
 `daep_records.guardian_phone_intake` is set to the entered value,
 `daep_records.guardian_phone` (SIS) is unchanged (or NULL for the new-student
 case), and `daep_records.demographics_updated_at` / `_by` are stamped. In a
 both-modules tenant, `trespass_records.guardian_phone` is also unchanged.
-*(Confirms parent spec §10 Q2a — no push-through to trespass; confirms Phase
-B Q2 — `_intake` is the destination even at create.)*
+The "From SIS" row stays visible (not hidden) after the edit. *(Confirms
+parent spec §10 Q2a — no push-through to trespass; confirms Phase B Q2 —
+`_intake` is the destination even at create.)*
+
+**AC-B-4b: Revert a correction.**
+Given a `daep_records` row where `guardian_phone_intake` is non-NULL and
+`guardian_phone` (SIS) is non-NULL, when the coordinator clears the
+"DAEP-on-file" input and submits, then `guardian_phone_intake` is set to
+NULL, the SIS value is untouched, and downstream resolved-value displays
+fall back to the SIS value.
 
 **AC-B-5: Live module toggle.**
 Given a super-admin removes `'trespass'` from `tenants.enabled_modules` for
