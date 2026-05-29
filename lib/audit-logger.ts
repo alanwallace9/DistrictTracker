@@ -58,7 +58,12 @@ export type AuditEventType =
   // Story 5-10: Unresolved Discrepancy Alerts
   | 'reconciliation.reminder_sent'
   | 'reconciliation.session_abandoned'
-  | 'reconciliation.session_resumed';
+  | 'reconciliation.session_resumed'
+  // Intake Queue Events (Approved-list import + scheduling)
+  | 'intake_queue.imported'
+  | 'intake_queue.scheduled'
+  | 'intake_queue.no_show'
+  | 'intake_queue.promoted';
 
 interface AuditLogEntry {
   eventType: AuditEventType;

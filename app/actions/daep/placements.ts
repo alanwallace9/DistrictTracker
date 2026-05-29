@@ -477,6 +477,39 @@ export async function createPlacement(
       };
     }
 
+    // 2b. Ensure a student (trespass) record exists. In DAEP, the placement is
+    // what brings the student into the system, so create the record here when
+    // it does not exist yet. Returning students keep their existing school_id.
+    const { data: existingStudent } = await supabase
+      .from('trespass_records')
+      .select('school_id')
+      .eq('tenant_id', tenantId)
+      .eq('school_id', data.school_id)
+      .maybeSingle();
+
+    if (!existingStudent) {
+      if (!data.student_first_name || !data.student_last_name) {
+        return {
+          success: false,
+          error: 'Student name is required to create the placement record',
+        };
+      }
+      const createdStudent = await createQuickStudent({
+        school_id: data.school_id,
+        first_name: data.student_first_name,
+        last_name: data.student_last_name,
+        grade_level: data.student_grade_level ?? null,
+        current_school: data.student_current_school ?? null,
+        campus_id: data.home_campus_id || null,
+      });
+      if (!createdStudent.success) {
+        return {
+          success: false,
+          error: createdStudent.error || 'Failed to create student record',
+        };
+      }
+    }
+
     // 3. Check if offense + location combo requires mandatory placement
     const { data: offenseRule } = await supabase
       .from('daep_offense_location_rules')

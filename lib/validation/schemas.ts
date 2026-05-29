@@ -358,6 +358,12 @@ export const CreatePlacementSchema = z.object({
   home_campus_id: z.string().min(1, 'Home campus is required'),
   assigning_campus_id: z.string().optional(),
   intake_notes: z.string().max(2000, 'Notes too long').optional(),
+  // Student identity — used to create the trespass record when one does not yet
+  // exist for school_id. The placement is what creates the student record.
+  student_first_name: z.string().max(100, 'First name too long').optional(),
+  student_last_name: z.string().max(100, 'Last name too long').optional(),
+  student_grade_level: z.number().int().min(1).max(12).nullable().optional(),
+  student_current_school: z.string().max(200).nullable().optional(),
 });
 
 export type CreatePlacementInput = z.infer<typeof CreatePlacementSchema>;

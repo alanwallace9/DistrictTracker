@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,11 +49,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, UserCheck } from 'lucide-react';
+import {
+  getIntakeQueueEntry,
+  promoteIntakeQueueEntry,
+  type IntakeQueueEntry,
+} from '@/app/actions/daep/intake-queue';
 
-export default function NewPlacementPage() {
+function NewPlacementForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const queueId = searchParams.get('queueId');
 
   // Form options
   const [disciplineCodes, setDisciplineCodes] = useState<DisciplineCodeOption[]>([]);
@@ -96,6 +103,16 @@ export default function NewPlacementPage() {
   // Form submission
   const [submitting, setSubmitting] = useState(false);
 
+  // Intake-queue completion (prefill source)
+  const [queueEntry, setQueueEntry] = useState<IntakeQueueEntry | null>(null);
+  const prefilledRef = useRef(false);
+  // Student identity entered inline when completing a queued intake. The
+  // placement creates the trespass record from these on submit.
+  const [queueStudentId, setQueueStudentId] = useState('');
+  const [queueFirstName, setQueueFirstName] = useState('');
+  const [queueLastName, setQueueLastName] = useState('');
+  const [queueGrade, setQueueGrade] = useState('');
+
   // New student dialog
   const [showNewStudentDialog, setShowNewStudentDialog] = useState(false);
   const [newStudentForm, setNewStudentForm] = useState({
@@ -132,6 +149,52 @@ export default function NewPlacementPage() {
     }
     loadOptions();
   }, [toast]);
+
+  // Prefill student identity from an intake-queue entry. The placement itself
+  // creates the trespass record on submit, so there is no student search here.
+  useEffect(() => {
+    if (loadingOptions || !queueId || prefilledRef.current) return;
+    prefilledRef.current = true;
+
+    (async () => {
+      try {
+        const entry = await getIntakeQueueEntry(queueId);
+        if (!entry) return;
+        setQueueEntry(entry);
+        setQueueStudentId(entry.student_id || '');
+        setQueueFirstName(entry.first_name || '');
+        setQueueLastName(entry.last_name || '');
+        if (entry.special_notes) setIntakeNotes(entry.special_notes);
+        if (entry.home_campus_id) setHomeCampusId(entry.home_campus_id);
+        if (entry.scheduled_intake_date) setStartDate(entry.scheduled_intake_date);
+      } catch (error) {
+        console.error('Error prefilling from intake queue:', error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingOptions, queueId]);
+
+  // In queue mode, derive selectedStudent from the inline identity so the rest
+  // of the form (duplicate check, submit) works without a student search.
+  useEffect(() => {
+    if (!queueId) return;
+    const sid = queueStudentId.trim();
+    const first = queueFirstName.trim();
+    const last = queueLastName.trim();
+    if (!sid || !first || !last) {
+      setSelectedStudent(null);
+      return;
+    }
+    const campusName = campuses.find((c) => c.id === homeCampusId)?.name || null;
+    setSelectedStudent({
+      school_id: sid,
+      first_name: first,
+      last_name: last,
+      grade_level: queueGrade ? parseInt(queueGrade) : null,
+      current_school: campusName,
+      has_active_placement: false,
+    });
+  }, [queueId, queueStudentId, queueFirstName, queueLastName, queueGrade, homeCampusId, campuses]);
 
   // Load location codes when offense code changes
   useEffect(() => {
@@ -360,14 +423,24 @@ export default function NewPlacementPage() {
         mandatory_placement: mandatoryPlacement,
         home_campus_id: homeCampusId,
         intake_notes: intakeNotes || undefined,
+        // Identity for creating the trespass record if it doesn't exist yet
+        // (ignored when the student already exists).
+        student_first_name: selectedStudent.first_name,
+        student_last_name: selectedStudent.last_name,
+        student_grade_level: selectedStudent.grade_level ?? undefined,
+        student_current_school: selectedStudent.current_school ?? undefined,
       });
 
       if (result.success) {
+        // Completing a scheduled intake: link the queue entry to the placement.
+        if (queueId && result.id) {
+          await promoteIntakeQueueEntry(queueId, result.id);
+        }
         toast({
           title: 'Placement Created',
           description: `Successfully created placement for ${selectedStudent.first_name} ${selectedStudent.last_name}`,
         });
-        router.push('/daep/students');
+        router.push(queueId ? '/daep/intake-queue' : '/daep/students');
       } else {
         toast({
           title: 'Error',
@@ -399,7 +472,7 @@ export default function NewPlacementPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/daep/students">
+          <Link href={queueId ? '/daep/intake-queue' : '/daep/students'}>
             <ArrowLeft className="w-5 h-5" />
           </Link>
         </Button>
@@ -411,8 +484,89 @@ export default function NewPlacementPage() {
         </div>
       </div>
 
+      {/* Intake-queue completion banner */}
+      {queueEntry && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm flex items-center gap-2">
+          <UserCheck className="w-4 h-4 text-blue-700 shrink-0" />
+          <span className="text-blue-800">
+            Completing scheduled intake for{' '}
+            <span className="font-medium">
+              {queueEntry.first_name} {queueEntry.last_name}
+            </span>
+            {queueEntry.home_campus_name ? ` · ${queueEntry.home_campus_name}` : ''}. Fill in the
+            required placement details below.
+          </span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Student identity (intake-queue completion) */}
+        {queueId && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Student Information</CardTitle>
+              <CardDescription>
+                From the intake queue. Submitting the placement creates the student record (an
+                existing student with this ID is reused).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="queue-student-id">Student ID *</Label>
+                  <Input
+                    id="queue-student-id"
+                    value={queueStudentId}
+                    onChange={(e) => setQueueStudentId(e.target.value)}
+                    placeholder="District student ID"
+                    className="mt-1.5"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="queue-grade">Grade Level</Label>
+                  <Select value={queueGrade} onValueChange={setQueueGrade}>
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue placeholder="Select grade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[...Array(12)].map((_, i) => (
+                        <SelectItem key={i + 1} value={String(i + 1)}>
+                          Grade {i + 1}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="queue-first-name">First Name *</Label>
+                  <Input
+                    id="queue-first-name"
+                    value={queueFirstName}
+                    onChange={(e) => setQueueFirstName(e.target.value)}
+                    className="mt-1.5"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="queue-last-name">Last Name *</Label>
+                  <Input
+                    id="queue-last-name"
+                    value={queueLastName}
+                    onChange={(e) => setQueueLastName(e.target.value)}
+                    className="mt-1.5"
+                    required
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Student Selection */}
+        {!queueId && (
         <Card>
           <CardHeader>
             <CardTitle>Student Information</CardTitle>
@@ -531,6 +685,7 @@ export default function NewPlacementPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Placement Details */}
         <Card>
@@ -940,5 +1095,19 @@ export default function NewPlacementPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function NewPlacementPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <NewPlacementForm />
+    </Suspense>
   );
 }
