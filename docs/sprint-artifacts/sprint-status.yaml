@@ -148,6 +148,18 @@ development_status:
   epic-5-retrospective: optional
 
   # ============================================
+  # DAEP Records Decoupling (Infrastructure track)
+  # Separates DAEP identity from trespass_records so standalone
+  # DAEP-only tenants can run without the trespass module, and so
+  # *_intake correction columns become the persistence layer for
+  # Epic 5 reconciliation overrides.
+  # Tech spec: docs/sprint-artifacts/daep/tech-spec-daep-trespass-data-model.md
+  # ============================================
+  daep-records-phase-a-schema-migration: done  # Commit a4e0c49 | daep_records table + tenants.enabled_modules + *_intake columns
+  daep-records-phase-b-intake-rework: ready-for-dev  # Story: docs/sprint-artifacts/daep/story-daep-records-phase-b.md | Tech spec: docs/sprint-artifacts/daep/tech-spec-phase-b-intake-rework.md | 5 pts
+  daep-records-phase-c-read-path-cutover: backlog  # Roster, search outside intake, dashboard, reconciliation queries move from trespass_records to daep_records
+
+  # ============================================
   # Epic 5b: Intake & Placement Workflows (after Epic 5)
   # Kanban-style pipeline views from ux-design-directions.html
   # ============================================
