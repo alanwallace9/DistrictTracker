@@ -266,64 +266,78 @@ from the queue entry. The repeat-student lookup (lines 184–202) already fetche
 the existing student from `lookupStudentForIntake`.
 
 Add a **"Parent contact info"** section to the queue-mode view, shown after
-the existing-student / new-student branch resolves. The section shows the SIS
-value and the DAEP-on-file value **side by side** so the coordinator can see
-what the district has versus what DAEP is using for notifications, and edit
-the DAEP value directly:
+the existing-student / new-student branch resolves. The default state for
+each field is a single read-only SIS row with a small **`+`** icon button at
+the end of the row. The coordinator clicks `+` to expand an inline editable
+input below the SIS row; the typed value is captured as a DAEP correction
+that flows through the Epic 5 reconciliation review on the next CSV import.
+
+**Collapsed (default) — no correction captured yet:**
 
 ```
-┌─ Parent contact info ─────────────────────────────────────────────────┐
-│                                                                       │
-│ Parent email                                                          │
-│   From SIS:        alanw@example.com           (read-only)            │
-│   DAEP-on-file:    [ alan.w@example.com              ]                │
-│                                                                       │
-│ Guardian phone                                                        │
-│   From SIS:        (817) 555-0100              (read-only)            │
-│   DAEP-on-file:    [ (817) 555-9999                  ]                │
-│                                                                       │
-│ Emergency contact                                                     │
-│   From SIS:        Jane Doe / (817) 555-2000   (read-only)            │
-│   DAEP-on-file:    Name  [ Jane Doe              ]                    │
-│                    Phone [ (817) 555-2000        ]                    │
-│                                                                       │
-│ ℹ Corrections you enter here are saved to the DAEP record and used    │
-│   for DAEP notifications. The official SIS values stay unchanged      │
-│   and remain visible above for reference.                             │
-└───────────────────────────────────────────────────────────────────────┘
+┌─ Parent contact info ──────────────────────────────────────────────┐
+│                                                                    │
+│ Parent email           alanw@example.com                  [ + ]    │
+│ Guardian phone         (817) 555-0100                     [ + ]    │
+│ Emergency contact name Jane Doe                           [ + ]    │
+│ Emergency contact phone (817) 555-2000                    [ + ]    │
+│                                                                    │
+│ ℹ Click + to add a DAEP correction. SIS values are never           │
+│   overwritten; any divergence is surfaced on the reconciliation    │
+│   review page after the next import.                               │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Expanded — coordinator added a correction to guardian phone:**
+
+```
+┌─ Parent contact info ──────────────────────────────────────────────┐
+│                                                                    │
+│ Parent email           alanw@example.com                  [ + ]    │
+│                                                                    │
+│ Guardian phone         (817) 555-0100                              │
+│   DAEP correction:     [ (817) 555-9999          ]        [ × ]    │
+│                                                                    │
+│ Emergency contact name Jane Doe                           [ + ]    │
+│ Emergency contact phone (817) 555-2000                    [ + ]    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 **Layout rules:**
 
-- **Two rows per field.** "From SIS" (read-only label) on top, "DAEP-on-file"
-  (editable input) below. Both stay visible at all times — there is no
-  "Override" toggle that hides anything.
-- **`From SIS`** displays `daep_records.<field>` (the SIS column literally).
-  Read-only here; intake never writes to it. Shows "—" when NULL.
-- **`DAEP-on-file`** is an always-editable input prefilled with the current
-  `<field>_intake` value when present, else blank. Whatever the coordinator
-  leaves in this input at submit is the value sent for `<field>_intake`.
-  Empty string → null (no change to existing `_intake` on the DB side; see
-  routing rules below).
-- **New students:** the "From SIS" row reads "—" (the row stays for layout
-  consistency); the DAEP-on-file input is the only place to type.
-- **Visual differentiation:** the "From SIS" line is rendered as muted/gray
-  reference text; the DAEP-on-file input is a normal form field. No badge
-  needed — the row labels carry the meaning.
+- **SIS row** displays `daep_records.<field>` (the SIS column literally) as
+  muted/read-only text. Shows "—" when NULL. Never an input target.
+- **`+` button** is shown at the end of the SIS row whenever no correction
+  input is open and no prior `_intake` value exists. Clicking `+` reveals the
+  inline DAEP-correction input below the SIS row.
+- **Inline correction input** appears under the SIS row when:
+  1. The coordinator just clicked `+`, **or**
+  2. A `_intake` value already exists for this field (load it prefilled, so
+     the prior correction is visible without an extra click — "no surprises").
+  In both cases the input is the only place to type, and a `×` button at the
+  end clears the input. Clearing + submit reverts a prior `_intake` to NULL
+  (display falls back to SIS).
+- **New students:** SIS row shows "—". The `+` button still works the same;
+  there's no special-case UI.
+- **Emergency contact** is two fields (`emergency_contact_name`,
+  `emergency_contact_phone`) but presents as one section in the UI. Each has
+  its own `+` / `×` and its own `_intake` column.
 
 **Routing rules (data layer — what hits the DB):**
 
-| Coordinator action | Form input state at submit | What gets written |
+| Coordinator action | Submitted value | What gets written |
 |---|---|---|
-| Leaves DAEP-on-file blank (no prior `_intake`) | `""` / null | Nothing for this field |
-| Leaves DAEP-on-file blank (prior `_intake` exists) | shows the prior `_intake` value (prefilled) | Re-writes same `_intake` value (no-op) |
-| Edits DAEP-on-file | new string | `<field>_intake = <new string>`, stamp `demographics_updated_at` / `_by` |
-| Clears DAEP-on-file (had prior `_intake`) | `""` | `<field>_intake = NULL` (revert to SIS for display) |
+| Never clicks `+` (no prior `_intake`) | not present in payload | Nothing for this field |
+| Clicks `+`, types value | new string | `<field>_intake = <new string>`; stamp `demographics_updated_at` / `_by` |
+| Clicks `+`, opens input, types nothing, submits | `""` | Nothing for this field (treated as cancel) |
+| Existing `_intake` shown, leaves it alone | shows prior `_intake` value | Re-writes same value (idempotent no-op at DB level) |
+| Existing `_intake` shown, edits it | new string | `<field>_intake = <new string>`; stamp |
+| Existing `_intake` shown, clicks `×` and submits | `""` | `<field>_intake = NULL` (correction removed; display reverts to SIS) |
 | Anything | — | **SIS column is never written from this form** |
 
-The "From SIS" column is **never** an input target. The only path that writes
-to a SIS contact column is a future SIS sync (and the one-time Phase A
-backfill).
+The SIS contact columns are never an input target from this form. The only
+paths that write to a SIS column are a future SIS sync (Epic 5) and the
+one-time Phase A backfill.
 
 The submit handler adds the four optional `*_intake` strings (or nulls) to the
 `createPlacement` input.
@@ -375,28 +389,36 @@ only), a `daep_placements` row, and `daep_records.trespass_record_id` is set;
 **AC-B-3: Repeat student detection.**
 Given an existing `daep_records` row for `(tenant_id, school_id)`, when the
 coordinator types that Student ID in the queue completion screen, then the
-existing student card surfaces with prior-placement count and the parent
-contact info section renders both rows per field: a read-only "From SIS"
-value (`daep_records.<field>`) and an editable "DAEP-on-file" input
-prefilled with `daep_records.<field>_intake` (blank if NULL).
+existing student card surfaces with prior-placement count. The parent
+contact info section renders one row per field showing the SIS value, with
+a `+` button to add a DAEP correction. For any field where
+`daep_records.<field>_intake` is already non-NULL, the inline correction
+input is auto-expanded with the prior value prefilled so it's visible
+without an extra click.
 
 **AC-B-4: Intake-time correction.**
-Given a coordinator edits the "DAEP-on-file" guardian-phone input (existing
-student) or fills it for the first time (new student) and submits, then
-`daep_records.guardian_phone_intake` is set to the entered value,
-`daep_records.guardian_phone` (SIS) is unchanged (or NULL for the new-student
-case), and `daep_records.demographics_updated_at` / `_by` are stamped. In a
-both-modules tenant, `trespass_records.guardian_phone` is also unchanged.
-The "From SIS" row stays visible (not hidden) after the edit. *(Confirms
-parent spec §10 Q2a — no push-through to trespass; confirms Phase B Q2 —
-`_intake` is the destination even at create.)*
+Given a coordinator clicks `+` on guardian phone, types a value, and submits
+(existing or new student), then `daep_records.guardian_phone_intake` is set
+to the entered value, `daep_records.guardian_phone` (SIS) is unchanged (or
+NULL for the new-student case), and `daep_records.demographics_updated_at` /
+`_by` are stamped. In a both-modules tenant,
+`trespass_records.guardian_phone` is also unchanged. The SIS row stays
+visible above the correction input throughout. *(Confirms parent spec §10
+Q2a — no push-through to trespass; confirms Phase B Q2 — `_intake` is the
+destination even at create.)*
 
 **AC-B-4b: Revert a correction.**
-Given a `daep_records` row where `guardian_phone_intake` is non-NULL and
-`guardian_phone` (SIS) is non-NULL, when the coordinator clears the
-"DAEP-on-file" input and submits, then `guardian_phone_intake` is set to
-NULL, the SIS value is untouched, and downstream resolved-value displays
-fall back to the SIS value.
+Given a `daep_records` row where `guardian_phone_intake` is non-NULL, when
+the coordinator clicks `×` on the open guardian-phone correction input and
+submits with the input empty, then `guardian_phone_intake` is set to NULL,
+the SIS value is untouched, and downstream resolved-value displays fall
+back to the SIS value.
+
+**AC-B-4c: Open-but-empty is a cancel.**
+Given a coordinator clicks `+` on parent email, opens the input, types
+nothing, then submits, then no write happens for `parent_email_intake` (the
+empty input is treated as cancel, not as "revert to NULL"). This preserves
+the "never touch DB unless intent is clear" rule.
 
 **AC-B-5: Live module toggle.**
 Given a super-admin removes `'trespass'` from `tenants.enabled_modules` for
@@ -428,9 +450,11 @@ Credentialed env (you):
 3. **Repeat student.** Complete a second placement for the same `school_id` in a
    standalone tenant. Verify the queue completion screen shows "prior placements:
    1" and the resolved contact info.
-4. **Correction capture.** Click Override on guardian phone, enter a new value,
-   submit. Verify `daep_records.guardian_phone_intake` set, SIS field unchanged,
-   `demographics_updated_at` stamped.
+4. **Correction capture.** Click `+` on guardian phone, type a new value, submit.
+   Verify `daep_records.guardian_phone_intake` set, SIS column unchanged,
+   `demographics_updated_at` stamped. Re-open the placement; the correction
+   input should be auto-expanded with the prior value prefilled (AC-B-3).
+   Click `×`, submit empty. Verify `guardian_phone_intake = NULL` (AC-B-4b).
 5. **Live toggle.** With the super-admin tenants page (or a temporary SQL
    update), flip `enabled_modules` from `{trespass,daep}` to `{daep}` on a test
    tenant. Without redeploying, run another intake. Verify trespass writes are
@@ -473,7 +497,50 @@ Credentialed env (you):
 
 ---
 
-## 11. Effort estimate
+## 11. Reconciliation handoff (Epic 5)
+
+Phase B's `*_intake` columns are the persistence mechanism for the
+"banking-reconciliation"-style override pattern described in
+`docs/sessions/product-brief-DAEPManagement-2025-11-24.md` ("Manual override
+capability — corrections persist across imports") and
+`docs/sessions/decisions-2025-12-13-epic5-reconciliation.md` (Story 5-5,
+the side-by-side reconciliation review page).
+
+Phase B captures the correction; it does **not** decide who wins on
+divergence. Every difference between `daep_records.<field>` (SIS) and
+`daep_records.<field>_intake` (DAEP correction) flows through the Epic 5
+reconciliation process.
+
+**Contract for Epic 5 / CSV import implementers:**
+
+1. **Imports write only to SIS columns** (`parent_email`, `guardian_phone`,
+   `emergency_contact_name`, `emergency_contact_phone`). Never touch any
+   `*_intake` column from an import.
+2. **Never compare against `_intake` when deciding whether to write the SIS
+   column.** A new SIS value always overwrites the old SIS value, regardless
+   of whether a `_intake` correction exists. Imports are the source of truth
+   for the SIS column.
+3. **Surface divergence on the reconciliation review page** for any row
+   where `SIS column IS NOT NULL AND _intake IS NOT NULL AND SIS column !=
+   _intake`. Empty `_intake` means no correction → not a divergence.
+4. **Reconciliation page actions** (Story 5-5):
+   - "Accept SIS, drop correction" → set `<field>_intake = NULL`, stamp
+     `demographics_updated_at` / `_by` with the reviewing user.
+   - "Keep DAEP correction" → no DB write; the next display still resolves
+     to `_intake ?? sis` so the correction continues to win.
+   - "Replace correction with this new SIS value as the correction" (i.e.,
+     copy SIS → `_intake`) → set `<field>_intake = <field>` then NULL out
+     `_intake`. This is a rare path; provide it only if the UX warrants it.
+5. **No "reconciliation toggle" is needed in the data model.** The presence
+   of `_intake` *is* the persistent override. Phase B intentionally does
+   not add a separate boolean for this.
+
+This section is informational for Phase B (no code changes here) and
+authoritative for whoever picks up Story 5-5.
+
+---
+
+## 12. Effort estimate
 
 - **Story points:** 5
 - **Tasks:** 6 (helper + 4 server actions + 1 UI)
