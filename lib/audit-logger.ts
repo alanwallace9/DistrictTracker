@@ -43,6 +43,7 @@ export type AuditEventType =
   | 'placement.rollover_decision'
   | 'student.profile_viewed'
   | 'student.quick_created'
+  | 'student.daep_created'
   | 'room.assignment_changed'
   | 'student.separation_added'
   | 'student.separation_removed'

@@ -22,7 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, Search, CalendarDays, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Search, CalendarDays, AlertCircle, Loader2, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import {
   getDisciplineCodesForForm,
@@ -32,7 +32,7 @@ import {
   checkDuplicatePlacement,
   createPlacement,
   getExpectedEndDatePreview,
-  createQuickStudent,
+  createDaepStudent,
   findPossibleStudentMatches,
   getOffenseCodesForForm,
   getLocationCodesForOffense,
@@ -118,6 +118,28 @@ function NewPlacementForm() {
   const [existingMatch, setExistingMatch] = useState<IntakeStudentLookup | null>(null);
   const [lookingUpStudent, setLookingUpStudent] = useState(false);
 
+  // Parent contact info corrections (Phase B). One open/value pair per field.
+  // The "open" flag tracks whether the inline correction input is visible.
+  // The "value" is what we send to *_intake on submit. Empty + open = cancel
+  // (no write). Empty + had-prior = revert (NULL out _intake).
+  type ContactField =
+    | 'parent_email'
+    | 'guardian_phone'
+    | 'emergency_contact_name'
+    | 'emergency_contact_phone';
+  const [contactOpen, setContactOpen] = useState<Record<ContactField, boolean>>({
+    parent_email: false,
+    guardian_phone: false,
+    emergency_contact_name: false,
+    emergency_contact_phone: false,
+  });
+  const [contactValues, setContactValues] = useState<Record<ContactField, string>>({
+    parent_email: '',
+    guardian_phone: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+  });
+
   // New student dialog
   const [showNewStudentDialog, setShowNewStudentDialog] = useState(false);
   const [newStudentForm, setNewStudentForm] = useState({
@@ -184,13 +206,41 @@ function NewPlacementForm() {
   useEffect(() => {
     if (!queueId || !queueStudentId.trim()) {
       setExistingMatch(null);
+      setContactOpen({
+        parent_email: false,
+        guardian_phone: false,
+        emergency_contact_name: false,
+        emergency_contact_phone: false,
+      });
+      setContactValues({
+        parent_email: '',
+        guardian_phone: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+      });
       return;
     }
     setLookingUpStudent(true);
     const timer = setTimeout(async () => {
       try {
         const result = await lookupStudentForIntake(queueStudentId);
-        setExistingMatch(result.exists ? result : null);
+        const match = result.exists ? result : null;
+        setExistingMatch(match);
+        // Auto-expand any field that already has a captured correction so the
+        // coordinator sees prior _intake values without an extra click.
+        const open = {
+          parent_email: !!match?.parent_email_intake,
+          guardian_phone: !!match?.guardian_phone_intake,
+          emergency_contact_name: !!match?.emergency_contact_name_intake,
+          emergency_contact_phone: !!match?.emergency_contact_phone_intake,
+        };
+        setContactOpen(open);
+        setContactValues({
+          parent_email: match?.parent_email_intake ?? '',
+          guardian_phone: match?.guardian_phone_intake ?? '',
+          emergency_contact_name: match?.emergency_contact_name_intake ?? '',
+          emergency_contact_phone: match?.emergency_contact_phone_intake ?? '',
+        });
       } catch (error) {
         console.error('Error looking up student:', error);
         setExistingMatch(null);
@@ -389,7 +439,7 @@ function NewPlacementForm() {
   const handleCreateNewStudent = async () => {
     setCreatingStudent(true);
     try {
-      const result = await createQuickStudent({
+      const result = await createDaepStudent({
         school_id: newStudentForm.school_id,
         first_name: newStudentForm.first_name,
         last_name: newStudentForm.last_name,
@@ -453,6 +503,23 @@ function NewPlacementForm() {
 
     setSubmitting(true);
 
+    // Resolve each *_intake field per Phase B routing rules:
+    //   - input not open, no prior _intake          → undefined (no write)
+    //   - input open, has value                     → the value (new _intake)
+    //   - input open, empty, prior _intake exists   → null (revert to SIS)
+    //   - input open, empty, no prior _intake       → undefined (cancel)
+    const resolveIntake = (
+      field: ContactField,
+      prior: string | null
+    ): string | null | undefined => {
+      if (!contactOpen[field]) {
+        return prior ? prior : undefined;
+      }
+      const trimmed = contactValues[field].trim();
+      if (trimmed) return trimmed;
+      return prior ? null : undefined;
+    };
+
     try {
       const result = await createPlacement({
         school_id: selectedStudent.school_id,
@@ -466,12 +533,22 @@ function NewPlacementForm() {
         mandatory_placement: mandatoryPlacement,
         home_campus_id: homeCampusId,
         intake_notes: intakeNotes || undefined,
-        // Identity for creating the trespass record if it doesn't exist yet
+        // Identity for creating the daep_records row if one doesn't exist yet
         // (ignored when the student already exists).
         student_first_name: selectedStudent.first_name,
         student_last_name: selectedStudent.last_name,
         student_grade_level: selectedStudent.grade_level ?? undefined,
         student_current_school: selectedStudent.current_school ?? undefined,
+        parent_email_intake: resolveIntake('parent_email', existingMatch?.parent_email_intake ?? null),
+        guardian_phone_intake: resolveIntake('guardian_phone', existingMatch?.guardian_phone_intake ?? null),
+        emergency_contact_name_intake: resolveIntake(
+          'emergency_contact_name',
+          existingMatch?.emergency_contact_name_intake ?? null
+        ),
+        emergency_contact_phone_intake: resolveIntake(
+          'emergency_contact_phone',
+          existingMatch?.emergency_contact_phone_intake ?? null
+        ),
       });
 
       if (result.success) {
@@ -636,6 +713,115 @@ function NewPlacementForm() {
                   )}
                 </>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Parent contact info (Phase B). Always shown in queue-mode. Each
+            field has a read-only SIS row and an inline +/× DAEP correction
+            input that writes to <field>_intake. SIS columns are never
+            edited from this form. */}
+        {queueId && queueStudentId.trim() && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Parent contact info</CardTitle>
+              <CardDescription>
+                Click <Plus className="inline h-3 w-3" /> to add a DAEP correction. SIS values are
+                never overwritten; any divergence is surfaced on the reconciliation review page
+                after the next import.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(
+                [
+                  {
+                    field: 'parent_email' as const,
+                    label: 'Parent email',
+                    type: 'email',
+                    placeholder: 'parent@example.com',
+                  },
+                  {
+                    field: 'guardian_phone' as const,
+                    label: 'Guardian phone',
+                    type: 'tel',
+                    placeholder: '(555) 123-4567',
+                  },
+                  {
+                    field: 'emergency_contact_name' as const,
+                    label: 'Emergency contact name',
+                    type: 'text',
+                    placeholder: 'Full name',
+                  },
+                  {
+                    field: 'emergency_contact_phone' as const,
+                    label: 'Emergency contact phone',
+                    type: 'tel',
+                    placeholder: '(555) 123-4567',
+                  },
+                ] as const
+              ).map(({ field, label, type, placeholder }) => {
+                const sisValue =
+                  (existingMatch?.[`${field}_sis` as keyof IntakeStudentLookup] as
+                    | string
+                    | null) ?? null;
+                const isOpen = contactOpen[field];
+                return (
+                  <div key={field} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {label}
+                        </Label>
+                        <p className="truncate text-sm">
+                          <span className="text-muted-foreground">From SIS:</span>{' '}
+                          <span className={sisValue ? '' : 'italic text-muted-foreground'}>
+                            {sisValue || '—'}
+                          </span>
+                        </p>
+                      </div>
+                      {!isOpen && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setContactOpen((prev) => ({ ...prev, [field]: true }))
+                          }
+                          className="inline-flex h-7 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          aria-label={`Add DAEP correction for ${label}`}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {isOpen && (
+                      <div className="flex items-center gap-2 pl-3">
+                        <Label className="shrink-0 text-xs text-muted-foreground">
+                          DAEP correction:
+                        </Label>
+                        <Input
+                          type={type}
+                          value={contactValues[field]}
+                          onChange={(e) =>
+                            setContactValues((prev) => ({ ...prev, [field]: e.target.value }))
+                          }
+                          placeholder={placeholder}
+                          className="h-8 flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContactOpen((prev) => ({ ...prev, [field]: false }));
+                            setContactValues((prev) => ({ ...prev, [field]: '' }));
+                          }}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          aria-label={`Discard DAEP correction for ${label}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         )}

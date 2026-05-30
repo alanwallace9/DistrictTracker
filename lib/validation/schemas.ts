@@ -358,12 +358,18 @@ export const CreatePlacementSchema = z.object({
   home_campus_id: z.string().min(1, 'Home campus is required'),
   assigning_campus_id: z.string().optional(),
   intake_notes: z.string().max(2000, 'Notes too long').optional(),
-  // Student identity — used to create the trespass record when one does not yet
-  // exist for school_id. The placement is what creates the student record.
+  // Student identity — used to create the daep_records row when one does not
+  // yet exist for school_id. The placement is what creates the student record.
   student_first_name: z.string().max(100, 'First name too long').optional(),
   student_last_name: z.string().max(100, 'Last name too long').optional(),
   student_grade_level: z.number().int().min(1).max(12).nullable().optional(),
   student_current_school: z.string().max(200).nullable().optional(),
+  // Intake-captured contact corrections. Always route to *_intake columns on
+  // daep_records; SIS columns are never written from the intake form.
+  parent_email_intake: z.string().email('Invalid email').nullable().optional(),
+  guardian_phone_intake: z.string().max(50).nullable().optional(),
+  emergency_contact_name_intake: z.string().max(200).nullable().optional(),
+  emergency_contact_phone_intake: z.string().max(50).nullable().optional(),
 });
 
 export type CreatePlacementInput = z.infer<typeof CreatePlacementSchema>;
@@ -379,6 +385,11 @@ export const QuickStudentSchema = z.object({
   grade_level: z.number().int().min(1).max(12).nullable().optional(),
   current_school: z.string().max(200).nullable().optional(),
   campus_id: z.string().max(50).nullable().optional(),
+  // Contact corrections (intake-time only). Always route to *_intake columns.
+  parent_email_intake: z.string().email('Invalid email').nullable().optional(),
+  guardian_phone_intake: z.string().max(50).nullable().optional(),
+  emergency_contact_name_intake: z.string().max(200).nullable().optional(),
+  emergency_contact_phone_intake: z.string().max(50).nullable().optional(),
 });
 
 export type QuickStudentInput = z.infer<typeof QuickStudentSchema>;

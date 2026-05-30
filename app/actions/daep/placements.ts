@@ -26,6 +26,7 @@ import {
 } from '@/lib/validation/schemas';
 import { calculateExpectedEndDate, calculateDaysInfo, type DaysInfo } from '@/lib/daep/days-remaining';
 import { isValidTransition, getValidTransitions } from '@/lib/daep/placement-state-machine';
+import { tenantHasTrespass } from '@/lib/daep/modules';
 import { getTenantId } from '@/lib/tenant';
 
 // ========== TYPES ==========
@@ -186,6 +187,21 @@ export interface IntakeStudentLookup {
   current_school: string | null;
   prior_placement_count: number;
   has_active_placement: boolean;
+  // Dual-field contact triples: raw SIS column, raw _intake column, and a
+  // resolved (intake ?? sis) value for read-only display surfaces. The intake
+  // form binds the +/× UX to the _sis / _intake pair. See Phase B spec §4.1.
+  parent_email_sis: string | null;
+  parent_email_intake: string | null;
+  parent_email: string | null;
+  guardian_phone_sis: string | null;
+  guardian_phone_intake: string | null;
+  guardian_phone: string | null;
+  emergency_contact_name_sis: string | null;
+  emergency_contact_name_intake: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone_sis: string | null;
+  emergency_contact_phone_intake: string | null;
+  emergency_contact_phone: string | null;
 }
 
 /**
@@ -204,6 +220,18 @@ export async function lookupStudentForIntake(
     current_school: null,
     prior_placement_count: 0,
     has_active_placement: false,
+    parent_email_sis: null,
+    parent_email_intake: null,
+    parent_email: null,
+    guardian_phone_sis: null,
+    guardian_phone_intake: null,
+    guardian_phone: null,
+    emergency_contact_name_sis: null,
+    emergency_contact_name_intake: null,
+    emergency_contact_name: null,
+    emergency_contact_phone_sis: null,
+    emergency_contact_phone_intake: null,
+    emergency_contact_phone: null,
   };
 
   if (!schoolId || !schoolId.trim()) return empty;
@@ -213,8 +241,14 @@ export async function lookupStudentForIntake(
   const id = schoolId.trim();
 
   const { data: student } = await supabase
-    .from('trespass_records')
-    .select('first_name, last_name, grade_level, current_school')
+    .from('daep_records')
+    .select(
+      `first_name, last_name, grade_level, current_school,
+       parent_email, parent_email_intake,
+       guardian_phone, guardian_phone_intake,
+       emergency_contact_name, emergency_contact_name_intake,
+       emergency_contact_phone, emergency_contact_phone_intake`
+    )
     .eq('tenant_id', tenantId)
     .eq('school_id', id)
     .maybeSingle();
@@ -237,6 +271,20 @@ export async function lookupStudentForIntake(
     has_active_placement: (placements || []).some((p) =>
       ['pending', 'active', 'met'].includes(p.status)
     ),
+    parent_email_sis: student.parent_email,
+    parent_email_intake: student.parent_email_intake,
+    parent_email: student.parent_email_intake ?? student.parent_email,
+    guardian_phone_sis: student.guardian_phone,
+    guardian_phone_intake: student.guardian_phone_intake,
+    guardian_phone: student.guardian_phone_intake ?? student.guardian_phone,
+    emergency_contact_name_sis: student.emergency_contact_name,
+    emergency_contact_name_intake: student.emergency_contact_name_intake,
+    emergency_contact_name:
+      student.emergency_contact_name_intake ?? student.emergency_contact_name,
+    emergency_contact_phone_sis: student.emergency_contact_phone,
+    emergency_contact_phone_intake: student.emergency_contact_phone_intake,
+    emergency_contact_phone:
+      student.emergency_contact_phone_intake ?? student.emergency_contact_phone,
   };
 }
 
@@ -251,9 +299,9 @@ export async function searchStudentsForPlacement(
   const tenantId = await getTenantId();
   const searchTerm = query.trim().toLowerCase();
 
-  // Search trespass_records for students
+  // Search daep_records for students (canonical DAEP identity post-Phase B)
   const { data: students, error } = await supabase
-    .from('trespass_records')
+    .from('daep_records')
     .select('school_id, first_name, last_name, grade_level, current_school')
     .eq('tenant_id', tenantId)
     .or(
@@ -314,7 +362,7 @@ export async function findPossibleStudentMatches(
   const tenantId = await getTenantId();
 
   const { data: students, error } = await supabase
-    .from('trespass_records')
+    .from('daep_records')
     .select('school_id, first_name, last_name, grade_level, current_school')
     .eq('tenant_id', tenantId)
     .ilike('first_name', first)
@@ -539,37 +587,45 @@ export async function createPlacement(
       };
     }
 
-    // 2b. Ensure a student (trespass) record exists. In DAEP, the placement is
-    // what brings the student into the system, so create the record here when
-    // it does not exist yet. Returning students keep their existing school_id.
-    const { data: existingStudent } = await supabase
-      .from('trespass_records')
-      .select('school_id')
-      .eq('tenant_id', tenantId)
-      .eq('school_id', data.school_id)
-      .maybeSingle();
+    // 2b. Ensure a daep_records row exists (canonical DAEP identity). Capture
+    // any contact-info corrections from the intake form into the *_intake
+    // columns. SIS contact columns are never written from intake.
+    const daepEnsure = await ensureDaepRecord({
+      tenantId,
+      userId: user.id,
+      school_id: data.school_id,
+      first_name: data.student_first_name,
+      last_name: data.student_last_name,
+      grade_level: data.student_grade_level ?? null,
+      current_school: data.student_current_school ?? null,
+      home_campus_id: data.home_campus_id || null,
+      parent_email_intake: data.parent_email_intake ?? null,
+      guardian_phone_intake: data.guardian_phone_intake ?? null,
+      emergency_contact_name_intake: data.emergency_contact_name_intake ?? null,
+      emergency_contact_phone_intake: data.emergency_contact_phone_intake ?? null,
+    });
+    if (!daepEnsure.success) {
+      return { success: false, error: daepEnsure.error };
+    }
 
-    if (!existingStudent) {
-      if (!data.student_first_name || !data.student_last_name) {
-        return {
-          success: false,
-          error: 'Student name is required to create the placement record',
-        };
-      }
-      const createdStudent = await createQuickStudent({
+    // 2c. In tenants that also run the trespass module, mirror the student
+    // into trespass_records and link the two records. Standalone DAEP-only
+    // tenants skip this entirely.
+    if (await tenantHasTrespass(tenantId)) {
+      const trespassEnsure = await ensureTrespassRecord({
+        tenantId,
+        userId: user.id,
         school_id: data.school_id,
         first_name: data.student_first_name,
         last_name: data.student_last_name,
         grade_level: data.student_grade_level ?? null,
         current_school: data.student_current_school ?? null,
-        campus_id: data.home_campus_id || null,
+        home_campus_id: data.home_campus_id || null,
       });
-      if (!createdStudent.success) {
-        return {
-          success: false,
-          error: createdStudent.error || 'Failed to create student record',
-        };
+      if (!trespassEnsure.success) {
+        return { success: false, error: trespassEnsure.error };
       }
+      await linkDaepToTrespass(tenantId, data.school_id);
     }
 
     // 3. Check if offense + location combo requires mandatory placement
@@ -592,7 +648,7 @@ export async function createPlacement(
 
     // 5. Get student name for audit log
     const { data: student } = await supabase
-      .from('trespass_records')
+      .from('daep_records')
       .select('first_name, last_name')
       .eq('tenant_id', tenantId)
       .eq('school_id', data.school_id)
@@ -687,7 +743,7 @@ export async function getExpectedEndDatePreview(
   };
 }
 
-// ========== CREATE QUICK STUDENT (AC 2.4.10) ==========
+// ========== CREATE DAEP STUDENT (Phase B; replaces createQuickStudent) ==========
 
 export interface QuickStudentResult {
   success: boolean;
@@ -696,7 +752,7 @@ export interface QuickStudentResult {
   errorCode?: string;
 }
 
-export async function createQuickStudent(
+export async function createDaepStudent(
   input: QuickStudentInput
 ): Promise<QuickStudentResult> {
   const supabase = await createServerClient();
@@ -706,7 +762,6 @@ export async function createQuickStudent(
     return { success: false, error: 'Unauthorized', errorCode: 'DM-00601' };
   }
 
-  // Validate input
   const validation = QuickStudentSchema.safeParse(input);
   if (!validation.success) {
     return {
@@ -720,9 +775,8 @@ export async function createQuickStudent(
   const tenantId = await getTenantId();
 
   try {
-    // Check if student ID already exists
     const { data: existing } = await supabase
-      .from('trespass_records')
+      .from('daep_records')
       .select('school_id')
       .eq('tenant_id', tenantId)
       .eq('school_id', data.school_id)
@@ -736,30 +790,39 @@ export async function createQuickStudent(
       };
     }
 
-    // Create minimal trespass record for this student
+    const hasIntake =
+      data.parent_email_intake ||
+      data.guardian_phone_intake ||
+      data.emergency_contact_name_intake ||
+      data.emergency_contact_phone_intake;
+
     const { data: newStudent, error } = await supabase
-      .from('trespass_records')
+      .from('daep_records')
       .insert({
         tenant_id: tenantId,
-        user_id: user.id, // Required: Clerk ID of admin who created the record (audit trail)
         school_id: data.school_id,
         first_name: data.first_name,
         last_name: data.last_name,
         grade_level: data.grade_level || null,
         current_school: data.current_school || null,
-        campus_id: data.campus_id || null,
-        is_current_student: true, // This is a current district student
-        is_daep: false, // Not in DAEP yet - placement creation will set this
+        home_campus_id: data.campus_id || null,
         status: 'active',
-        created_via: 'manual', // Audit: created via admin UI
-        // Set a far-future expiration so they show in searches
-        expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        created_via: 'manual',
+        created_by: user.id,
+        // Strict routing: contact corrections go to *_intake only. SIS columns
+        // stay NULL until a real SIS sync provides them.
+        parent_email_intake: data.parent_email_intake || null,
+        guardian_phone_intake: data.guardian_phone_intake || null,
+        emergency_contact_name_intake: data.emergency_contact_name_intake || null,
+        emergency_contact_phone_intake: data.emergency_contact_phone_intake || null,
+        demographics_updated_at: hasIntake ? new Date().toISOString() : null,
+        demographics_updated_by: hasIntake ? user.id : null,
       })
       .select('school_id, first_name, last_name, grade_level, current_school')
       .single();
 
     if (error) {
-      console.error('Error creating student (DM-00101):', error);
+      console.error('Error creating DAEP student (DM-00101):', error);
       return {
         success: false,
         error: 'Failed to create student record. If this persists, contact support with code DM-00101.',
@@ -767,13 +830,28 @@ export async function createQuickStudent(
       };
     }
 
-    // Log audit event
+    if (await tenantHasTrespass(tenantId)) {
+      const trespass = await ensureTrespassRecord({
+        tenantId,
+        userId: user.id,
+        school_id: data.school_id,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        grade_level: data.grade_level ?? null,
+        current_school: data.current_school ?? null,
+        home_campus_id: data.campus_id ?? null,
+      });
+      if (trespass.success) {
+        await linkDaepToTrespass(tenantId, data.school_id);
+      }
+    }
+
     await logAuditEvent({
-      eventType: 'student.quick_created',
+      eventType: 'student.daep_created',
       module: 'daep_management',
       actorId: user.id,
       targetId: newStudent.school_id,
-      action: `Created student record for ${data.first_name} ${data.last_name} via placement form`,
+      action: `Created DAEP student record for ${data.first_name} ${data.last_name} via placement form`,
       recordSubjectName: `${data.first_name} ${data.last_name}`,
       recordSchoolId: data.school_id,
       tenantId,
@@ -791,13 +869,228 @@ export async function createQuickStudent(
       },
     };
   } catch (err) {
-    console.error('Error in createQuickStudent (SY-00001):', err);
+    console.error('Error in createDaepStudent (SY-00001):', err);
     return {
       success: false,
       error: 'An unexpected error occurred. If this persists, contact support with code SY-00001.',
       errorCode: 'SY-00001',
     };
   }
+}
+
+// ========== ENSURE / LINK HELPERS (Phase B) ==========
+
+interface EnsureDaepRecordInput {
+  tenantId: string;
+  userId: string;
+  school_id: string;
+  first_name?: string;
+  last_name?: string;
+  grade_level?: number | null;
+  current_school?: string | null;
+  home_campus_id?: string | null;
+  parent_email_intake?: string | null;
+  guardian_phone_intake?: string | null;
+  emergency_contact_name_intake?: string | null;
+  emergency_contact_phone_intake?: string | null;
+}
+
+async function ensureDaepRecord(
+  input: EnsureDaepRecordInput
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const { tenantId, userId, school_id } = input;
+
+  const { data: existing } = await supabase
+    .from('daep_records')
+    .select(
+      `id, created_via,
+       parent_email, parent_email_intake,
+       guardian_phone, guardian_phone_intake,
+       emergency_contact_name, emergency_contact_name_intake,
+       emergency_contact_phone, emergency_contact_phone_intake`
+    )
+    .eq('tenant_id', tenantId)
+    .eq('school_id', school_id)
+    .maybeSingle();
+
+  // Whether the coordinator changed any contact-info field (open input vs.
+  // empty input is treated as a no-op upstream; here we only act on
+  // non-undefined values).
+  const intakeUpdates: Record<string, string | null> = {};
+  const setIfChanged = (
+    key: 'parent_email_intake' | 'guardian_phone_intake' | 'emergency_contact_name_intake' | 'emergency_contact_phone_intake',
+    incoming: string | null | undefined,
+    current: string | null
+  ) => {
+    if (incoming === undefined) return;
+    const normalized = incoming === '' ? null : incoming;
+    if (normalized !== current) intakeUpdates[key] = normalized;
+  };
+
+  if (existing) {
+    setIfChanged('parent_email_intake', input.parent_email_intake, existing.parent_email_intake);
+    setIfChanged('guardian_phone_intake', input.guardian_phone_intake, existing.guardian_phone_intake);
+    setIfChanged(
+      'emergency_contact_name_intake',
+      input.emergency_contact_name_intake,
+      existing.emergency_contact_name_intake
+    );
+    setIfChanged(
+      'emergency_contact_phone_intake',
+      input.emergency_contact_phone_intake,
+      existing.emergency_contact_phone_intake
+    );
+
+    if (Object.keys(intakeUpdates).length > 0) {
+      const { error: updateErr } = await supabase
+        .from('daep_records')
+        .update({
+          ...intakeUpdates,
+          demographics_updated_at: new Date().toISOString(),
+          demographics_updated_by: userId,
+        })
+        .eq('tenant_id', tenantId)
+        .eq('school_id', school_id);
+      if (updateErr) {
+        console.error('Error updating daep_records corrections:', updateErr);
+        return { success: false, error: 'Failed to save contact corrections' };
+      }
+    }
+    return { success: true };
+  }
+
+  if (!input.first_name || !input.last_name) {
+    return {
+      success: false,
+      error: 'Student name is required to create the placement record',
+    };
+  }
+
+  const hasIntake =
+    input.parent_email_intake ||
+    input.guardian_phone_intake ||
+    input.emergency_contact_name_intake ||
+    input.emergency_contact_phone_intake;
+
+  const { error: insertErr } = await supabase
+    .from('daep_records')
+    .insert({
+      tenant_id: tenantId,
+      school_id,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      grade_level: input.grade_level ?? null,
+      current_school: input.current_school ?? null,
+      home_campus_id: input.home_campus_id ?? null,
+      status: 'active',
+      created_via: 'manual',
+      created_by: userId,
+      parent_email_intake: input.parent_email_intake || null,
+      guardian_phone_intake: input.guardian_phone_intake || null,
+      emergency_contact_name_intake: input.emergency_contact_name_intake || null,
+      emergency_contact_phone_intake: input.emergency_contact_phone_intake || null,
+      demographics_updated_at: hasIntake ? new Date().toISOString() : null,
+      demographics_updated_by: hasIntake ? userId : null,
+    });
+
+  if (insertErr) {
+    console.error('Error inserting daep_records row:', insertErr);
+    return { success: false, error: 'Failed to create student record' };
+  }
+
+  await logAuditEvent({
+    eventType: 'student.daep_created',
+    module: 'daep_management',
+    actorId: userId,
+    targetId: school_id,
+    action: `Created DAEP student record for ${input.first_name} ${input.last_name} via intake completion`,
+    recordSubjectName: `${input.first_name} ${input.last_name}`,
+    recordSchoolId: school_id,
+    tenantId,
+  });
+
+  return { success: true };
+}
+
+interface EnsureTrespassRecordInput {
+  tenantId: string;
+  userId: string;
+  school_id: string;
+  first_name?: string;
+  last_name?: string;
+  grade_level?: number | null;
+  current_school?: string | null;
+  home_campus_id?: string | null;
+}
+
+async function ensureTrespassRecord(
+  input: EnsureTrespassRecordInput
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const { tenantId, userId, school_id } = input;
+
+  const { data: existing } = await supabase
+    .from('trespass_records')
+    .select('school_id')
+    .eq('tenant_id', tenantId)
+    .eq('school_id', school_id)
+    .maybeSingle();
+
+  if (existing) return { success: true };
+
+  if (!input.first_name || !input.last_name) {
+    return {
+      success: false,
+      error: 'Student name is required to create the trespass mirror record',
+    };
+  }
+
+  const { error: insertErr } = await supabase
+    .from('trespass_records')
+    .insert({
+      tenant_id: tenantId,
+      user_id: userId,
+      school_id,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      grade_level: input.grade_level ?? null,
+      current_school: input.current_school ?? null,
+      campus_id: input.home_campus_id ?? null,
+      is_current_student: true,
+      is_daep: false,
+      status: 'active',
+      created_via: 'manual',
+      expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+  if (insertErr) {
+    console.error('Error inserting trespass_records mirror:', insertErr);
+    return { success: false, error: 'Failed to create trespass mirror record' };
+  }
+  return { success: true };
+}
+
+async function linkDaepToTrespass(
+  tenantId: string,
+  school_id: string
+): Promise<void> {
+  const supabase = await createServerClient();
+  const { data: trespass } = await supabase
+    .from('trespass_records')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('school_id', school_id)
+    .maybeSingle();
+
+  if (!trespass?.id) return;
+
+  await supabase
+    .from('daep_records')
+    .update({ trespass_record_id: trespass.id })
+    .eq('tenant_id', tenantId)
+    .eq('school_id', school_id)
+    .is('trespass_record_id', null);
 }
 
 // ========== RECALCULATE PLACEMENT DAYS (Story 2-7, AC 2.7.5) ==========
@@ -1282,6 +1575,11 @@ export async function syncTrespassTrackerExpiration(
   const supabase = await createServerClient();
   const tenantId = await getTenantId();
 
+  // Phase B: skip entirely when the tenant doesn't have the trespass module.
+  if (!(await tenantHasTrespass(tenantId))) {
+    return { synced: false, is_daep: false, expiration_date: null };
+  }
+
   try {
     // Get all active/pending/met placements for this student
     const { data: placements, error } = await supabase
@@ -1368,6 +1666,11 @@ export async function batchSyncTrespassTracker(): Promise<BatchSyncResult> {
   }
 
   const tenantId = await getTenantId();
+
+  // Phase B: no-op for tenants without the trespass module.
+  if (!(await tenantHasTrespass(tenantId))) {
+    return { success: true, synced_count: 0, errors: [] };
+  }
 
   try {
     // Get all unique school_ids from placements
